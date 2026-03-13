@@ -1,0 +1,15 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Training artifacts
+checkpoints/
+logs/
+
+# OS / editor metadata
+*.Zone.Identifier
+.DS_Store
+
+*Zone.Identifier
