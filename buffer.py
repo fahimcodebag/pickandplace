@@ -154,26 +154,30 @@ class ReplayBuffer:
     def load(self, path='./checkpoints/td3/replay_buffer.npz'):
         if not os.path.exists(path):
             return False
-        data = np.load(path)
-        self.state_memory     = data['state_memory']
-        self.new_state_memory = data['new_state_memory']
-        self.action_memory    = data['action_memory']
-        self.reward_memory    = data['reward_memory']
-        self.terminal_memory  = data['terminal_memory']
-        self.mem_cntr         = int(data['mem_cntr'][0])
-        # Restore tree if saved with PER, otherwise rebuild uniform
-        if 'tree_data' in data:
-            self.tree.tree = data['tree_data']
-            self.tree.n_entries = min(self.mem_cntr, self.mem_size)
-            self.tree.write_idx = self.mem_cntr % self.mem_size
-            self._max_priority = float(data['max_priority'][0])
-            self.PER_B = float(data['per_b'][0])
-        else:
-            # Old buffer without PER — assign uniform max priority
-            n = min(self.mem_cntr, self.mem_size)
-            for i in range(n):
-                t_idx = i + self.tree.capacity - 1
-                self.tree.update(t_idx, 1.0)
-            self.tree.n_entries = n
-            self.tree.write_idx = self.mem_cntr % self.mem_size
+        try:
+            data = np.load(path)
+            self.state_memory     = data['state_memory']
+            self.new_state_memory = data['new_state_memory']
+            self.action_memory    = data['action_memory']
+            self.reward_memory    = data['reward_memory']
+            self.terminal_memory  = data['terminal_memory']
+            self.mem_cntr         = int(data['mem_cntr'][0])
+            # Restore tree if saved with PER, otherwise rebuild uniform
+            if 'tree_data' in data:
+                self.tree.tree = data['tree_data']
+                self.tree.n_entries = min(self.mem_cntr, self.mem_size)
+                self.tree.write_idx = self.mem_cntr % self.mem_size
+                self._max_priority = float(data['max_priority'][0])
+                self.PER_B = float(data['per_b'][0])
+            else:
+                # Old buffer without PER — assign uniform max priority
+                n = min(self.mem_cntr, self.mem_size)
+                for i in range(n):
+                    t_idx = i + self.tree.capacity - 1
+                    self.tree.update(t_idx, 1.0)
+                self.tree.n_entries = n
+                self.tree.write_idx = self.mem_cntr % self.mem_size
+        except Exception as e:
+            print(f"WARNING: Failed to load replay buffer ({e}). Starting fresh.")
+            return False
         return True
