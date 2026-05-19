@@ -1,0 +1,19 @@
+Here's the progression:
+
+V6 ran ~28K episodes in ~17 hours (still running or died at 28K). Training was solid:
+
+Phase	Episodes	Avg Score	Status
+Fixed spawn (curr=0.00)	0-500	2	Learning basics
+Opening up (curr→0.50)	500-7500	2→73	Learning reach/grasp
+Near full random (curr→0.99)	7500-15000	73→148	Reach/grasp/lift
+Full random (curr=0.99)	15000-24000	148→190 ⬆️	Still climbing!
+Full random (curr=0.99)	24000-28000	190→164 ⬇️	Starting to plateau
+The good news: V6 learned grasping from random spawns + moves slightly toward the bin (you confirmed this). The test distances (0.2-0.4m) are closer than v3 (0.5m).
+
+The bad news: Same jittering pattern — plateaus around 170-190 without completing placement.
+
+Don't rerun v6. The curriculum helped with grasping but the fundamental issue remains: the reward signal for placement is too weak relative to the reach/grasp/lift components. More episodes won't fix this.
+
+The real problem: Robosuite's built-in reward + the tiny 0.1 nudge gives insufficient gradient to navigate the lifted bread to the bin. The agent maximizes reward by hovering near the bread.
+
+Next step I'd recommend: Increase PLACEMENT_SCALE to 0.5 (not 2.0 like v4, not 0.1 like v5 — a middle ground), and warm-start from v6 weights (keeping the excellent grasping skill). Want me to try this?

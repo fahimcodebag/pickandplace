@@ -1,0 +1,1331 @@
+Episode 20050 | Score:  238.558 | Avg:  204.805 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20100 | Score:  243.055 | Avg:  204.182 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20150 | Score:  186.149 | Avg:  218.771 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20200 | Score:  233.489 | Avg:  219.355 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20250 | Score:  219.392 | Avg:  211.149 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20300 | Score:  221.713 | Avg:  213.802 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20350 | Score:  231.957 | Avg:  220.352 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20400 | Score:  226.965 | Avg:  219.584 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20450 | Score:   27.538 | Avg:  215.801 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20500 | Score:  221.481 | Avg:  207.933 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 20500: Avg=207.933, Buffer=4,000,000
+
+
+
+Episode 20550 | Score:  234.352 | Avg:  210.218 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20600 | Score:  216.049 | Avg:  213.287 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20650 | Score:  236.799 | Avg:  217.504 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20700 | Score:  234.138 | Avg:  223.995 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20750 | Score:  235.169 | Avg:  218.726 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20800 | Score:  239.295 | Avg:  216.422 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20850 | Score:  238.577 | Avg:  223.667 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20900 | Score:  236.063 | Avg:  224.998 | Best:  434.866 | Buf: 4,000,000
+
+Episode 20950 | Score:  238.945 | Avg:  223.941 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21000 | Score:  240.421 | Avg:  227.138 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 21000: Avg=227.138, Buffer=4,000,000
+
+
+
+Episode 21050 | Score:  240.840 | Avg:  220.504 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21100 | Score:  239.514 | Avg:  212.312 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21150 | Score:  241.632 | Avg:  208.414 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21200 | Score:  224.835 | Avg:  205.285 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21250 | Score:  227.942 | Avg:  212.610 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21300 | Score:  244.238 | Avg:  224.486 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21350 | Score:  220.711 | Avg:  224.733 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21400 | Score:  237.517 | Avg:  225.199 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21450 | Score:  241.621 | Avg:  226.142 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21500 | Score:  237.613 | Avg:  228.225 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 21500: Avg=228.225, Buffer=4,000,000
+
+
+
+Episode 21550 | Score:  239.530 | Avg:  232.278 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21600 | Score:  245.018 | Avg:  230.387 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21650 | Score:  185.845 | Avg:  223.660 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21700 | Score:  236.553 | Avg:  217.458 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21750 | Score:  245.439 | Avg:  211.986 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21800 | Score:  244.614 | Avg:  211.595 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21850 | Score:  225.057 | Avg:  214.139 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21900 | Score:  226.337 | Avg:  212.863 | Best:  434.866 | Buf: 4,000,000
+
+Episode 21950 | Score:  243.436 | Avg:  222.101 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22000 | Score:  244.079 | Avg:  224.101 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 22000: Avg=224.101, Buffer=4,000,000
+
+
+
+Episode 22050 | Score:  241.542 | Avg:  221.622 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22100 | Score:  237.764 | Avg:  224.233 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22150 | Score:   18.572 | Avg:  221.720 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22200 | Score:    4.389 | Avg:  217.247 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22250 | Score:  244.813 | Avg:  211.730 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22300 | Score:  244.816 | Avg:  214.478 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22350 | Score:  216.572 | Avg:  221.150 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22400 | Score:  243.698 | Avg:  223.284 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22450 | Score:  199.115 | Avg:  220.564 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22500 | Score:  239.604 | Avg:  216.636 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 22500: Avg=216.636, Buffer=4,000,000
+
+
+
+Episode 22550 | Score:  189.628 | Avg:  220.562 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22600 | Score:  235.070 | Avg:  226.497 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22650 | Score:  244.152 | Avg:  226.416 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22700 | Score:  217.213 | Avg:  226.166 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22750 | Score:  240.245 | Avg:  221.421 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22800 | Score:  212.046 | Avg:  221.089 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22850 | Score:  228.638 | Avg:  221.802 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22900 | Score:  219.608 | Avg:  213.393 | Best:  434.866 | Buf: 4,000,000
+
+Episode 22950 | Score:  234.407 | Avg:  214.509 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23000 | Score:  234.580 | Avg:  218.497 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 23000: Avg=218.497, Buffer=4,000,000
+
+
+
+Episode 23050 | Score:  240.499 | Avg:  219.367 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23100 | Score:  243.350 | Avg:  223.313 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23150 | Score:  242.330 | Avg:  226.333 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23200 | Score:  241.277 | Avg:  227.217 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23250 | Score:  241.825 | Avg:  225.742 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23300 | Score:  237.701 | Avg:  225.982 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23350 | Score:   32.344 | Avg:  224.938 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23400 | Score:  203.023 | Avg:  222.754 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23450 | Score:   28.200 | Avg:  220.990 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23500 | Score:  242.822 | Avg:  224.821 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 23500: Avg=224.821, Buffer=4,000,000
+
+
+
+Episode 23550 | Score:  229.226 | Avg:  232.758 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23600 | Score:  239.481 | Avg:  227.226 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23650 | Score:  241.848 | Avg:  223.345 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23700 | Score:  235.402 | Avg:  225.689 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23750 | Score:  210.744 | Avg:  224.771 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23800 | Score:  236.987 | Avg:  219.995 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23850 | Score:  241.130 | Avg:  219.813 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23900 | Score:  231.600 | Avg:  222.323 | Best:  434.866 | Buf: 4,000,000
+
+Episode 23950 | Score:  239.551 | Avg:  215.098 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24000 | Score:  236.836 | Avg:  211.450 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 24000: Avg=211.450, Buffer=4,000,000
+
+
+
+Episode 24050 | Score:  242.957 | Avg:  218.535 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24100 | Score:   41.952 | Avg:  218.713 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24150 | Score:  212.709 | Avg:  208.554 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24200 | Score:  215.269 | Avg:  206.083 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24250 | Score:  241.520 | Avg:  218.540 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24300 | Score:  241.659 | Avg:  226.747 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24350 | Score:  235.762 | Avg:  227.440 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24400 | Score:  240.383 | Avg:  228.271 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24450 | Score:  243.115 | Avg:  224.612 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24500 | Score:  239.729 | Avg:  221.222 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 24500: Avg=221.222, Buffer=4,000,000
+
+
+
+Episode 24550 | Score:  203.859 | Avg:  219.764 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24600 | Score:  238.265 | Avg:  218.445 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24650 | Score:  243.533 | Avg:  219.511 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24700 | Score:  241.181 | Avg:  217.421 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24750 | Score:  228.384 | Avg:  212.092 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24800 | Score:  243.494 | Avg:  218.108 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24850 | Score:  235.145 | Avg:  222.327 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24900 | Score:  195.039 | Avg:  218.425 | Best:  434.866 | Buf: 4,000,000
+
+Episode 24950 | Score:  239.103 | Avg:  218.783 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25000 | Score:  239.238 | Avg:  226.276 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 25000: Avg=226.276, Buffer=4,000,000
+
+
+
+Episode 25050 | Score:  243.530 | Avg:  224.324 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25100 | Score:  242.016 | Avg:  218.073 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25150 | Score:  244.144 | Avg:  218.921 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25200 | Score:  237.028 | Avg:  217.261 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25250 | Score:  240.050 | Avg:  217.601 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25300 | Score:  109.649 | Avg:  222.063 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25350 | Score:  240.724 | Avg:  223.820 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25400 | Score:  233.653 | Avg:  216.867 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25450 | Score:  210.090 | Avg:  212.698 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25500 | Score:  237.971 | Avg:  216.233 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 25500: Avg=216.233, Buffer=4,000,000
+
+
+
+Episode 25550 | Score:  242.449 | Avg:  220.553 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25600 | Score:  234.552 | Avg:  216.630 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25650 | Score:  108.060 | Avg:  209.927 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25700 | Score:  216.927 | Avg:  212.205 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25750 | Score:   63.951 | Avg:  211.486 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25800 | Score:  240.447 | Avg:  215.842 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25850 | Score:  183.417 | Avg:  218.910 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25900 | Score:  235.359 | Avg:  217.237 | Best:  434.866 | Buf: 4,000,000
+
+Episode 25950 | Score:  236.272 | Avg:  212.638 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26000 | Score:  240.632 | Avg:  212.698 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 26000: Avg=212.698, Buffer=4,000,000
+
+
+
+Episode 26050 | Score:  230.669 | Avg:  215.315 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26100 | Score:  197.869 | Avg:  216.044 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26150 | Score:  243.951 | Avg:  217.912 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26200 | Score:  238.397 | Avg:  216.650 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26250 | Score:  130.648 | Avg:  223.859 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26300 | Score:    1.379 | Avg:  221.703 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26350 | Score:  229.143 | Avg:  208.048 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26400 | Score:  230.854 | Avg:  209.719 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26450 | Score:  242.878 | Avg:  212.548 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26500 | Score:  205.797 | Avg:  206.723 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 26500: Avg=206.723, Buffer=4,000,000
+
+
+
+Episode 26550 | Score:  237.812 | Avg:  210.136 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26600 | Score:  226.974 | Avg:  223.300 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26650 | Score:  224.229 | Avg:  231.111 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26700 | Score:  236.684 | Avg:  222.840 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26750 | Score:  190.069 | Avg:  219.447 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26800 | Score:  239.112 | Avg:  210.186 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26850 | Score:  244.177 | Avg:  204.929 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26900 | Score:  235.429 | Avg:  215.598 | Best:  434.866 | Buf: 4,000,000
+
+Episode 26950 | Score:  242.316 | Avg:  220.962 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27000 | Score:  212.154 | Avg:  223.800 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 27000: Avg=223.800, Buffer=4,000,000
+
+
+
+Episode 27050 | Score:  241.271 | Avg:  221.484 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27100 | Score:  220.440 | Avg:  217.159 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27150 | Score:  238.458 | Avg:  217.503 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27200 | Score:  242.990 | Avg:  219.019 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27250 | Score:  223.093 | Avg:  218.605 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27300 | Score:  238.890 | Avg:  217.760 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27350 | Score:  232.109 | Avg:  225.404 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27400 | Score:  236.089 | Avg:  228.154 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27450 | Score:  243.546 | Avg:  224.613 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27500 | Score:  244.669 | Avg:  224.158 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 27500: Avg=224.158, Buffer=4,000,000
+
+
+
+Episode 27550 | Score:  236.231 | Avg:  224.758 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27600 | Score:  236.635 | Avg:  227.574 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27650 | Score:  238.516 | Avg:  225.824 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27700 | Score:  225.181 | Avg:  222.123 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27750 | Score:  236.301 | Avg:  220.309 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27800 | Score:  244.112 | Avg:  216.842 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27850 | Score:  229.041 | Avg:  223.051 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27900 | Score:  237.290 | Avg:  230.133 | Best:  434.866 | Buf: 4,000,000
+
+Episode 27950 | Score:   10.133 | Avg:  221.499 | Best:  434.866 | Buf: 4,000,000
+
+Episode 28000 | Score:  233.618 | Avg:  215.115 | Best:  434.866 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 28000: Avg=215.115, Buffer=4,000,000
+
+
+
+Episode 28050 | Score:  239.099 | Avg:  220.979 | Best:  434.866 | Buf: 4,000,000
+
+Episode 28100 | Score:  239.696 | Avg:  225.682 | Best:  434.866 | Buf: 4,000,000
+
+Episode 28126 | ★ BEST! Score:  439.114 | Avg:  228.005 | Steps: 500 | Noise: 0.050
+
+Episode 28150 | Score:  243.697 | Avg:  227.153 | Best:  439.114 | Buf: 4,000,000
+
+Episode 28200 | Score:  226.033 | Avg:  225.580 | Best:  439.114 | Buf: 4,000,000
+
+Episode 28250 | Score:  222.988 | Avg:  222.773 | Best:  439.114 | Buf: 4,000,000
+
+Episode 28300 | Score:  243.927 | Avg:  225.823 | Best:  439.114 | Buf: 4,000,000
+
+Episode 28350 | Score:  227.489 | Avg:  225.389 | Best:  439.114 | Buf: 4,000,000
+
+Episode 28400 | Score:   67.949 | Avg:  210.942 | Best:  439.114 | Buf: 4,000,000
+
+Episode 28450 | Score:  239.485 | Avg:  202.199 | Best:  439.114 | Buf: 4,000,000
+
+Episode 28500 | Score:  233.942 | Avg:  201.897 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 28500: Avg=201.897, Buffer=4,000,000
+
+
+
+Episode 28550 | Score:  240.773 | Avg:  204.746 | Best:  439.114 | Buf: 4,000,000
+
+Episode 28600 | Score:  243.003 | Avg:  206.270 | Best:  439.114 | Buf: 4,000,000
+
+Episode 28650 | Score:  237.175 | Avg:  203.880 | Best:  439.114 | Buf: 4,000,000
+
+Episode 28700 | Score:  241.782 | Avg:  215.961 | Best:  439.114 | Buf: 4,000,000
+
+Episode 28750 | Score:  208.953 | Avg:  219.451 | Best:  439.114 | Buf: 4,000,000
+
+Episode 28800 | Score:  235.017 | Avg:  205.645 | Best:  439.114 | Buf: 4,000,000
+
+Episode 28850 | Score:  198.051 | Avg:  211.307 | Best:  439.114 | Buf: 4,000,000
+
+Episode 28900 | Score:  219.562 | Avg:  226.797 | Best:  439.114 | Buf: 4,000,000
+
+Episode 28950 | Score:  242.406 | Avg:  217.029 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29000 | Score:  243.402 | Avg:  209.217 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 29000: Avg=209.217, Buffer=4,000,000
+
+
+
+Episode 29050 | Score:  243.036 | Avg:  216.172 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29100 | Score:  234.000 | Avg:  215.660 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29150 | Score:  236.812 | Avg:  218.063 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29200 | Score:  222.784 | Avg:  225.875 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29250 | Score:  177.721 | Avg:  224.393 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29300 | Score:  235.969 | Avg:  218.797 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29350 | Score:  241.389 | Avg:  217.552 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29400 | Score:  245.013 | Avg:  220.070 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29450 | Score:  243.231 | Avg:  221.796 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29500 | Score:  230.580 | Avg:  218.452 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 29500: Avg=218.452, Buffer=4,000,000
+
+
+
+Episode 29550 | Score:  240.736 | Avg:  211.313 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29600 | Score:  244.310 | Avg:  212.426 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29650 | Score:  241.639 | Avg:  221.277 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29700 | Score:  242.453 | Avg:  221.492 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29750 | Score:  177.338 | Avg:  209.469 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29800 | Score:  241.870 | Avg:  209.037 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29850 | Score:   17.430 | Avg:  211.397 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29900 | Score:  243.483 | Avg:  206.847 | Best:  439.114 | Buf: 4,000,000
+
+Episode 29950 | Score:  239.578 | Avg:  205.396 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30000 | Score:  243.247 | Avg:  211.363 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 30000: Avg=211.363, Buffer=4,000,000
+
+
+
+Episode 30050 | Score:  211.396 | Avg:  215.491 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30100 | Score:  213.720 | Avg:  216.862 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30150 | Score:  237.235 | Avg:  221.125 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30200 | Score:  240.014 | Avg:  220.855 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30250 | Score:  228.132 | Avg:  214.960 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30300 | Score:  236.816 | Avg:  207.606 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30350 | Score:  240.565 | Avg:  215.667 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30400 | Score:  244.095 | Avg:  224.583 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30450 | Score:  238.810 | Avg:  222.810 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30500 | Score:  243.525 | Avg:  219.611 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 30500: Avg=219.611, Buffer=4,000,000
+
+
+
+Episode 30550 | Score:  240.014 | Avg:  213.234 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30600 | Score:    2.330 | Avg:  208.764 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30650 | Score:   21.093 | Avg:  205.128 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30700 | Score:  239.821 | Avg:  212.518 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30750 | Score:  203.807 | Avg:  209.283 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30800 | Score:  207.776 | Avg:  204.361 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30850 | Score:  243.076 | Avg:  213.310 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30900 | Score:    1.163 | Avg:  214.617 | Best:  439.114 | Buf: 4,000,000
+
+Episode 30950 | Score:    4.935 | Avg:  217.879 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31000 | Score:  239.050 | Avg:  215.273 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 31000: Avg=215.273, Buffer=4,000,000
+
+
+
+Episode 31050 | Score:  242.532 | Avg:  207.188 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31100 | Score:  237.468 | Avg:  212.549 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31150 | Score:  239.835 | Avg:  221.998 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31200 | Score:  227.426 | Avg:  222.065 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31250 | Score:  225.498 | Avg:  221.918 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31300 | Score:  241.459 | Avg:  222.519 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31350 | Score:  228.671 | Avg:  218.129 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31400 | Score:  232.014 | Avg:  217.580 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31450 | Score:  238.871 | Avg:  223.147 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31500 | Score:  243.354 | Avg:  213.531 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 31500: Avg=213.531, Buffer=4,000,000
+
+
+
+Episode 31550 | Score:  215.644 | Avg:  208.441 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31600 | Score:  236.188 | Avg:  207.713 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31650 | Score:  200.283 | Avg:  207.840 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31700 | Score:    1.677 | Avg:  216.528 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31750 | Score:    2.248 | Avg:  216.435 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31800 | Score:  239.956 | Avg:  219.114 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31850 | Score:  243.489 | Avg:  228.685 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31900 | Score:  227.904 | Avg:  231.224 | Best:  439.114 | Buf: 4,000,000
+
+Episode 31950 | Score:  242.090 | Avg:  224.570 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32000 | Score:  225.402 | Avg:  213.912 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 32000: Avg=213.912, Buffer=4,000,000
+
+
+
+Episode 32050 | Score:  244.002 | Avg:  217.640 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32100 | Score:  244.016 | Avg:  225.013 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32150 | Score:  238.822 | Avg:  217.833 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32200 | Score:  231.713 | Avg:  210.656 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32250 | Score:  233.415 | Avg:  212.299 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32300 | Score:  238.959 | Avg:  224.741 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32350 | Score:  235.305 | Avg:  224.813 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32400 | Score:  215.296 | Avg:  215.180 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32450 | Score:  235.220 | Avg:  215.437 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32500 | Score:  236.367 | Avg:  222.210 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 32500: Avg=222.210, Buffer=4,000,000
+
+
+
+Episode 32550 | Score:  237.254 | Avg:  222.413 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32600 | Score:  237.362 | Avg:  220.768 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32650 | Score:  244.433 | Avg:  220.484 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32700 | Score:  241.843 | Avg:  220.272 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32750 | Score:  242.587 | Avg:  222.334 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32800 | Score:  241.661 | Avg:  220.682 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32850 | Score:  178.592 | Avg:  216.873 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32900 | Score:  151.195 | Avg:  210.664 | Best:  439.114 | Buf: 4,000,000
+
+Episode 32950 | Score:  226.825 | Avg:  212.594 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33000 | Score:  215.015 | Avg:  221.462 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 33000: Avg=221.462, Buffer=4,000,000
+
+
+
+Episode 33050 | Score:  241.921 | Avg:  230.499 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33100 | Score:  239.040 | Avg:  232.372 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33150 | Score:  236.708 | Avg:  230.790 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33200 | Score:  208.546 | Avg:  227.722 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33250 | Score:  243.625 | Avg:  227.367 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33300 | Score:  239.371 | Avg:  232.051 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33350 | Score:  225.115 | Avg:  226.386 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33400 | Score:  213.125 | Avg:  223.627 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33450 | Score:  236.686 | Avg:  225.531 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33500 | Score:  206.670 | Avg:  226.429 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 33500: Avg=226.429, Buffer=4,000,000
+
+
+
+Episode 33550 | Score:  237.735 | Avg:  230.499 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33600 | Score:  185.232 | Avg:  220.108 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33650 | Score:  202.032 | Avg:  216.655 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33700 | Score:  120.854 | Avg:  219.228 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33750 | Score:  178.200 | Avg:  208.058 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33800 | Score:  238.668 | Avg:  210.269 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33850 | Score:  233.781 | Avg:  215.180 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33900 | Score:  238.649 | Avg:  221.297 | Best:  439.114 | Buf: 4,000,000
+
+Episode 33950 | Score:  240.650 | Avg:  225.410 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34000 | Score:  243.301 | Avg:  215.201 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 34000: Avg=215.201, Buffer=4,000,000
+
+
+
+Episode 34050 | Score:  235.524 | Avg:  215.231 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34100 | Score:  244.521 | Avg:  219.658 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34150 | Score:  238.309 | Avg:  215.550 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34200 | Score:  208.043 | Avg:  212.164 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34250 | Score:  242.541 | Avg:  214.300 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34300 | Score:  239.463 | Avg:  217.881 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34350 | Score:  241.819 | Avg:  221.590 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34400 | Score:  236.550 | Avg:  223.130 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34450 | Score:  232.160 | Avg:  219.250 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34500 | Score:  231.074 | Avg:  221.301 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 34500: Avg=221.301, Buffer=4,000,000
+
+
+
+Episode 34550 | Score:  203.333 | Avg:  226.722 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34600 | Score:  154.764 | Avg:  222.753 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34650 | Score:  237.559 | Avg:  213.882 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34700 | Score:  222.849 | Avg:  212.137 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34750 | Score:  244.006 | Avg:  216.860 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34800 | Score:  241.545 | Avg:  218.132 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34850 | Score:  189.946 | Avg:  215.591 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34900 | Score:   48.255 | Avg:  219.393 | Best:  439.114 | Buf: 4,000,000
+
+Episode 34950 | Score:  226.534 | Avg:  222.837 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35000 | Score:  239.502 | Avg:  217.058 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 35000: Avg=217.058, Buffer=4,000,000
+
+
+
+Episode 35050 | Score:  240.387 | Avg:  221.415 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35100 | Score:  243.038 | Avg:  221.262 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35150 | Score:  238.335 | Avg:  214.480 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35200 | Score:  229.803 | Avg:  218.211 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35250 | Score:  232.012 | Avg:  217.396 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35300 | Score:  223.764 | Avg:  206.954 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35350 | Score:  197.824 | Avg:  204.213 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35400 | Score:  239.072 | Avg:  208.362 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35450 | Score:  191.762 | Avg:  209.667 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35500 | Score:  242.292 | Avg:  212.704 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 35500: Avg=212.704, Buffer=4,000,000
+
+
+
+Episode 35550 | Score:  193.799 | Avg:  214.752 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35600 | Score:  239.844 | Avg:  218.537 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35650 | Score:  232.645 | Avg:  222.490 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35700 | Score:  224.286 | Avg:  220.656 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35750 | Score:  187.297 | Avg:  212.964 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35800 | Score:  241.038 | Avg:  210.536 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35850 | Score:  196.186 | Avg:  211.336 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35900 | Score:  216.169 | Avg:  211.554 | Best:  439.114 | Buf: 4,000,000
+
+Episode 35950 | Score:  209.411 | Avg:  221.839 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36000 | Score:  239.983 | Avg:  224.019 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 36000: Avg=224.019, Buffer=4,000,000
+
+
+
+Episode 36050 | Score:  241.522 | Avg:  224.777 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36100 | Score:  216.815 | Avg:  230.364 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36150 | Score:  241.489 | Avg:  225.196 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36200 | Score:  132.900 | Avg:  218.140 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36250 | Score:  238.605 | Avg:  217.601 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36300 | Score:  238.246 | Avg:  225.840 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36350 | Score:  238.895 | Avg:  227.134 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36400 | Score:  226.073 | Avg:  224.882 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36450 | Score:  242.939 | Avg:  228.141 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36500 | Score:  228.149 | Avg:  227.671 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 36500: Avg=227.671, Buffer=4,000,000
+
+
+
+Episode 36550 | Score:  240.858 | Avg:  219.881 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36600 | Score:  239.841 | Avg:  216.781 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36650 | Score:  242.129 | Avg:  219.318 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36700 | Score:  242.815 | Avg:  219.695 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36750 | Score:  243.091 | Avg:  224.089 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36800 | Score:  231.003 | Avg:  221.706 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36850 | Score:  227.607 | Avg:  215.192 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36900 | Score:  239.280 | Avg:  220.680 | Best:  439.114 | Buf: 4,000,000
+
+Episode 36950 | Score:  242.325 | Avg:  223.896 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37000 | Score:  238.774 | Avg:  224.353 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 37000: Avg=224.353, Buffer=4,000,000
+
+
+
+Episode 37050 | Score:  239.606 | Avg:  224.368 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37100 | Score:  227.891 | Avg:  213.075 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37150 | Score:  240.761 | Avg:  212.675 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37200 | Score:  140.356 | Avg:  219.150 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37250 | Score:  228.977 | Avg:  224.754 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37300 | Score:  219.991 | Avg:  222.734 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37350 | Score:  242.621 | Avg:  211.958 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37400 | Score:  239.305 | Avg:  210.389 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37450 | Score:  231.191 | Avg:  216.510 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37500 | Score:  192.926 | Avg:  220.861 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 37500: Avg=220.861, Buffer=4,000,000
+
+
+
+Episode 37550 | Score:  212.629 | Avg:  219.671 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37600 | Score:  231.777 | Avg:  218.476 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37650 | Score:  235.069 | Avg:  224.132 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37700 | Score:  244.217 | Avg:  228.767 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37750 | Score:  193.109 | Avg:  226.249 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37800 | Score:  238.066 | Avg:  224.499 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37850 | Score:  243.576 | Avg:  221.829 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37900 | Score:  239.397 | Avg:  222.885 | Best:  439.114 | Buf: 4,000,000
+
+Episode 37950 | Score:  240.327 | Avg:  223.482 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38000 | Score:  235.645 | Avg:  225.697 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 38000: Avg=225.697, Buffer=4,000,000
+
+
+
+Episode 38050 | Score:  193.880 | Avg:  225.996 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38100 | Score:  240.991 | Avg:  221.217 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38150 | Score:  231.376 | Avg:  218.430 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38200 | Score:  238.393 | Avg:  218.128 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38250 | Score:  136.544 | Avg:  225.296 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38300 | Score:  236.423 | Avg:  223.141 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38350 | Score:  242.117 | Avg:  219.015 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38400 | Score:  229.436 | Avg:  218.889 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38450 | Score:  240.119 | Avg:  218.668 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38500 | Score:  239.508 | Avg:  223.745 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 38500: Avg=223.745, Buffer=4,000,000
+
+
+
+Episode 38550 | Score:  234.279 | Avg:  224.780 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38600 | Score:  240.584 | Avg:  220.328 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38650 | Score:  212.292 | Avg:  210.487 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38700 | Score:  234.981 | Avg:  213.231 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38750 | Score:  239.004 | Avg:  221.091 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38800 | Score:  203.665 | Avg:  212.485 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38850 | Score:  127.001 | Avg:  206.545 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38900 | Score:  211.259 | Avg:  206.490 | Best:  439.114 | Buf: 4,000,000
+
+Episode 38950 | Score:  208.708 | Avg:  204.023 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39000 | Score:  189.600 | Avg:  205.925 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 39000: Avg=205.925, Buffer=4,000,000
+
+
+
+Episode 39050 | Score:  220.482 | Avg:  215.306 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39100 | Score:  201.068 | Avg:  223.413 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39150 | Score:  244.048 | Avg:  225.605 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39200 | Score:  242.150 | Avg:  228.178 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39250 | Score:  240.075 | Avg:  227.952 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39300 | Score:  238.296 | Avg:  216.746 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39350 | Score:  241.947 | Avg:  214.086 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39400 | Score:  239.683 | Avg:  222.928 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39450 | Score:  242.923 | Avg:  222.861 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39500 | Score:  238.482 | Avg:  226.115 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 39500: Avg=226.115, Buffer=4,000,000
+
+
+
+Episode 39550 | Score:  190.312 | Avg:  225.590 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39600 | Score:  241.283 | Avg:  217.381 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39650 | Score:  241.975 | Avg:  222.122 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39700 | Score:  220.412 | Avg:  229.370 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39750 | Score:  242.683 | Avg:  228.150 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39800 | Score:  242.667 | Avg:  225.759 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39850 | Score:  232.628 | Avg:  224.050 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39900 | Score:  242.221 | Avg:  222.560 | Best:  439.114 | Buf: 4,000,000
+
+Episode 39950 | Score:  244.158 | Avg:  227.755 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40000 | Score:  198.520 | Avg:  229.888 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 40000: Avg=229.888, Buffer=4,000,000
+
+
+
+Episode 40050 | Score:  234.845 | Avg:  219.702 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40100 | Score:  243.010 | Avg:  212.313 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40150 | Score:  240.544 | Avg:  220.770 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40200 | Score:  241.641 | Avg:  224.473 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40250 | Score:  241.353 | Avg:  222.290 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40300 | Score:  214.275 | Avg:  229.811 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40350 | Score:  235.572 | Avg:  225.265 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40400 | Score:  221.026 | Avg:  211.705 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40450 | Score:  241.927 | Avg:  206.754 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40500 | Score:  241.674 | Avg:  202.900 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 40500: Avg=202.900, Buffer=4,000,000
+
+
+
+Episode 40550 | Score:  235.882 | Avg:  205.240 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40600 | Score:  235.538 | Avg:  216.853 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40650 | Score:   83.860 | Avg:  221.226 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40700 | Score:  216.900 | Avg:  226.975 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40750 | Score:  242.579 | Avg:  228.380 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40800 | Score:  238.754 | Avg:  219.423 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40850 | Score:  216.979 | Avg:  216.629 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40900 | Score:  245.591 | Avg:  222.985 | Best:  439.114 | Buf: 4,000,000
+
+Episode 40950 | Score:  237.074 | Avg:  222.962 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41000 | Score:  231.639 | Avg:  215.321 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 41000: Avg=215.321, Buffer=4,000,000
+
+
+
+Episode 41050 | Score:  241.428 | Avg:  219.370 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41100 | Score:  235.215 | Avg:  224.663 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41150 | Score:  220.456 | Avg:  219.221 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41200 | Score:  244.059 | Avg:  221.104 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41250 | Score:  235.579 | Avg:  219.841 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41300 | Score:  206.844 | Avg:  217.806 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41350 | Score:  243.055 | Avg:  225.686 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41400 | Score:  243.201 | Avg:  223.514 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41450 | Score:  241.950 | Avg:  219.456 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41500 | Score:  235.176 | Avg:  218.956 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 41500: Avg=218.956, Buffer=4,000,000
+
+
+
+Episode 41550 | Score:  224.930 | Avg:  219.373 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41600 | Score:  199.517 | Avg:  205.610 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41650 | Score:  242.575 | Avg:  205.886 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41700 | Score:  223.303 | Avg:  219.133 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41750 | Score:  237.377 | Avg:  220.148 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41800 | Score:  238.463 | Avg:  226.054 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41850 | Score:  238.197 | Avg:  221.682 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41900 | Score:  224.963 | Avg:  216.505 | Best:  439.114 | Buf: 4,000,000
+
+Episode 41950 | Score:  234.009 | Avg:  218.957 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42000 | Score:  239.159 | Avg:  212.882 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 42000: Avg=212.882, Buffer=4,000,000
+
+
+
+Episode 42050 | Score:  233.458 | Avg:  208.720 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42100 | Score:  241.961 | Avg:  211.532 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42150 | Score:  205.751 | Avg:  209.559 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42200 | Score:   96.922 | Avg:  200.843 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42250 | Score:  217.348 | Avg:  206.565 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42300 | Score:  225.596 | Avg:  211.943 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42350 | Score:  221.467 | Avg:  211.156 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42400 | Score:  236.865 | Avg:  220.991 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42450 | Score:  241.729 | Avg:  224.843 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42500 | Score:  239.515 | Avg:  215.561 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 42500: Avg=215.561, Buffer=4,000,000
+
+
+
+Episode 42550 | Score:  243.129 | Avg:  204.996 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42600 | Score:  221.805 | Avg:  217.204 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42650 | Score:  243.143 | Avg:  224.673 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42700 | Score:  222.031 | Avg:  211.157 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42750 | Score:  241.331 | Avg:  206.737 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42800 | Score:    0.415 | Avg:  209.084 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42850 | Score:  226.531 | Avg:  209.245 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42900 | Score:  207.229 | Avg:  204.865 | Best:  439.114 | Buf: 4,000,000
+
+Episode 42950 | Score:  237.738 | Avg:  204.919 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43000 | Score:   73.398 | Avg:  207.561 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 43000: Avg=207.561, Buffer=4,000,000
+
+
+
+Episode 43050 | Score:  242.847 | Avg:  208.461 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43100 | Score:  230.688 | Avg:  201.201 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43150 | Score:  238.472 | Avg:  195.485 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43200 | Score:  215.439 | Avg:  206.967 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43250 | Score:  242.332 | Avg:  216.677 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43300 | Score:  238.928 | Avg:  218.156 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43350 | Score:  239.262 | Avg:  214.812 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43400 | Score:  239.523 | Avg:  210.709 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43450 | Score:  226.076 | Avg:  214.466 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43500 | Score:  242.330 | Avg:  222.177 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 43500: Avg=222.177, Buffer=4,000,000
+
+
+
+Episode 43550 | Score:  240.988 | Avg:  221.716 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43600 | Score:  240.508 | Avg:  222.808 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43650 | Score:    1.076 | Avg:  225.091 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43700 | Score:  196.206 | Avg:  217.478 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43750 | Score:  234.566 | Avg:  220.516 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43800 | Score:  187.605 | Avg:  225.725 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43850 | Score:  232.552 | Avg:  219.153 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43900 | Score:  238.603 | Avg:  214.389 | Best:  439.114 | Buf: 4,000,000
+
+Episode 43950 | Score:  232.916 | Avg:  199.778 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44000 | Score:  189.208 | Avg:  203.300 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 44000: Avg=203.300, Buffer=4,000,000
+
+
+
+Episode 44050 | Score:  234.347 | Avg:  207.577 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44100 | Score:  197.488 | Avg:  200.446 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44150 | Score:  243.067 | Avg:  213.807 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44200 | Score:  151.187 | Avg:  215.247 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44250 | Score:  239.320 | Avg:  198.161 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44300 | Score:    0.035 | Avg:  198.690 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44350 | Score:  240.292 | Avg:  210.699 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44400 | Score:    2.300 | Avg:  215.352 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44450 | Score:  243.878 | Avg:  217.731 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44500 | Score:  232.984 | Avg:  219.656 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 44500: Avg=219.656, Buffer=4,000,000
+
+
+
+Episode 44550 | Score:  241.442 | Avg:  219.342 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44600 | Score:  227.052 | Avg:  213.085 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44650 | Score:  242.276 | Avg:  217.271 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44700 | Score:  240.282 | Avg:  221.261 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44750 | Score:   37.420 | Avg:  217.178 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44800 | Score:  244.079 | Avg:  215.145 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44850 | Score:  241.159 | Avg:  213.696 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44900 | Score:  204.573 | Avg:  220.039 | Best:  439.114 | Buf: 4,000,000
+
+Episode 44950 | Score:  238.535 | Avg:  216.999 | Best:  439.114 | Buf: 4,000,000
+
+Episode 45000 | Score:  227.962 | Avg:  218.138 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 45000: Avg=218.138, Buffer=4,000,000
+
+
+
+Episode 45050 | Score:   88.672 | Avg:  221.687 | Best:  439.114 | Buf: 4,000,000
+
+Episode 45100 | Score:  222.616 | Avg:  219.477 | Best:  439.114 | Buf: 4,000,000
+
+Episode 45150 | Score:  241.500 | Avg:  224.611 | Best:  439.114 | Buf: 4,000,000
+
+Episode 45200 | Score:    4.072 | Avg:  208.052 | Best:  439.114 | Buf: 4,000,000
+
+Episode 45250 | Score:  242.887 | Avg:  204.755 | Best:  439.114 | Buf: 4,000,000
+
+Episode 45300 | Score:  229.598 | Avg:  221.970 | Best:  439.114 | Buf: 4,000,000
+
+Episode 45350 | Score:  240.636 | Avg:  226.897 | Best:  439.114 | Buf: 4,000,000
+
+Episode 45400 | Score:  237.802 | Avg:  221.618 | Best:  439.114 | Buf: 4,000,000
+
+Episode 45450 | Score:  210.631 | Avg:  217.668 | Best:  439.114 | Buf: 4,000,000
+
+Episode 45500 | Score:  241.218 | Avg:  217.895 | Best:  439.114 | Buf: 4,000,000
+
+
+
+  Checkpoint at ep 45500: Avg=217.895, Buffer=4,000,000
+
+
+
+Episode 45550 | Score:  236.180 | Avg:  207.001 | Best:  439.114 | Buf: 4,000,000
+
+Episode 45600 | Score:  203.401 | Avg:  200.742 | Best:  439.114 | Buf: 4,000,000

@@ -1,6 +1,6 @@
-"""Enhanced TD3 agent – goal-conditioned with all 10 RL enhancements.
+"""Vision-based TD3 agent – goal-conditioned with CNN encoder.
 
-Features integrated:
+Same enhancements as td3_v2.py but uses image observations:
   #1  OU noise (temporally correlated exploration)
   #7  Scheduled noise decay (linear)
   #8  HER support (goal-conditioned policy, buffer handled externally)
@@ -9,7 +9,6 @@ Features integrated:
   #16 Multiple gradient steps per learn() call
   #17 4-critic ensemble (min over all for target value)
   #19 Reward normalisation (running mean/std)
-  #22 Potential-based reward shaping (applied in training loop)
 """
 
 import os
@@ -19,17 +18,17 @@ import torch as T
 import torch.nn.utils as nn_utils
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-from buffer_her import HERReplayBuffer
-from networks_v2 import ActorNetwork, CriticNetwork
+from buffer_vision import VisionHERReplayBuffer
+from networks_vision import VisionActorNetwork, VisionCriticNetwork
 from utils_rl import OUNoise, NoiseScheduler, RewardNormalizer
 
 
-class Agent:
+class VisionAgent:
     def __init__(
         self,
         alpha,
         beta,
-        obs_dims,
+        img_shape,
         goal_dim,
         tau,
         env,
@@ -37,17 +36,18 @@ class Agent:
         update_actor_interval=2,
         warmup=1000,
         n_actions=7,
-        max_size=2_000_000,
-        layer1_size=1024,
-        layer2_size=512,
-        batch_size=2048,
+        max_size=500_000,
+        latent_dim=256,
+        fc1_dims=512,
+        fc2_dims=256,
+        batch_size=128,
         noise_start=0.3,
         noise_end=0.05,
         n_critics=4,
-        n_gradient_steps=4,
+        n_gradient_steps=2,
         max_grad_norm=1.0,
         lr_total_steps=2_000_000,
-        chkpt_dir='./checkpoints/td3_v2',
+        chkpt_dir='./checkpoints/td3_vision',
     ):
         self.gamma = gamma
         self.tau = tau
@@ -61,6 +61,7 @@ class Agent:
         self.warmup = warmup
         self.n_actions = n_actions
         self.goal_dim = goal_dim
+        self.img_shape = img_shape
         self.update_actor_iter = update_actor_interval
         self.n_critics = n_critics
         self.n_gradient_steps = n_gradient_steps
@@ -69,37 +70,47 @@ class Agent:
 
         os.makedirs(chkpt_dir, exist_ok=True)
 
-        # ---- Replay buffer (HER + PER) ----
-        self.memory = HERReplayBuffer(max_size, obs_dims, n_actions, goal_dim)
+        # ---- Replay buffer (HER + PER, uint8 images) ----
+        self.memory = VisionHERReplayBuffer(
+            max_size, img_shape, n_actions, goal_dim,
+        )
 
         # ---- OU Noise + scheduler (#1, #7) ----
         self.ou_noise = OUNoise(n_actions, sigma=noise_start)
-        self.noise_scheduler = NoiseScheduler(noise_start, noise_end, lr_total_steps)
+        self.noise_scheduler = NoiseScheduler(
+            noise_start, noise_end, lr_total_steps,
+        )
 
         # ---- Reward normaliser (#19) ----
         self.reward_normalizer = RewardNormalizer()
 
-        # ---- Networks ----
-        obs_dim = obs_dims[0] if isinstance(obs_dims, tuple) else obs_dims
+        img_channels = img_shape[0]
 
-        self.actor = ActorNetwork(
-            obs_dim, goal_dim, layer1_size, layer2_size,
-            n_actions, 'actor', chkpt_dir, alpha,
+        # ---- Networks ----
+        self.actor = VisionActorNetwork(
+            goal_dim, latent_dim, fc1_dims, fc2_dims, n_actions,
+            img_channels, 'actor', chkpt_dir, alpha,
         )
-        self.target_actor = ActorNetwork(
-            obs_dim, goal_dim, layer1_size, layer2_size,
-            n_actions, 'target_actor', chkpt_dir, alpha,
+        self.target_actor = VisionActorNetwork(
+            goal_dim, latent_dim, fc1_dims, fc2_dims, n_actions,
+            img_channels, 'target_actor', chkpt_dir, alpha,
         )
 
         # 4 critics + 4 targets (#17)
-        self.critics = nn_module_list_helper(
-            n_critics, obs_dim, goal_dim, n_actions,
-            layer1_size, layer2_size, 'critic', chkpt_dir, beta,
-        )
-        self.target_critics = nn_module_list_helper(
-            n_critics, obs_dim, goal_dim, n_actions,
-            layer1_size, layer2_size, 'target_critic', chkpt_dir, beta,
-        )
+        self.critics = [
+            VisionCriticNetwork(
+                goal_dim, n_actions, latent_dim, fc1_dims, fc2_dims,
+                img_channels, f'critic_{i}', chkpt_dir, beta,
+            )
+            for i in range(n_critics)
+        ]
+        self.target_critics = [
+            VisionCriticNetwork(
+                goal_dim, n_actions, latent_dim, fc1_dims, fc2_dims,
+                img_channels, f'target_critic_{i}', chkpt_dir, beta,
+            )
+            for i in range(n_critics)
+        ]
 
         # ---- LR schedulers (#13) ----
         self.actor_scheduler = CosineAnnealingLR(
@@ -114,20 +125,43 @@ class Agent:
         self.update_network_parameters(tau=1)
 
     # ------------------------------------------------------------------
+    # Image preprocessing
+    # ------------------------------------------------------------------
+
+    def _preprocess_img(self, img_uint8):
+        """Convert uint8 numpy image(s) to normalised float tensor on device.
+
+        Args:
+            img_uint8: (C, H, W) or (B, C, H, W) uint8 array
+        Returns:
+            float tensor on self.device in [0, 1]
+        """
+        t = T.tensor(img_uint8, dtype=T.float32, device=self.device) / 255.0
+        if t.dim() == 3:
+            t = t.unsqueeze(0)
+        return t
+
+    # ------------------------------------------------------------------
     # Action selection
     # ------------------------------------------------------------------
 
-    def choose_action(self, observation, goal, validation=False):
+    def choose_action(self, img, goal, validation=False):
+        """Choose action from a single image observation.
+
+        Args:
+            img: (C, H, W) uint8 numpy array
+            goal: (goal_dim,) numpy array
+        """
         if self.time_step < self.warmup and not validation:
             action = np.random.uniform(
                 self.min_action[0], self.max_action[0],
                 size=(self.n_actions,),
             )
         else:
-            state = T.tensor(observation, dtype=T.float).unsqueeze(0).to(self.device)
+            img_t = self._preprocess_img(img)
             g = T.tensor(goal, dtype=T.float).unsqueeze(0).to(self.device)
             with T.no_grad():
-                action = self.actor(state, g).squeeze(0).cpu().numpy()
+                action = self.actor(img_t, g).squeeze(0).cpu().numpy()
 
         if not validation:
             noise = self.ou_noise.sample() * self.noise_scheduler.scale
@@ -138,18 +172,24 @@ class Agent:
 
         return action
 
-    def choose_action_batch(self, observations, goals):
-        n_envs = observations.shape[0]
+    def choose_action_batch(self, imgs, goals):
+        """Choose actions from a batch of image observations.
+
+        Args:
+            imgs: (B, C, H, W) uint8 numpy array
+            goals: (B, goal_dim) numpy array
+        """
+        n_envs = imgs.shape[0]
         if self.time_step < self.warmup:
             actions = np.random.uniform(
                 self.min_action[0], self.max_action[0],
                 size=(n_envs, self.n_actions),
             )
         else:
-            states = T.tensor(observations, dtype=T.float).to(self.device)
+            imgs_t = self._preprocess_img(imgs)
             g = T.tensor(goals, dtype=T.float).to(self.device)
             with T.no_grad():
-                actions = self.actor(states, g).cpu().numpy()
+                actions = self.actor(imgs_t, g).cpu().numpy()
 
         noise = self.ou_noise.sample_batch(n_envs) * self.noise_scheduler.scale
         actions = actions + noise
@@ -159,7 +199,7 @@ class Agent:
         return actions
 
     # ------------------------------------------------------------------
-    # Learning (#14 gradient clipping, #16 multi-step, #17 4 critics)
+    # Learning
     # ------------------------------------------------------------------
 
     def learn(self):
@@ -169,24 +209,27 @@ class Agent:
             self._gradient_step()
 
     def _gradient_step(self):
-        (state, action, reward, next_state, done,
-         goal, tree_idx, is_weights) = self.memory.sample_buffer_per(self.batch_size)
+        (imgs, action, reward, next_imgs, done,
+         goal, tree_idx, is_weights) = self.memory.sample_buffer_per(
+            self.batch_size,
+        )
 
         # Reward normalisation (#19)
         self.reward_normalizer.update(reward)
         reward = self.reward_normalizer.normalize(reward)
 
+        # Convert to tensors (images uint8 → float on GPU)
+        imgs_t = self._preprocess_img(imgs)
+        next_imgs_t = self._preprocess_img(next_imgs)
         reward = T.tensor(reward, dtype=T.float).to(self.device)
         done = T.tensor(done).to(self.device)
-        next_state = T.tensor(next_state, dtype=T.float).to(self.device)
-        state = T.tensor(state, dtype=T.float).to(self.device)
         action = T.tensor(action, dtype=T.float).to(self.device)
         goal = T.tensor(goal, dtype=T.float).to(self.device)
         is_weights = T.tensor(is_weights, dtype=T.float).to(self.device)
 
         # --- Target value ---
         with T.no_grad():
-            target_actions = self.target_actor(next_state, goal)
+            target_actions = self.target_actor(next_imgs_t, goal)
             noise = T.clamp(T.randn_like(target_actions) * 0.2, -0.5, 0.5)
             target_actions = T.clamp(
                 target_actions + noise,
@@ -195,7 +238,7 @@ class Agent:
             # Min across all target critics (#17)
             next_qs = []
             for tc in self.target_critics:
-                nq = tc(next_state, goal, target_actions)
+                nq = tc(next_imgs_t, goal, target_actions)
                 nq[done] = 0.0
                 next_qs.append(nq.view(-1))
             next_critic_value = T.min(T.stack(next_qs), dim=0).values
@@ -204,30 +247,25 @@ class Agent:
             target = target.view(self.batch_size, 1)
 
         # --- Update critics ---
-        # PER priorities from first critic
-        q1 = self.critics[0](state, goal, action)
+        q1 = self.critics[0](imgs_t, goal, action)
         td_errors = (target - q1).detach().squeeze().cpu().numpy()
         self.memory.update_priorities(tree_idx, td_errors)
 
-        # Zero grads
         for c in self.critics:
             c.optimizer.zero_grad()
 
-        # Compute joint loss
         w = is_weights.view(-1, 1)
         critic_loss = T.tensor(0.0, device=self.device)
         for c in self.critics:
-            q = c(state, goal, action)
+            q = c(imgs_t, goal, action)
             critic_loss = critic_loss + (w * (target - q).pow(2)).mean()
 
         critic_loss.backward()
 
-        # Gradient clipping + step (#14)
         for c in self.critics:
             nn_utils.clip_grad_norm_(c.parameters(), self.max_grad_norm)
             c.optimizer.step()
 
-        # LR scheduler step (#13)
         for sched in self.critic_schedulers:
             sched.step()
 
@@ -238,7 +276,7 @@ class Agent:
             return
 
         self.actor.optimizer.zero_grad()
-        actor_q = self.critics[0](state, goal, self.actor(state, goal))
+        actor_q = self.critics[0](imgs_t, goal, self.actor(imgs_t, goal))
         actor_loss = -T.mean(actor_q)
         actor_loss.backward()
         nn_utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
@@ -254,11 +292,7 @@ class Agent:
     def update_network_parameters(self, tau=None):
         if tau is None:
             tau = self.tau
-
-        # Actor
         _soft_update(self.actor, self.target_actor, tau)
-
-        # Critics
         for c, tc in zip(self.critics, self.target_critics):
             _soft_update(c, tc, tau)
 
@@ -316,7 +350,7 @@ class Agent:
             json.dump(state, f, indent=2)
 
     def load_training_state(self):
-        """Load training state from JSON. Returns extra keys dict or None."""
+        """Load training state from JSON."""
         path = os.path.join(self.chkpt_dir, 'training_state.json')
         if not os.path.exists(path):
             return None
@@ -337,16 +371,6 @@ class Agent:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-def nn_module_list_helper(n, obs_dim, goal_dim, n_actions, l1, l2,
-                          prefix, chkpt_dir, lr):
-    """Create a list of CriticNetwork instances with indexed names."""
-    return [
-        CriticNetwork(obs_dim, goal_dim, n_actions, l1, l2,
-                      f'{prefix}_{i}', chkpt_dir, lr)
-        for i in range(n)
-    ]
-
 
 def _soft_update(source, target, tau):
     """Polyak averaging: target = tau * source + (1 - tau) * target."""
