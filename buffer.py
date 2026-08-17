@@ -1,3 +1,4 @@
+# Last updated: 2026-07-04 13:00 +0600
 import numpy as np
 import os
 
@@ -57,7 +58,18 @@ class ReplayBuffer:
     """
 
     PER_E  = 0.01   # small constant to ensure non-zero priority
-    PER_A  = 0.6    # how much prioritization to use (0 = uniform, 1 = full)
+    PER_A  = 0.4    # how much prioritization to use (0 = uniform, 1 = full).
+                    #   Lowered 0.6 -> 0.4 (place training): at 0.6, PER acted
+                    #   as a collapse AMPLIFIER — once a policy dip produced a
+                    #   burst of large-TD failure terminals (timeout_held -37s),
+                    #   they were oversampled, dragging critic Q-values down for
+                    #   all transport states, causing more holds, more failure
+                    #   terminals, stronger priorities. Observed repeatedly as
+                    #   fast/deep/sticky collapses right after curriculum peaks
+                    #   (e.g. 84% at frac 0.85 -> 0% within ~250 episodes) while
+                    #   climbs stayed slow. 0.4 keeps success transitions
+                    #   replayed preferentially but flattens the failure-burst
+                    #   feedback loop.
     PER_B  = 0.4    # initial importance-sampling exponent
     PER_B_INC = 1e-6  # anneal beta toward 1
 

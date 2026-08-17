@@ -66,14 +66,20 @@ class Agent:
         self.time_step += 1
         return mu_prime.cpu().detach().numpy()
 
-    def choose_action_batch(self, observations):
+    def choose_action_batch(self, observations, noise_scale=None):
         """Batched action selection for vectorized environments.
-        
+
         Passes all observations through the actor in a single forward pass.
-        
+
         Args:
             observations: np.ndarray of shape (n_envs, obs_dim)
-            
+            noise_scale:  optional per-action-dim multiplier on the exploration
+                          noise, shape (n_actions,). Defaults to None (uniform
+                          scale), preserving the original behaviour for callers
+                          that don't pass it. Used by the place task to shrink
+                          exploration noise on the gripper dim so it doesn't
+                          pop the grasp open.
+
         Returns:
             np.ndarray of shape (n_envs, n_actions)
         """
@@ -90,6 +96,8 @@ class Agent:
                 actions = self.actor.forward(states).cpu().numpy()
 
         noise = np.random.normal(scale=self.noise, size=(n_envs, self.n_actions))
+        if noise_scale is not None:
+            noise = noise * np.asarray(noise_scale, dtype=noise.dtype)
         actions = actions + noise
         actions = np.clip(actions, self.min_action[0], self.max_action[0])
         self.time_step += n_envs
