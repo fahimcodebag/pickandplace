@@ -1,0 +1,98 @@
+Starting grasp training...
+
+Episode     1 | ★ BEST! Score:  -33.17 | Avg:  -33.17 | Grasp%:   0.0% | Steps: 200
+Episode    12 | ★ BEST! Score:  -17.88 | Avg:  -87.70 | Grasp%:   0.0% | Steps: 200
+Episode    50 | Score: -120.23 | Avg: -102.84 | Grasp%:   0.0% | Best:  -17.88
+Episode    51 | ★ BEST! Score:   36.46 | Avg: -100.11 | Grasp%:   0.0% | Steps: 200
+Episode    55 | ★ BEST! Score:   51.33 | Avg:  -93.40 | Grasp%:   0.0% | Steps: 200
+Episode    56 | ★ BEST! Score:   53.20 | Avg:  -90.78 | Grasp%:   0.0% | Steps: 200
+Episode    59 | ★ BEST! Score:   65.66 | Avg:  -87.24 | Grasp%:   0.0% | Steps: 200
+Episode    68 | ★ BEST! Score:   69.94 | Avg:  -72.13 | Grasp%:   2.9% | Steps: 200
+Episode    82 | ★ BEST! Score:   70.30 | Avg:  -52.02 | Grasp%:   2.4% | Steps: 200
+Episode    89 | ★ BEST! Score:  133.36 | Avg:  -47.00 | Grasp%:   3.4% | Steps: 154
+Episode   100 | Score:  -63.44 | Avg:  -40.33 | Grasp%:   3.0% | Best:  133.36
+Episode   150 | Score:   88.76 | Avg:   21.76 | Grasp%:   5.0% | Best:  133.36
+Episode   200 | Score:  -89.18 | Avg:   13.50 | Grasp%:   3.0% | Best:  133.36
+Episode   221 | ★ BEST! Score:  137.70 | Avg:   12.53 | Grasp%:   3.0% | Steps: 200
+Episode   250 | Score:   31.82 | Avg:   15.71 | Grasp%:   6.0% | Best:  137.70
+Episode   300 | Score:   41.45 | Avg:   31.48 | Grasp%:  10.0% | Best:  137.70
+Episode   350 | Score:   53.52 | Avg:   43.74 | Grasp%:   5.0% | Best:  137.70
+Episode   400 | ★ BEST! Score:  147.90 | Avg:   55.44 | Grasp%:  13.0% | Steps: 200
+Episode   401 | ★ BEST! Score:  156.62 | Avg:   56.40 | Grasp%:  13.0% | Steps: 200
+Episode   407 | ★ BEST! Score:  167.58 | Avg:   58.92 | Grasp%:  14.0% | Steps: 200
+Episode   450 | Score:  123.95 | Avg:   81.82 | Grasp%:  24.0% | Best:  167.58
+Episode   479 | ★ BEST! Score:  185.06 | Avg:   87.80 | Grasp%:  32.0% | Steps: 200
+Episode   500 | Score:   15.40 | Avg:   84.78 | Grasp%:  32.0% | Best:  185.06
+
+Checkpoint at 500: Avg=84.78 Grasp%=32.0% (buffer: 90,291 transitions)
+
+Episode   550 | Score:   -7.69 | Avg:   67.15 | Grasp%:  41.0% | Best:  185.06
+Episode   600 | Score:   76.21 | Avg:   85.12 | Grasp%:  30.0% | Best:  185.06
+Episode   650 | Score:  166.46 | Avg:   96.33 | Grasp%:  28.0% | Best:  185.06
+Episode   651 | ★ BEST! Score:  191.12 | Avg:   96.86 | Grasp%:  27.0% | Steps: 200
+Episode   657 | ★ BEST! Score:  198.12 | Avg:   97.42 | Grasp%:  27.0% | Steps: 200
+Episode   700 | Score:   76.34 | Avg:   92.40 | Grasp%:  37.0% | Best:  198.12
+Episode   716 | ★ BEST! Score:  254.61 | Avg:   93.55 | Grasp%:  33.0% | Steps: 200
+Episode   750 | Score:  174.36 | Avg:  106.12 | Grasp%:  27.0% | Best:  254.61
+Episode   800 | Score:  159.73 | Avg:  129.08 | Grasp%:  23.0% | Best:  254.61
+Episode   850 | Score:  118.36 | Avg:  148.49 | Grasp%:  16.0% | Best:  254.61
+Episode   900 | Score:  122.76 | Avg:  132.09 | Grasp%:  22.0% | Best:  254.61
+Episode   950 | Score:  -51.96 | Avg:   91.35 | Grasp%:  54.0% | Best:  254.61
+Episode  1000 | Score:   65.97 | Avg:   77.50 | Grasp%:  69.0% | Best:  254.61
+
+Checkpoint at 1000: Avg=77.50 Grasp%=69.0% (buffer: 160,135 transitions)
+
+Episode  1050 | Score:   79.50 | Avg:   83.94 | Grasp%:  64.0% | Best:  254.61
+Episode  1100 | Score:  172.53 | Avg:   78.73 | Grasp%:  48.0% | Best:  254.61
+Episode  1150 | Score:   76.94 | Avg:   76.94 | Grasp%:  51.0% | Best:  254.61
+Episode  1169 | ★ BEST! Score:  268.94 | Avg:   85.85 | Grasp%:  59.0% | Steps: 200
+Episode  1200 | Score:   58.84 | Avg:   85.76 | Grasp%:  66.0% | Best:  268.94
+Episode  1250 | Score:   61.09 | Avg:   79.33 | Grasp%:  80.0% | Best:  268.94
+Episode  1300 | Score:  111.97 | Avg:   75.34 | Grasp%:  89.0% | Best:  268.94
+Episode  1350 | Score:  169.36 | Avg:   82.80 | Grasp%:  80.0% | Best:  268.94
+Episode  1400 | Score:   51.40 | Avg:   85.53 | Grasp%:  73.0% | Best:  268.94
+Episode  1450 | Score:   88.10 | Avg:   89.89 | Grasp%:  73.0% | Best:  268.94
+Episode  1500 | Score:  158.69 | Avg:   92.54 | Grasp%:  72.0% | Best:  268.94
+
+Checkpoint at 1500: Avg=92.54 Grasp%=72.0% (buffer: 200,000 transitions)
+
+Episode  1550 | Score:    3.60 | Avg:   88.55 | Grasp%:  67.0% | Best:  268.94
+Episode  1600 | Score:   58.63 | Avg:   89.77 | Grasp%:  60.0% | Best:  268.94
+Episode  1650 | Score:   59.71 | Avg:   87.05 | Grasp%:  70.0% | Best:  268.94
+Episode  1700 | Score:   58.50 | Avg:   79.83 | Grasp%:  81.0% | Best:  268.94
+Episode  1750 | Score:   57.06 | Avg:   85.71 | Grasp%:  76.0% | Best:  268.94
+Episode  1791 | ★ BEST! Score:  294.85 | Avg:   94.79 | Grasp%:  75.0% | Steps:  74
+Episode  1800 | Score:  222.96 | Avg:   95.67 | Grasp%:  74.0% | Best:  294.85
+Episode  1850 | Score:  118.06 | Avg:   97.69 | Grasp%:  72.0% | Best:  294.85
+Episode  1900 | Score:   98.21 | Avg:  103.75 | Grasp%:  53.0% | Best:  294.85
+Episode  1950 | Score:   59.03 | Avg:  108.65 | Grasp%:  46.0% | Best:  294.85
+Episode  2000 | Score:   59.81 | Avg:   97.49 | Grasp%:  59.0% | Best:  294.85
+
+Checkpoint at 2000: Avg=97.49 Grasp%=59.0% (buffer: 200,000 transitions)
+
+Episode  2050 | Score:   74.88 | Avg:  106.87 | Grasp%:  53.0% | Best:  294.85
+Episode  2100 | Score:   68.45 | Avg:  114.97 | Grasp%:  49.0% | Best:  294.85
+Episode  2150 | Score:  141.77 | Avg:  107.29 | Grasp%:  45.0% | Best:  294.85
+Episode  2200 | Score:  172.84 | Avg:  128.90 | Grasp%:  18.0% | Best:  294.85
+Episode  2250 | Score:   66.04 | Avg:  134.82 | Grasp%:  18.0% | Best:  294.85
+Episode  2300 | Score:   58.58 | Avg:  100.98 | Grasp%:  57.0% | Best:  294.85
+Episode  2350 | Score:   62.59 | Avg:   74.11 | Grasp%:  84.0% | Best:  294.85
+Episode  2400 | Score:   73.95 | Avg:   68.23 | Grasp%:  90.0% | Best:  294.85
+Episode  2450 | Score:   58.79 | Avg:   67.00 | Grasp%:  94.0% | Best:  294.85
+
+🎯 Grasp target reached! Success rate: 95.0%
+Replay buffer saved.
+
+======================================================================
+GRASP TRAINING COMPLETE
+======================================================================
+Total episodes: 2455
+Best score:     294.85
+Final average:  66.91
+Final grasp %:  95.0%
+======================================================================
+
+Next steps:
+  1. python test_grasp.py --episodes 20
+  2. python collect_grasp_states.py --episodes 1000
+  3. Train the Place model using collected grasp terminal states

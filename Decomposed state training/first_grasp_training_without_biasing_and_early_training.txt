@@ -1,0 +1,11 @@
+Episode    44 | ★ BEST! Score:  658.07 | Avg: -2618.04 | Place%:   0.0% | Steps: 166 
+Episode    49 | ★ BEST! Score:  761.14 | Avg: -2522.84 | Place%:   0.0% | Steps: 183 
+Episode    50 | Score: -3065.09 | Avg: -2533.69 | Place%:   0.0% | Best:  761.14
+Episode    58 | ★ BEST! Score: 1101.37 | Avg: -2358.09 | Place%:   0.0% | Steps: 250 
+Episode   100 | Score: -3065.36 | Avg: -2257.54 | Place%:   0.0% | Best: 1101.37
+Episode   139 | ★ BEST! Score: 1376.43 | Avg: -1863.62 | Place%:   0.0% | Steps: 300 
+Episode   150 | Score: -3028.80 | Avg: -1918.74 | Place%:   0.0% | Best: 1376.43
+Episode   193 | ★ BEST! Score: 1447.93 | Avg: -2003.33 | Place%:   0.0% | Steps: 300 
+Episode   200 | Score: -3017.02 | Avg: -2055.50 | Place%:   0.0% | Best: 1447.93
+Episode   250 | Score:  787.00 | Avg: -1741.22 | Place%:   1.0% | Best: 1447.93
+Episode   300 | Score: -3065.81 | Avg: -1490.80 | Place%:   2.0% | Best: 1447.93
