@@ -1,0 +1,124 @@
+(venv) fahim__@DESKTOP-T1JPGLM:~/RL_implementaion_and_simlation_manipulator/pickandplace$ python3 hil_main.py
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim__/RL_implementaion_and_simlation_manipulator/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+
+==============================================================
+Hardware-in-the-Loop: ESP32 two-model INT8 FSM
+==============================================================
+
+1. Creating RoboSuite environment...
+/home/fahim__/RL_implementaion_and_simlation_manipulator/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: WARN: Box bound precision lowered by casting to float32
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+✓ Environment ready: (46,) → (7,)
+
+2. Connecting to ESP32 on /dev/ttyUSB0...
+✓ Connected to ESP32 on /dev/ttyUSB0 @ 921600 baud
+
+3. Running 10 episodes...
+--------------------------------------------------------------
+
+Episode 1/10
+      t=  0 flags=0x00 phase=GRASP
+      t= 22 flags=0x01 phase=TEST_LIFT
+      t= 42 flags=0x01 phase=TRANSPORT
+  handoff attempts: 1 | steps: 300 | score: 0.53 | end: DONE_FAIL | ✗ failed
+
+Episode 2/10
+      t=  0 flags=0x00 phase=GRASP
+      t= 22 flags=0x01 phase=TEST_LIFT
+      t= 42 flags=0x01 phase=TRANSPORT
+  handoff attempts: 1 | steps: 123 | score: 71.32 | end: DONE_OK | ✓ PLACED
+
+Episode 3/10
+      t=  0 flags=0x00 phase=GRASP
+      t= 23 flags=0x01 phase=TEST_LIFT
+      t= 43 flags=0x01 phase=TRANSPORT
+  handoff attempts: 1 | steps: 136 | score: 78.68 | end: DONE_OK | ✓ PLACED
+
+Episode 4/10
+      t=  0 flags=0x00 phase=GRASP
+      t= 22 flags=0x01 phase=TEST_LIFT
+      t= 42 flags=0x01 phase=TRANSPORT
+  handoff attempts: 1 | steps: 120 | score: 70.35 | end: DONE_OK | ✓ PLACED
+
+Episode 5/10
+      t=  0 flags=0x00 phase=GRASP
+      t= 22 flags=0x01 phase=TEST_LIFT
+      t= 42 flags=0x01 phase=TRANSPORT
+  handoff attempts: 1 | steps: 118 | score: 69.07 | end: DONE_OK | ✓ PLACED
+
+============================================================
+ESP32 Communication Statistics
+============================================================
+Total cycles: 1013
+Successful: 1013 (100.0%)
+Timeouts: 0
+Checksum errors: 0
+Avg cycle time: 9.53 ms
+============================================================
+
+
+Episode 6/10
+      t=  0 flags=0x00 phase=GRASP
+      t= 22 flags=0x01 phase=TEST_LIFT
+      t= 42 flags=0x01 phase=TRANSPORT
+  handoff attempts: 1 | steps: 119 | score: 69.71 | end: DONE_OK | ✓ PLACED
+
+Episode 7/10
+      t=  0 flags=0x00 phase=GRASP
+      t= 21 flags=0x01 phase=TEST_LIFT
+      t= 41 flags=0x01 phase=TRANSPORT
+  handoff attempts: 1 | steps: 129 | score: 74.89 | end: DONE_OK | ✓ PLACED
+
+Episode 8/10
+      t=  0 flags=0x00 phase=GRASP
+      t= 22 flags=0x01 phase=TEST_LIFT
+      t= 42 flags=0x01 phase=TRANSPORT
+  handoff attempts: 1 | steps: 120 | score: 70.03 | end: DONE_OK | ✓ PLACED
+
+Episode 9/10
+      t=  0 flags=0x00 phase=GRASP
+      t= 22 flags=0x01 phase=TEST_LIFT
+      t= 42 flags=0x01 phase=TRANSPORT
+  handoff attempts: 1 | steps: 127 | score: 73.27 | end: DONE_OK | ✓ PLACED
+
+Episode 10/10
+      t=  0 flags=0x00 phase=GRASP
+      t= 22 flags=0x01 phase=TEST_LIFT
+      t= 42 flags=0x01 phase=TRANSPORT
+  handoff attempts: 1 | steps: 117 | score: 68.63 | end: DONE_OK | ✓ PLACED
+
+============================================================
+ESP32 Communication Statistics
+============================================================
+Total cycles: 1839
+Successful: 1839 (100.0%)
+Timeouts: 0
+Checksum errors: 0
+Avg cycle time: 9.49 ms
+============================================================
+
+✓ Disconnected from ESP32
+
+==============================================================
+Final Results (10 scored episodes of 10)
+==============================================================
+Placements:            9/10 (90.0%)
+Average score:         64.65 ± 21.57
+Mean handoff attempts: 1.00 (retries are NOT counted as episode failures — same convention as the 92% Python baseline)
+==============================================================
+
+
+============================================================
+ESP32 Communication Statistics
+============================================================
+Total cycles: 1839
+Successful: 1839 (100.0%)
+Timeouts: 0
+Checksum errors: 0
+Avg cycle time: 9.49 ms
+============================================================
