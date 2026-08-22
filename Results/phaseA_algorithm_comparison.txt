@@ -1,0 +1,40 @@
+PHASE A — RANDOM-SPAWN GRASP: ALGORITHM COMPARISON
+seed 0 | 4000 episodes | spawn level 1.0 (full position box, no rotation)
+warm start: checkpoints/td3_grasp_rand_best_0355_backup | 5 envs | UTD 0.5
+==============================================================================
+
+algo      peak%    @ep  final%  decay  metric  DETERMINISTIC
+sac        82.0   2920    62.0   20.0   0.440          73.3%
+td3_ln     63.0   3173    35.0   28.0   0.340          63.3%
+ppo        59.0    197    28.0   31.0   0.300          36.7%
+td3        43.0    189     5.0   38.0   0.270          53.3%
+
+DETERMINISTIC EVALUATION — 30 episodes, no exploration noise, level 1.0
+------------------------------------------------------------------------------
+  SAC best (this run)                     73.3% <-- new best
+  TD3+LayerNorm best (this run)           63.3%
+  TD3 best (this run)                     53.3%
+  PRIOR BEST artifact (metric 0.355)      46.7% <-- baseline
+  PPO best (this run)                     36.7%
+  fixed-spawn grasp model                 33.3%
+
+FINDINGS
+1. SAC sets a new record: 73.3% vs the prior artifact's 46.7% on the same
+   full-box test (+26.6 points), and 82% peak rolling success in training.
+2. EVERY algorithm decayed after peaking (-20 to -38 points). The decay is a
+   property of the task/regime, not of TD3's update rule.
+3. PPO decayed too (-31) despite having NO replay buffer. This FALSIFIES
+   stale-replay-composition as the mechanism -- the last surviving hypothesis
+   from the earlier campaign. On-policy data does not prevent it.
+4. Mitigations rank by decay magnitude: SAC (-20) < TD3+LN (-28) < PPO (-31)
+   < TD3 (-38). Entropy regularization and LayerNorm both help; neither cures.
+5. TD3 collapsed catastrophically: 43% -> 5%, with timeout_no_reach 148/200 in
+   the final window -- it forgot how to REACH, not merely how to grasp.
+6. Best-checkpoint governance paid for itself: SAC ended training at 62% but
+   the preserved best/ evaluates at 73.3%. The decay cost nothing.
+
+CAVEATS
+- Single seed. Re-run the top candidates at seeds 1 and 2 before publishing.
+- 30-episode evaluation: standard error ~8 points. Use 100+ for thesis numbers.
+- Phase B (adding z-rotation, spawn level 2.0) is not yet run.
+
