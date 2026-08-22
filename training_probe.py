@@ -39,13 +39,29 @@ def probe(agent, batch=512):
     s_t, a_t, r_t = to(s), to(a), to(r)
 
     with T.no_grad():
-        # Actor behaviour: saturation is the signal that matters for INT8
+        # Actor behaviour. Saturation is the signal that matters for INT8
         # deployment (§8.3 — error hides in saturated dims, bites in mid-range).
-        act = (agent.actor(s_t) if not hasattr(agent.actor, "sample")
-               else agent.actor(s_t))
+        #
+        # Deterministic AND sampled magnitudes are both recorded: their RATIO
+        # is the exploration magnitude relative to the policy signal, and it is
+        # the diagnostic that caught a SAC log_std init emitting sigma ~= 1.0,
+        # where noise ran ~6x the signal and silently destroyed the warm start.
+        # `action_abs_mean` alone cannot show this — it is the deterministic
+        # path and looks healthy either way.
+        act = agent.actor(s_t)
         out["action_abs_mean"] = float(act.abs().mean())
         out["action_saturated_frac"] = float((act.abs() > 0.99).float().mean())
         out["action_gripper_mean"] = float(act[:, -1].mean())
+
+        explore = None
+        if hasattr(agent.actor, "sample"):                 # SAC
+            explore, _ = agent.actor.sample(s_t)
+        elif hasattr(agent.actor, "dist"):                 # PPO
+            explore = agent.actor.dist(s_t).sample()
+        if explore is not None:
+            out["action_explore_abs_mean"] = float(explore.abs().mean())
+            out["explore_ratio"] = float(explore.abs().mean()
+                                         / max(1e-6, act.abs().mean()))
 
         c1 = getattr(agent, "critic_1", None)
         if c1 is not None:

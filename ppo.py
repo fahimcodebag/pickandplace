@@ -48,7 +48,7 @@ class _NoBuffer:
 class PPOActor(nn.Module):
     def __init__(self, input_dims, fc1=64, fc2=32, n_actions=7,
                  chkpt_dir='./checkpoints/ppo', lr=3e-4, max_action=1.0,
-                 init_log_std=-0.5):
+                 init_log_std=-1.6):
         super().__init__()
         input_dims = _as_int(input_dims)
         self.name = 'actor'
@@ -59,6 +59,9 @@ class PPOActor(nn.Module):
         self.fc1 = nn.Linear(input_dims, fc1)
         self.fc2 = nn.Linear(fc1, fc2)
         self.output = nn.Linear(fc2, n_actions)
+        # sigma ~= 0.20 at init — matched to SAC and to TD3's fixed noise=0.1
+        # so the three differ in how they ADAPT exploration, not in how much
+        # they start with (see networks_sac.GaussianActor for the measurement).
         self.log_std = nn.Parameter(T.full((n_actions,), float(init_log_std)))
 
         self.device = T.device('cuda' if T.cuda.is_available() else 'cpu')

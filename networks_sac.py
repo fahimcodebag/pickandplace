@@ -77,7 +77,25 @@ class CriticNetworkLN(nn.Module):
         T.save(self.state_dict(), self.checkpoint_file)
 
     def load_checkpoint(self):
-        self.load_state_dict(T.load(self.checkpoint_file))
+        """Load, tolerating a warm start from a checkpoint without LayerNorm.
+
+        Warm-starting a LayerNorm critic from a plain-critic checkpoint (e.g.
+        the fixed-spawn or metric-0.355 artifacts, trained with `networks.py`)
+        legitimately has no ln1/ln2 entries. Those params keep their fresh
+        init (weight=1, bias=0) and the trunk is seeded as intended. Any OTHER
+        missing/unexpected key is a real mismatch and still raises.
+        """
+        state = T.load(self.checkpoint_file)
+        try:
+            self.load_state_dict(state)
+        except RuntimeError:
+            missing, unexpected = self.load_state_dict(state, strict=False)
+            stray = [k for k in list(missing) + list(unexpected)
+                     if not k.startswith(("ln1.", "ln2."))]
+            if stray:
+                raise
+            print(f"  [{self.name}] warm start without LayerNorm params "
+                  f"({len(missing)} ln keys freshly initialized)", flush=True)
 
 
 class GaussianActor(nn.Module):
@@ -88,7 +106,7 @@ class GaussianActor(nn.Module):
 
     def __init__(self, input_dims, fc1_dims=64, fc2_dims=32, n_actions=7,
                  name='actor', chkpt_dir='./checkpoints/sac',
-                 learning_rate=3e-4, max_action=1.0):
+                 learning_rate=3e-4, max_action=1.0, init_log_std=-1.6):
         super().__init__()
         input_dims = _as_int(input_dims)
         self.name = name
@@ -100,6 +118,16 @@ class GaussianActor(nn.Module):
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
         self.output = nn.Linear(fc2_dims, n_actions)      # mean head
         self.log_std = nn.Linear(fc2_dims, n_actions)     # training-only
+        # Start exploration at sigma ~= exp(-1.6) = 0.20, comparable to TD3's
+        # fixed noise=0.1, and let the temperature adapt from there. The
+        # default Linear init emits log_std ~= 0 (sigma ~= 1.0), which for
+        # tanh-squashed actions in [-1,1] swamps the policy: measured sampled
+        # |a| 0.559 vs deterministic |a| 0.095, i.e. noise ~6x the signal. That
+        # destroys a WARM START outright (observed: 62% of episodes never
+        # reached the object, success falling 44->16%) and would have made this
+        # an initialization comparison rather than an algorithm comparison.
+        nn.init.constant_(self.log_std.bias, init_log_std)
+        nn.init.uniform_(self.log_std.weight, -1e-3, 1e-3)
 
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         self.device = T.device('cuda' if T.cuda.is_available() else 'cpu')

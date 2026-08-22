@@ -21,7 +21,7 @@ mkdir -p "$LOGDIR"
 launch () {  # launch <algo> [extra args...]
   local algo=$1; shift
   echo "launching $algo -> $LOGDIR/$algo.log"
-  nohup python3 train_rand.py --algo "$algo" --n-envs "$ENVS" \
+  nohup python3 -u train_rand.py --algo "$algo" --n-envs "$ENVS" \
       --episodes "$EPISODES" --seed "$SEED" --tag "$TAG" "$@" \
       > "$LOGDIR/$algo.log" 2>&1 &
   echo "  pid $!"
