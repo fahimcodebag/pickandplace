@@ -1,0 +1,52 @@
+================================================================================
+PHASE B: FULL Z-ROTATION (spawn level 2.0)
+td3_ln, warm-started from checkpoints/td3_grasp_rand_td3_ln_resetA_s0/best
+6000-episode cap, 85% stopping target, 3 seeds x {critic resets, control}
+================================================================================
+
+Level semantics (grasp_spawn_wrapper.py): level 1.0 pins rot=0.0; level 2.0
+sets rot=None, robosuite's uniform full circle. Phase A trained and evaluated
+entirely at 1.0, so rotation is genuinely new capability.
+
+DETERMINISTIC EVALUATION (100 episodes, seed 123, spawn level 2.0)
+  seed    reset    control    gap
+   0      72.0%     38.0%     +34
+   1      68.0%     50.0%     +18
+   2      86.0%     48.0%     +38
+  mean    75.3%     45.3%     +30.0
+
+  paired mean +30.0  sd 10.6  SE 6.1  t(2)=4.91  p~0.039  3/3 seeds positive
+
+The critic-reset result replicates at the harder level. Point estimate exceeds
+level 1.0's +20.3, but the intervals overlap (SE 6.1 vs 3.9) -- report as
+"replicates with comparable or larger effect", NOT as evidence that difficulty
+amplifies the effect.
+
+CAPABILITY IS SPECIALISED, IN BOTH DIRECTIONS
+  policy                    @ level 1.0   @ level 2.0
+  Phase A (reset s0)           89.0%         12.0%
+  Phase B (reset s1)           37.0%         68.0%
+
+Phase A never learned yaw at all: 89% collapses to 12% once objects rotate.
+Phase B learned it but lost the fixed-orientation case -- and yaw~0 is densely
+covered by its own training distribution, so 37% is a specialisation gap, not
+extrapolation. Neither policy generalises to the other's regime.
+
+For sim2real this favours level 2.0 outright: real objects have arbitrary yaw,
+and level 1.0 is an artificial fixed-orientation case. It also makes AprilTag
+load-bearing rather than convenient -- a position-only policy never needed the
+yaw estimate; a rotation-capable one does.
+
+Rotation costs roughly 14 points of absolute capability against Phase A's
+level-1.0 best (89.0% -> 75.3% mean, best seed 86.0%).
+
+ON EARLY STOPPING (a claim this data does NOT support)
+Seeds 1 and 2 alone suggested longer training scores better (ep 1661 -> 68.0%
+vs ep 3410 -> 86.0%). Seed 0 breaks it: longest run at ep 3897, only 72.0%.
+Correlation between training length and eval score is weak at n=3. The 85%
+training target does fire on favourable exploration windows, but this data
+does not establish that early stopping costs performance.
+
+CAVEAT
+100-episode evaluations carry SE ~5 points. Seed spread within the reset arm is
+wide (68-86), so quote the mean 75.3%, not the best seed.
