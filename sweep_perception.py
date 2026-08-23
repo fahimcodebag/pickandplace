@@ -29,6 +29,8 @@ os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 sys.path.insert(0, os.path.join(_HERE, "Decomposed state training"))
+sys.path.insert(0, os.path.join(_HERE, "Decomposed state training",
+                                "Random spawn model"))
 
 import numpy as np
 import torch
@@ -39,9 +41,22 @@ from robosuite.wrappers import GymWrapper
 from grasp_env_wrapper import GraspRewardWrapper
 from networks import ActorNetwork
 from perception_wrapper import PeriodicPerceptionWrapper
+from grasp_spawn_wrapper import make_spawn_grasp_env
 
 
-def make_env(spawn="fixed", seed=None):
+def make_env(spawn="fixed", seed=None, level=1.0):
+    """Build the grasp env the sweep evaluates in.
+
+    "random" MUST go through make_spawn_grasp_env, the same constructor the
+    policy trained under and that eval_best.py scores with. Falling through to
+    robosuite's stock PickPlace initializer instead randomises position AND
+    full z-rotation -- that is Phase B (level 2.0) difficulty, not level 1.0,
+    and it scored a level-1.0 policy at 6.7% with perception every step.
+    """
+    if spawn == "random":
+        return make_spawn_grasp_env("PickPlace", seed=seed,
+                                    curriculum=False, level=level)
+
     env = suite.make(
         "PickPlace", robots="Panda",
         controller_configs=suite.load_controller_config(
@@ -49,27 +64,27 @@ def make_env(spawn="fixed", seed=None):
         has_renderer=False, has_offscreen_renderer=False, use_camera_obs=False,
         horizon=500, reward_shaping=False, control_freq=20,
         single_object_mode=2, object_type="bread")
-    if spawn == "fixed":
-        _orig = env._get_placement_initializer
+    _orig = env._get_placement_initializer
 
-        def _fixed():
-            _orig()
-            s = env.placement_initializer.samplers["CollisionObjectSampler"]
-            s.x_range = np.array([0.0, 0.0])
-            s.y_range = np.array([0.0, 0.0])
-            s.rotation = 0.0
-            s.ensure_object_boundary_in_range = False
-            s.ensure_valid_placement = False
+    def _fixed():
+        _orig()
+        s = env.placement_initializer.samplers["CollisionObjectSampler"]
+        s.x_range = np.array([0.0, 0.0])
+        s.y_range = np.array([0.0, 0.0])
+        s.rotation = 0.0
+        s.ensure_object_boundary_in_range = False
+        s.ensure_valid_placement = False
 
-        env._get_placement_initializer = _fixed
+    env._get_placement_initializer = _fixed
     g = GymWrapper(GraspRewardWrapper(env))
     if seed is not None:
         g.seed(seed)
     return g
 
 
-def evaluate(actor, cfg, episodes, spawn, seed):
-    env = PeriodicPerceptionWrapper(make_env(spawn, seed), seed=seed, **cfg)
+def evaluate(actor, cfg, episodes, spawn, seed, level=1.0):
+    env = PeriodicPerceptionWrapper(make_env(spawn, seed, level),
+                                    seed=seed, **cfg)
     dev = actor.device
     succ, steps_all = 0, []
     for _ in range(episodes):
@@ -94,6 +109,8 @@ def main():
     p.add_argument("--spawn", choices=["fixed", "random"], default="fixed")
     p.add_argument("--grasp-ckpt", default="checkpoints/td3_grasp")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--level", type=float, default=1.0,
+                   help="spawn level for --spawn random; 1.0 = full position box, 2.0 adds z-rotation")
     p.add_argument("--out", default="Results/perception_sweep.csv")
     p.add_argument("--periods", type=int, nargs="+", default=[1, 2, 5, 10, 20])
     p.add_argument("--noises", type=float, nargs="+",
@@ -128,7 +145,7 @@ def main():
         cfg = dict(period=per, latency=lat, noise_pos=noi, dropout=dro,
                    mode=mode)
         succ, steps, st = evaluate(actor, cfg, args.episodes, args.spawn,
-                                   args.seed)
+                                   args.seed, args.level)
         pct = 100.0 * succ / args.episodes
         print(f"{mode:11s} {per:4d} {lat:4d} {noi:7.3f} {dro:5.2f}"
               f" {succ:4d}/{args.episodes:<4d} {pct:5.1f}% {steps:7.1f}")
