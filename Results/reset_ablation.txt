@@ -1,0 +1,80 @@
+================================================================================
+CRITIC-RESET ABLATION -- IS THE DECAY PLASTICITY LOSS OR A TASK CONTRADICTION?
+Seed 0. Random-spawn grasp, spawn level 1.0 (full position box).
+================================================================================
+
+QUESTION
+Phase A found every algorithm decaying after its peak (sac -20, td3_ln -28,
+ppo -31, td3 -38). PPO decayed with NO replay buffer at all, which falsified
+stale replay composition -- the last hypothesis surviving from the earlier
+five-run campaign (thesis_context.md Sec 9.2). Two explanations remained:
+
+  (a) task contradiction -- learning to grasp actively damages reaching, so
+      the decay is intrinsic and must be designed around; or
+  (b) plasticity loss   -- as the policy improves, its own data narrows onto
+      near-success trajectories and the critic over-specialises until it can
+      no longer fit anything else.
+
+They make opposite predictions about a Nikishin-style partial reset. Under (a)
+reinitialising the critic head just re-pays the cost. Under (b) it restores
+capacity and should reach levels the control never touches.
+
+DESIGN
+Each reset arm is paired with its seed-matched no-reset control from Phase A.
+One variable changes: --critic-reset-every 25000 (~7 resets over a full run).
+Env, reward, spawn level, warm start, UTD, batch size and learning rates are
+identical, taken from the phaseA manifests.
+
+td3_ln is the DECISIVE arm: its exploration noise comes from seeded numpy, so
+it reproduced its control BIT-FOR-BIT through episode 400 -- identical
+success_100, best_metric and grad_steps -- until the first reset at episode
+422. Every divergence after that is caused by the reset alone. SAC samples
+actions via torch rsample() on the GPU and is not bit-reproducible, so its
+comparison is corroborating rather than causal.
+
+RESULT -- TRAINING
+  arm                     outcome
+  td3_ln control          peak 63% @ ~ep 3170, best metric 0.340, 4000 eps
+  td3_ln + resets         85% target REACHED at ep 2946, best metric 0.470
+                          (control was at 22% at that same episode)
+  sac control             peak 82% @ ~ep 2900, best metric 0.440, 4000 eps
+  sac + resets            85% target REACHED at ep 1625, best metric 0.440
+                          (control was at 52% at that same episode)
+
+Neither control ever reached the 85% stopping target in 4000 episodes. Both
+reset arms did, and terminated early.
+
+RESULT -- DETERMINISTIC EVALUATION (100 episodes, seed 123, level 1.0)
+  policy                          success   mean steps (successes)
+  td3_ln + resets                  89.0%      45     <-- best artifact
+  sac    + resets                  80.0%      60
+  sac    control                   69.0%      83
+  td3_ln control                   61.0%     113
+  ppo    control                   56.0%     107
+  prior artifact (metric 0.355)    54.0%     109
+  td3    control                   47.0%     122
+
++28.0 points over its own seed-matched control, +35.0 over the artifact this
+campaign started from, and it grasps in 45 steps against 109 -- which directly
+relieves the FSM per-phase step budget.
+
+CONCLUSION
+(b). The task is not inherently contradictory. The decay was plasticity loss in
+the critic, and resetting the output layer -- keeping the trunk AND the entire
+replay buffer -- recovers performance the controls never reached in 4000
+episodes. A contradictory objective would not behave this way: the reset arm
+does not merely re-pay a cost, it crosses the control's lifetime peak at
+episode ~700 and stays above it.
+
+Secondary: this inverts a Phase A ranking. td3_ln was second without resets and
+is first with them. SAC's Phase A advantage was largely entropy regularisation
+partially masking a problem that resets solve outright -- consistent with SAC
+decaying least of the four, and with its reset arm gaining less (+11) than
+td3_ln's (+28).
+
+CAVEAT
+Single seed. The seeds 1-2 replication matrix (both arms, both algorithms) is
+running; this file covers seed 0 only. 100-episode evaluation carries SE ~5
+points, so the 89.0 vs 80.0 ordering between the two reset arms is inside
+~1.5 SE and should not be over-read -- the reset-vs-control gaps (+28, +11)
+are the load-bearing numbers.
