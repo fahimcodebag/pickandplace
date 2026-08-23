@@ -40,11 +40,18 @@ for ep in range(a.episodes):
             act = net(torch.tensor(obs, dtype=torch.float, device=net.device).unsqueeze(0))
         obs, _, done, info = env.step(act.squeeze(0).cpu().numpy()); steps += 1
     ok = bool(info.get("grasp_success", False)); succ += ok
-    steps_all.append(steps)
+    steps_all.append((steps, ok))
     r = "success" if ok else "failure"
     reasons[r] = reasons.get(r, 0) + 1
 print(f"\n{a.ckpt}")
 print(f"  spawn level {a.level} (1.0 = full position box)  |  {a.episodes} episodes, deterministic")
 print(f"  SUCCESS: {succ}/{a.episodes} = {100*succ/a.episodes:.1f}%")
-print(f"  mean steps (successes): "
-      f"{np.mean([s for s,ok in zip(steps_all,[r=='success' for r in []])] or steps_all):.0f}")
+# These were one figure before, labelled "mean steps (successes)" but computed
+# over ALL episodes: the success mask was built from an empty list, so the
+# comprehension was empty and the `or steps_all` fallback averaged everything,
+# 200-step timeouts included. Report both, explicitly.
+_succ_steps = [s for s, ok in steps_all if ok]
+_all_steps = [s for s, _ in steps_all]
+print(f"  mean steps (successes only): "
+      f"{np.mean(_succ_steps):.0f}" if _succ_steps else "  mean steps (successes only): n/a")
+print(f"  mean steps (all episodes):   {np.mean(_all_steps):.0f}")

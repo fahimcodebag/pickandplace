@@ -193,85 +193,122 @@ def run_qat(model_fp32, calib_states, args):
 
 def convert_to_tflite(model_fp32, calib_states, output_path, input_dims,
                       per_tensor=False):
-    """
-    Convert a plain FP32 nn.Module to INT8 .tflite using litert_torch.
-    Quantization is applied inside the TFLite converter using a
-    representative dataset (PTQ) — no pt2e_quantizer needed.
+    """Convert an FP32 nn.Module to a full-integer INT8 .tflite.
+
+    Two stages, because litert-torch 0.9.3 has no working single-shot INT8
+    path for this model:
+
+      1. litert_torch.convert() -> float32 .tflite
+      2. ai-edge-quantizer applies static INT8 PTQ with real calibration data
+
+    The pt2e route that used to work is a dead end here: convert_pt2e with
+    fold_quantize=False converts cleanly but leaves float weights wrapped in
+    quantize/dequantize pairs (26.8 KB, 0.00000 output diff -- it looks like a
+    success and is not quantized), and fold_quantize=True produces bare int8
+    tensors that the stablehlo lowering rejects outright.
     """
     print(f"\nConverting to TFLite INT8...")
     model_fp32.eval()
 
     sample_inputs = (torch.randn(1, input_dims),)
+    calib_t = torch.tensor(calib_states[:4096], dtype=torch.float32)
 
-    # Build representative dataset generator for TFLite INT8 calibration
-    # This is what the TFLite converter uses to compute INT8 scale/zero_point
-    calib_t = torch.tensor(calib_states[:500], dtype=torch.float32)
+    out_abs = os.path.abspath(output_path)
+    os.makedirs(os.path.dirname(out_abs), exist_ok=True)
+    float_path = os.path.splitext(out_abs)[0] + "_float32.tflite"
 
-    def representative_dataset():
-        for i in range(len(calib_t)):
-            sample = calib_t[i].unsqueeze(0).numpy()
-            yield [sample]
+    # ---- stage 1: float32 tflite -------------------------------------------
+    edge_model = litert_torch.convert(model_fp32, sample_inputs)
+    edge_model.export(float_path)
+    print(f"  float32 stage: {os.path.getsize(float_path) / 1024:.1f} KB")
 
-    # TFLite converter flags for full INT8 quantization
-    # inference_input_type / inference_output_type = float32 means:
-    #   - Internal ops run in INT8 (fast, small)
-    #   - Model input/output stay as float32 (easy to use from ESP32)
-    converter_flags = {
-        "optimizations":            [tf.lite.Optimize.DEFAULT],
-        "representative_dataset":   representative_dataset,
-        # Keep input/output as float for easy ESP32 integration.
-        # Change both to tf.int8 if you need full integer I/O.
-        "inference_input_type":     tf.float32,
-        "inference_output_type":    tf.float32,
-        "target_spec.supported_ops": [tf.lite.OpsSet.TFLITE_BUILTINS_INT8],
-    }
+    # ---- stage 2: static INT8 PTQ ------------------------------------------
+    import copy
+    import tensorflow as tf
+    from ai_edge_quantizer import quantizer as aeq
+    from ai_edge_quantizer import recipe as aeq_recipe
 
-    # PER-TENSOR weight quantization. Desktop TFLite defaults to PER-CHANNEL,
-    # which ESP32 builds often execute with ESP-NN optimized int8 kernels that
-    # are known to be inaccurate. Symptom on hardware: outputs whose true value
-    # is saturated (+-1) come out correct, while mid-range (tanh-linear) outputs
-    # are badly wrong — even sign-flipped — which destroys fine control such as
-    # holding the gripper open during the approach. Per-tensor weights avoid
-    # that kernel path entirely at a small accuracy cost.
+    rec = copy.deepcopy(aeq_recipe.static_wi8_ai8())
     if per_tensor:
-        converter_flags["_experimental_disable_per_channel"] = True
+        # static_wi8_ai8 defaults weights to CHANNELWISE. ESP32 builds run
+        # per-channel int8 through ESP-NN kernels that are known to be
+        # inaccurate: saturated (+-1) outputs survive while mid-range
+        # tanh-linear outputs come back badly wrong, even sign-flipped, which
+        # destroys fine control such as holding the gripper open on approach.
+        for entry in rec:
+            entry["op_config"]["weight_tensor_config"]["granularity"] = "TENSORWISE"
         print("  Using PER-TENSOR weight quantization (ESP32 kernel workaround)")
-
-    edge_model = litert_torch.convert(
-        model_fp32,
-        sample_inputs,
-        _ai_edge_converter_flags=converter_flags,
-    )
-
-    # Quick sanity check
-    print("  Running sanity check (PyTorch vs TFLite outputs)...")
-    with torch.no_grad():
-        pt_out = model_fp32(sample_inputs[0]).numpy()
-    tfl_out = edge_model(*sample_inputs)
-
-    import numpy as np
-    max_diff = np.max(np.abs(pt_out - tfl_out))
-    print(f"  Max output diff (PyTorch vs TFLite): {max_diff:.5f}")
-    if max_diff < 0.05:
-        print("  ✓ Outputs match within tolerance")
     else:
-        print("  ⚠ Outputs differ — check quantization accuracy")
+        print("  Using per-channel weight quantization")
 
-    # Export to .tflite file
-    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-    edge_model.export(output_path)
+    qt = aeq.Quantizer(float_path, rec)
 
-    size_kb = os.path.getsize(output_path) / 1024
-    print(f"\n{'='*55}")
-    print(f"  ✓ Saved: {output_path}")
-    print(f"  ✓ Size:  {size_kb:.1f} KB")
-    print(f"{'='*55}")
-    print(f"\nNext: python tflite_to_header.py {output_path} actor_int8.h")
+    interp = tf.lite.Interpreter(model_path=float_path)
+    sigs = interp.get_signature_list()
+    sig_name = list(sigs.keys())[0]
+    in_name = list(sigs[sig_name]["inputs"])[0]
+
+    if qt.need_calibration:
+        print(f"  Calibrating on {len(calib_t)} real states...")
+        calib_data = {sig_name: [{in_name: calib_t[i:i + 1].numpy()}
+                                 for i in range(len(calib_t))]}
+        qsv = qt.calibrate(calib_data)
+        result = qt.quantize(qsv)
+    else:
+        result = qt.quantize()
+
+    with open(out_abs, "wb") as fh:
+        fh.write(result.quantized_model)
+
+    # ---- verification: dtypes, not just "it converted" ---------------------
+    interp_q = tf.lite.Interpreter(model_path=out_abs)
+    interp_q.allocate_tensors()
+    from collections import Counter
+    dtypes = Counter(str(np.dtype(t["dtype"]))
+                     for t in interp_q.get_tensor_details())
+    print(f"  tensor dtypes: {dict(dtypes)}")
+    if dtypes.get("int8", 0) == 0:
+        raise RuntimeError("conversion produced no int8 tensors -- not quantized")
+
+    # Accuracy against the FP32 teacher on REAL observations, not random input.
+    # I/O may be int8 (full-integer) or float32 depending on the recipe, so
+    # quantise/dequantise at the boundary using the tensors' own params.
+    in_det = interp_q.get_input_details()[0]
+    out_det = interp_q.get_output_details()[0]
+    in_q = in_det.get("quantization", (0.0, 0))
+    out_q = out_det.get("quantization", (0.0, 0))
+    probe = calib_t[:512]
+    with torch.no_grad():
+        ref = model_fp32(probe).numpy()
+
+    def _run(x):
+        if np.dtype(in_det["dtype"]) == np.int8:
+            sc, zp = in_q
+            x = np.clip(np.round(x / sc + zp), -128, 127).astype(np.int8)
+        interp_q.set_tensor(in_det["index"], x)
+        interp_q.invoke()
+        y = interp_q.get_tensor(out_det["index"])
+        if np.dtype(out_det["dtype"]) == np.int8:
+            sc, zp = out_q
+            y = (y.astype(np.float32) - zp) * sc
+        return y
+
+    got = np.concatenate([_run(probe[i:i + 1].numpy()) for i in range(len(probe))],
+                         axis=0)
+    max_diff = float(np.max(np.abs(ref - got)))
+    mean_diff = float(np.mean(np.abs(ref - got)))
+    corr = float(np.corrcoef(ref.ravel(), got.ravel())[0, 1])
+    print(f"  vs FP32 on 512 real states: max {max_diff:.4f}  "
+          f"mean {mean_diff:.4f}  corr {corr:.5f}")
+
+    size_kb = os.path.getsize(out_abs) / 1024
+    print(f"\n{'=' * 55}")
+    print(f"  Saved: {output_path}")
+    print(f"  Size:  {size_kb:.1f} KB")
+    print(f"{'=' * 55}")
+    return out_abs
 
 
-# ─────────────────────────────────────────────────────────
-# Main
-# ─────────────────────────────────────────────────────────
 
 def main(args):
     # Load FP32 actor
@@ -287,7 +324,24 @@ def main(args):
     if args.replay_buffer_path and os.path.exists(args.replay_buffer_path):
         print(f"✓ Loading replay buffer: {args.replay_buffer_path}")
         buf = np.load(args.replay_buffer_path)
-        states = buf["states"].astype(np.float32)
+        # Two on-disk layouts exist. The PER buffer used by the random-spawn
+        # trainer writes "state_memory" plus a "mem_cntr" high-water mark;
+        # older buffers wrote a plain "states" array. Calibrating on the
+        # unwritten tail of a partly-filled buffer would feed the quantiser
+        # all-zero observations and skew every activation range, so clip to
+        # the number of transitions actually stored.
+        if "states" in buf.files:
+            states = buf["states"].astype(np.float32)
+        elif "state_memory" in buf.files:
+            states = buf["state_memory"].astype(np.float32)
+            if "mem_cntr" in buf.files:
+                n = int(np.ravel(buf["mem_cntr"])[0])
+                n = min(n, len(states)) if n > 0 else len(states)
+                states = states[:n]
+        else:
+            raise KeyError(f"no state array in {args.replay_buffer_path}; "
+                           f"found {buf.files}")
+        print(f"  calibration states: {states.shape}")
         np.random.shuffle(states)
     else:
         print("⚠ No replay buffer — using random calibration data")
@@ -302,9 +356,14 @@ def main(args):
         refined = run_qat(model, states, args)
 
     # Save QAT-refined FP32 weights (useful for inspection / resuming)
-    os.makedirs("qat_output", exist_ok=True)
-    torch.save(refined.state_dict(), "qat_output/actor_qat_refined_fp32.pt")
-    print("  Saved QAT-refined FP32 weights → qat_output/actor_qat_refined_fp32.pt")
+    # Derive this from --output_path. It used to be hardcoded to
+    # qat_output/actor_qat_refined_fp32.pt, so converting any OTHER policy
+    # silently overwrote the artifact already sitting there.
+    refined_path = os.path.splitext(os.path.abspath(args.output_path))[0] \
+        + "_refined_fp32.pt"
+    os.makedirs(os.path.dirname(refined_path), exist_ok=True)
+    torch.save(refined.state_dict(), refined_path)
+    print(f"  Saved QAT-refined FP32 weights → {refined_path}")
 
     # Step 2: Convert to INT8 TFLite
     convert_to_tflite(refined, states, args.output_path, args.input_dims,
