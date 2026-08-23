@@ -1,0 +1,69 @@
+================================================================================
+LIFT CERTIFICATION: THE GRASP METRIC WAS THE BUG
+End-to-end pick-and-place 13.0% -> 82.0% by changing what counts as a grasp.
+================================================================================
+
+THE PROBLEM
+Stage 1 called an episode successful after 5 consecutive _check_grasp steps.
+Stage 2 (place) accepts a handoff only after 8 consecutive steps PLUS a
+scripted 20-step lift that must gain >=3cm with the object still held. Nothing
+in stage 1 ever tested whether the grip could carry the object, so the policy
+optimised for momentary contact -- fast snatches, 25-30 steps -- that fail the
+instant the object leaves the table.
+
+Measured at a FIXED pose, same 40 episodes:
+  policy                          raw grasp    lift-certified
+  original fixed-spawn model        100.0%          47.5%
+  Phase B (best of campaign)         97.5%           0.0%
+
+The newer policy scores HIGHER on the metric and essentially never produces a
+liftable grip. Every headline grasp number in this campaign (89.0 / 80.7 /
+75.3) was measured against that criterion.
+
+THE FIX
+GraspRewardWrapper gains require_lift (default False, so prior results stay
+reproducible). When set, stage 1 applies exactly the stage-2 bar: 8-step hold
+plus the same scripted lift, with the same constants. The success bonus is paid
+in proportion to the rise achieved rather than as a flat penalty for failure --
+reaching the hold already ends the episode and forfeits the remaining per-step
+grasp reward, so an extra penalty would make grasping-and-failing worse than
+never grasping and the agent can learn to stop grasping altogether.
+
+Wired through SpawnCurriculumGraspWrapper, make_spawn_grasp_env and
+train_rand.py --require-lift.
+
+RESULT -- END-TO-END (test_place.py, 100 episodes, --random-spawn, same place
+policy, same harness; ONLY the grasp checkpoint differs)
+
+  outcome                  before    after
+  success                     13       82
+  grasp_handoff_failed        57        0
+  timeout_dropped             16        5
+  transport_stall              5        9
+  fell_off_table               8        2
+  release_miss                 0        2
+  mean steps               236.1     64.5
+
+The dominant failure mode went to zero.
+
+RESULT -- STANDALONE GRASP (60 episodes, level 2.0)
+  policy                     raw grasp   lift-certified
+  Phase B                       83.3%          1.7%
+  lift-certified s1             88.3%         65.0%
+
+Raw grasp barely moved. Lift certification went 1.7% -> 65.0%. The gain is
+entirely in grip QUALITY, which is what the downstream stages consume.
+
+WHICH WARM START TRANSFERS (a negative control worth keeping)
+Three arms warm-started from the ORIGINAL fixed-spawn model were killed after
+~2100 episodes: 2/0/6/0/2/2% with no trend, and timeout_no_reach on 41% of
+episodes. That model only ever saw one spawn pose, so it had to relearn
+REACHING from scratch. The Phase B warm start already has reaching and only
+needs to relearn the grip, and climbed 8% -> 54% over the same span.
+Reaching under randomisation is the expensive skill; grip quality is cheap to
+retrain on top of it.
+
+CAVEAT
+The ladder used seed 1's best/ checkpoint at episode 5150 of 6000 -- training
+was still running. Single seed, single 100-episode ladder run. The three
+td3_ln and three SAC arms are still in flight; cross-seed numbers pending.

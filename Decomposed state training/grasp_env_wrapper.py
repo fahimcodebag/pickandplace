@@ -50,8 +50,32 @@ class GraspRewardWrapper:
     N_GRASP_HOLD    = 5      # consecutive grasp-confirmed steps for success
     GRASP_HORIZON   = 200    # max steps per episode (shorter than full task)
 
-    def __init__(self, env):
+    # --- lift certification (require_lift=True) -----------------------------
+    # The bare N_GRASP_HOLD criterion certifies momentary contact, not a grip
+    # that can be carried. Measured end-to-end: 86% of episodes satisfied the
+    # 5-step hold, but only 43% survived the place stage's handoff, which adds
+    # an 8-step hold plus a scripted lift. The stage-1 metric was rewarding
+    # fast snatches (25-30 steps) that fail the moment the object leaves the
+    # table. These mirror place_env_wrapper's probe EXACTLY so the two stages
+    # agree on what a grasp is.
+    N_GRASP_HOLD_LIFT   = 8     # matches place_env_wrapper._GRASP_HOLD
+    TEST_LIFT_STEPS     = 20    # matches _TEST_LIFT_STEPS
+    TEST_LIFT_DZ        = 0.5   # matches _TEST_LIFT_DZ
+    TEST_LIFT_MIN_RISE  = 0.03  # matches _TEST_LIFT_MIN_RISE
+    # No flat penalty for a failed lift. Reaching the hold ENDS the episode, so
+    # a failed lift already costs the agent every remaining per-step W_GRASP;
+    # stacking a penalty on top makes grasping-and-failing worse than never
+    # grasping, and the agent can learn to avoid grasping altogether. Instead
+    # the success bonus is paid out in proportion to the rise actually
+    # achieved, which keeps the signal dense while a policy is learning to
+    # firm up its grip.
+
+    def __init__(self, env, require_lift=False):
+        """require_lift: certify grasps with a scripted lift before calling
+        them a success. Default False so every result recorded before this
+        existed stays reproducible; new runs should pass True."""
         self._rs_env = env
+        self._require_lift = bool(require_lift)
         self._success_given = False
         self._prev_grasped = False
         self._prev_d_reach = None
@@ -85,9 +109,22 @@ class GraspRewardWrapper:
 
         # Stable grasp achieved
         done = False
-        if self._grasp_hold_count >= self.N_GRASP_HOLD:
+        hold_needed = (self.N_GRASP_HOLD_LIFT if self._require_lift
+                       else self.N_GRASP_HOLD)
+        if self._grasp_hold_count >= hold_needed:
             done = True
-            info["grasp_success"] = True
+            if self._require_lift:
+                survived, rise = self._certify_by_lift(obs_dict)
+                info["grasp_success"] = survived
+                info["lift_certified"] = survived
+                info["lift_rise"] = rise
+                # Partial credit for partial rise: a grip that lifts 2cm is
+                # closer to useful than one that slips immediately.
+                frac = float(np.clip(rise / self.TEST_LIFT_MIN_RISE, 0.0, 1.0))
+                if not survived:
+                    reward += self.W_GRASP_SUCCESS * frac
+            else:
+                info["grasp_success"] = True
 
         # Timeout
         if self._step_count >= self.GRASP_HORIZON:
@@ -98,6 +135,40 @@ class GraspRewardWrapper:
         return obs_dict, reward, done, info
 
     # --- helpers -----------------------------------------------------------
+
+    def _certify_by_lift(self, obs_dict):
+        """Scripted straight-up lift. Returns (survived, rise_metres).
+
+        True only if the object actually rises and stays held. Mirrors
+        place_env_wrapper._probe_test_lift so a grasp this wrapper accepts is
+        one the place stage will also accept.
+
+        Consumes raw-env steps inside a single wrapper step. That is fine here:
+        the episode ends either way, so no post-lift transition is lost, and the
+        agent still gets the outcome through the reward and grasp_success.
+        """
+        start = self._get_obj_pos(obs_dict)
+        base_z = float(start[2]) if start is not None else 0.845
+
+        dim = self._rs_env.action_spec[0].shape[0]
+        lift_action = np.zeros(dim, dtype=np.float32)
+        lift_action[2] = self.TEST_LIFT_DZ     # +z
+        lift_action[-1] = 1.0                  # keep the gripper closed
+
+        best_rise = 0.0
+        for _ in range(self.TEST_LIFT_STEPS):
+            obs_dict, _, done_raw, _ = self._rs_env.step(lift_action)
+            cur = self._get_obj_pos(obs_dict)
+            if cur is not None:
+                best_rise = max(best_rise, float(cur[2] - base_z))
+            if done_raw or not self._is_grasped():
+                return False, best_rise
+
+        end = self._get_obj_pos(obs_dict)
+        rise = float(end[2] - base_z) if end is not None else 0.0
+        best_rise = max(best_rise, rise)
+        survived = bool(self._is_grasped() and rise >= self.TEST_LIFT_MIN_RISE)
+        return survived, best_rise
 
     def _get_target_obj_name(self):
         try:

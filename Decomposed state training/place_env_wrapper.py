@@ -708,27 +708,46 @@ class PlaceGymWrapper:
         if self._grasp_agent is not None:
             return
 
-        from td3 import Agent
+        # Only the ACTOR is ever used here (choose_action(validation=True) is a
+        # deterministic forward pass). Building a full td3.Agent also loaded the
+        # critics, which breaks on any checkpoint whose critics are not plain
+        # CriticNetwork -- LayerNorm critics carry ln1/ln2 keys and raise
+        # "Unexpected key(s) in state_dict". Load the actor alone so this works
+        # for TD3, TD3+LayerNorm and SAC checkpoints alike.
+        import os
+        from networks import ActorNetwork
 
-        self._grasp_agent = Agent(
-            alpha=0.0003,
-            beta=0.0003,
-            tau=0.005,
-            input_dims=self._gym_env.observation_space.shape,
-            env=self._gym_env,   # provides correct action_space bounds
-            n_actions=self._gym_env.action_space.shape[0],
-            layer1_size=self._grasp_layer1,
-            layer2_size=self._grasp_layer2,
-            batch_size=512,
+        device = T.device('cpu')
+        actor = ActorNetwork(
+            self._gym_env.observation_space.shape[0]
+            if hasattr(self._gym_env.observation_space.shape, "__getitem__")
+            else self._gym_env.observation_space.shape,
+            self._grasp_layer1, self._grasp_layer2,
+            self._gym_env.action_space.shape[0],
             chkpt_dir=self._grasp_chkpt_dir,
         )
-        self._grasp_agent.load_models()
+        sd = T.load(os.path.join(self._grasp_chkpt_dir, "actor_td3"),
+                    map_location="cpu")
+        # SAC actors carry a log_std head the deployed network does not have.
+        sd = {k: v for k, v in sd.items() if not k.startswith("log_std")}
+        actor.load_state_dict(sd)
+        actor.to(device)
+        actor.device = device
+        actor.eval()
 
-        # Force CPU for safety in forked subprocesses
-        device = T.device('cpu')
-        self._grasp_agent.actor.to(device)
-        self._grasp_agent.actor.device = device
-        self._grasp_agent.device = device
+        class _ActorOnly:
+            """Minimal stand-in exposing just what this wrapper calls."""
+
+            def __init__(self, actor, device):
+                self.actor, self.device = actor, device
+
+            def choose_action(self, observation, validation=True):
+                with T.no_grad():
+                    a = self.actor(T.tensor(observation, dtype=T.float,
+                                            device=self.device).unsqueeze(0))
+                return a.squeeze(0).cpu().numpy()
+
+        self._grasp_agent = _ActorOnly(actor, device)
 
         print(f"  [PlaceWrapper] Grasp agent loaded from {self._grasp_chkpt_dir}")
 

@@ -59,10 +59,12 @@ from training_probe import probe
 # Vectorized env (spawn level passed explicitly — no module-global)
 # ---------------------------------------------------------------------------
 
-def _worker(remote, parent_remote, env_name, seed, spawn_level):
+def _worker(remote, parent_remote, env_name, seed, spawn_level,
+            require_lift=False):
     parent_remote.close()
     env = GraspDiagnosticsWrapper(
         make_spawn_grasp_env(env_name, seed=seed, curriculum=False,
+                             require_lift=require_lift,
                              level=spawn_level))
     while True:
         try:
@@ -85,7 +87,8 @@ def _worker(remote, parent_remote, env_name, seed, spawn_level):
 
 
 class SubprocVecEnv:
-    def __init__(self, env_name, n_envs, spawn_level, seed0=0):
+    def __init__(self, env_name, n_envs, spawn_level, seed0=0,
+                 require_lift=False):
         self.n_envs = n_envs
         self.closed = False
         ctx = mp.get_context("fork")
@@ -95,7 +98,8 @@ class SubprocVecEnv:
         self.processes = []
         for i, (wr, r) in enumerate(zip(work_remotes, self.remotes)):
             p = ctx.Process(target=_worker,
-                            args=(wr, r, env_name, seed0 + i, spawn_level),
+                            args=(wr, r, env_name, seed0 + i, spawn_level,
+                                  require_lift),
                             daemon=True)
             p.start()
             wr.close()
@@ -235,7 +239,8 @@ def train(args):
     print("=" * 72 + "\n")
 
     vec_env = SubprocVecEnv("PickPlace", args.n_envs, args.spawn_level,
-                            seed0=args.seed * 1000)
+                            seed0=args.seed * 1000,
+                            require_lift=args.require_lift)
     agent = build_agent(args.algo, vec_env, chkpt_dir, args)
 
     status = warm_start(agent, args.algo, chkpt_dir, source_dir)
@@ -482,6 +487,13 @@ def parse_args(argv=None):
                         "level 0.83) that §9.3 reseeds Phase A from; pass "
                         "checkpoints/td3_grasp for the fixed-spawn 95%% model, "
                         "or '' to train from scratch.")
+    p.add_argument("--require-lift", action="store_true",
+                   help="Certify grasps with a scripted lift before counting "
+                        "them successful (8-step hold + 20-step lift, >=3cm "
+                        "rise, still grasped) -- the same bar the place stage "
+                        "applies at handoff. Without it the metric accepts "
+                        "momentary contact: 86%% of grasps passed the old "
+                        "criterion but only 43%% survived handoff.")
     p.add_argument("--probe-every", type=int, default=25,
                    help="episodes between agent-internal probes "
                         "(critic Q stats, action saturation, SAC alpha)")

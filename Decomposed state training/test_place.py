@@ -95,6 +95,11 @@ def main():
                         help="Load the difficulty-weighted best policy from "
                              "checkpoints/td3_place/best instead of the live "
                              "(latest) checkpoint")
+    parser.add_argument("--grasp-chkpt-dir", type=str, default=None,
+                        help="Grasp checkpoint dir. Was hardcoded to "
+                             "checkpoints/td3_grasp, which is the ORIGINAL "
+                             "fixed-spawn model -- the end-to-end ladder has to "
+                             "be re-run whenever the grasp stage changes.")
     parser.add_argument("--chkpt-dir", type=str, default=None,
                         help="Explicit place checkpoint directory (overrides --best)")
     # Deployment parameters (FSM rules, not learned). Defaults are the LOCKED
@@ -125,7 +130,7 @@ def main():
         place_chkpt_dir = os.path.join(place_chkpt_dir, "best")
     if args.chkpt_dir is not None:
         place_chkpt_dir = args.chkpt_dir
-    grasp_chkpt_dir = os.path.join(
+    grasp_chkpt_dir = args.grasp_chkpt_dir or os.path.join(
         os.path.dirname(__file__), "..", "checkpoints", "td3_grasp"
     )
 
