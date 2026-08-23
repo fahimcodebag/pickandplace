@@ -38,3 +38,29 @@ CAVEATS
 - 30-episode evaluation: standard error ~8 points. Use 100+ for thesis numbers.
 - Phase B (adding z-rotation, spawn level 2.0) is not yet run.
 
+
+================================================================================
+ADDENDUM: 100-EPISODE DETERMINISTIC EVALUATION (supersedes the 30-episode table)
+================================================================================
+The 30-episode evaluations above carry a standard error of ~9 points at p=0.5.
+Re-run at 100 episodes (SE ~5), same seed 123, same spawn level 1.0:
+
+  policy                       30 eps    100 eps   mean steps (successes)
+  sac        best               73.3%      69.0%     83
+  td3_ln     best               63.3%      61.0%    113
+  ppo        best               36.7%      56.0%    107
+  baseline (metric 0.355)       46.7%      54.0%    109
+  td3        best               53.3%      47.0%    122
+
+RANKING CHANGE: ppo moves from last to third (+19.3). Seed 123 is shared, so the
+100-episode run's first 30 episodes ARE the earlier evaluation; ppo recovered on
+episodes 31-100. The earlier ppo figure was an unlucky draw, not a real deficit.
+The worst algorithm is td3 (47.0%), consistent with its training collapse
+(43% -> 5%, timeout_no_reach 148/200).
+
+UNCHANGED: sac wins (69.0%, +15.0 over the baseline artifact) and grasps fastest
+(83 steps vs 107-122), which matters for the FSM per-phase step budget.
+
+The decay finding does not depend on this table -- it comes from the training
+curves, where all four algorithms decayed after peaking, ppo included despite
+having no replay buffer.
