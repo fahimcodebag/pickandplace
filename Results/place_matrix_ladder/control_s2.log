@@ -1,0 +1,134 @@
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+
+======================================================================
+PLACE MODEL EVALUATION (Full Pipeline: Grasp → Place)
+======================================================================
+  Episodes:        100
+  Render:          False
+  Grasp checkpoint: ../checkpoints/td3_grasp_rand_td3_ln_liftcert_phaseB_s2/best
+  Place checkpoint: ../checkpoints/td3_place_rs_control_s2/best
+======================================================================
+
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+  Object spawn:     NATIVE (full bin randomization + rotation)
+  Release trigger:  xy<=0.14m for 3 steps | place horizon: 300
+Loading trained place model...
+Models loaded.
+
+  [PlaceWrapper] Grasp agent loaded from ../checkpoints/td3_grasp_rand_td3_ln_liftcert_phaseB_s2/best
+Episode 1/100 | Steps:  55 | Score:   147.99 | ✓ PLACED (success)
+Episode 2/100 | Steps:  35 | Score:   148.55 | ✓ PLACED (success)
+Episode 3/100 | Steps:  76 | Score:    -3.51 | ✗ failed (release_miss)
+Episode 4/100 | Steps:  25 | Score:   149.07 | ✓ PLACED (success)
+Episode 5/100 | Steps:  40 | Score:   148.02 | ✓ PLACED (success)
+Episode 6/100 | Steps:  45 | Score:   147.63 | ✓ PLACED (success)
+Episode 7/100 | Steps:  55 | Score:   146.24 | ✓ PLACED (success)
+Episode 8/100 | Steps:  13 | Score:    -8.91 | ✗ failed (fell_off_table)
+Episode 9/100 | Steps: 300 | Score:   -36.16 | ✗ failed (timeout_dropped)
+Episode 10/100 | Steps:  62 | Score:   -24.38 | ✗ failed (transport_stall)
+Episode 11/100 | Steps:  25 | Score:    -1.29 | ✗ failed (release_miss)
+Episode 12/100 | Steps:  51 | Score:   -23.69 | ✗ failed (transport_stall)
+Episode 13/100 | Steps:  37 | Score:   148.40 | ✓ PLACED (success)
+Episode 14/100 | Steps:  86 | Score:   145.88 | ✓ PLACED (success)
+Episode 15/100 | Steps:  79 | Score:   -25.91 | ✗ failed (transport_stall)
+Episode 16/100 | Steps: 300 | Score:   -29.92 | ✗ failed (timeout_dropped)
+Episode 17/100 | Steps:  37 | Score:   148.07 | ✓ PLACED (success)
+Episode 18/100 | Steps:  50 | Score:   147.48 | ✓ PLACED (success)
+Episode 19/100 | Steps: 300 | Score:   -32.75 | ✗ failed (timeout_dropped)
+Episode 20/100 | Steps:  72 | Score:   146.62 | ✓ PLACED (success)
+Episode 21/100 | Steps:  28 | Score:   150.83 | ✓ PLACED (success)
+Episode 22/100 | Steps:  67 | Score:   147.13 | ✓ PLACED (success)
+Episode 23/100 | Steps:  38 | Score:   148.40 | ✓ PLACED (success)
+Episode 24/100 | Steps: 300 | Score:   -33.51 | ✗ failed (timeout_dropped)
+Episode 25/100 | Steps:   3 | Score:   149.98 | ✓ PLACED (success)
+Episode 26/100 | Steps: 130 | Score:   141.22 | ✓ PLACED (success)
+Episode 27/100 | Steps:  28 | Score:   149.10 | ✓ PLACED (success)
+Episode 28/100 | Steps:  15 | Score:   149.91 | ✓ PLACED (success)
+Episode 29/100 | Steps:  51 | Score:   -23.57 | ✗ failed (transport_stall)
+Episode 30/100 | Steps:  35 | Score:   147.77 | ✓ PLACED (success)
+Episode 31/100 | Steps:  83 | Score:   -25.86 | ✗ failed (transport_stall)
+Episode 32/100 | Steps: 300 | Score:   -35.38 | ✗ failed (timeout_dropped)
+Episode 33/100 | Steps:  69 | Score:   146.76 | ✓ PLACED (success)
+Episode 34/100 | Steps:  51 | Score:   -23.59 | ✗ failed (transport_stall)
+Episode 35/100 | Steps:  31 | Score:   148.54 | ✓ PLACED (success)
+Episode 36/100 | Steps: 300 | Score:   -36.44 | ✗ failed (timeout_dropped)
+Episode 37/100 | Steps:  89 | Score:   144.69 | ✓ PLACED (success)
+Episode 38/100 | Steps:  81 | Score:   146.29 | ✓ PLACED (success)
+Episode 39/100 | Steps: 300 | Score:   -29.13 | ✗ failed (timeout_dropped)
+Episode 40/100 | Steps:  19 | Score:   150.65 | ✓ PLACED (success)
+Episode 41/100 | Steps:  65 | Score:   145.94 | ✓ PLACED (success)
+Episode 42/100 | Steps:  28 | Score:   148.83 | ✓ PLACED (success)
+Episode 43/100 | Steps:  52 | Score:   147.90 | ✓ PLACED (success)
+Episode 44/100 | Steps:  40 | Score:    -2.80 | ✗ failed (fell_off_table)
+Episode 45/100 | Steps: 300 | Score:   -32.30 | ✗ failed (timeout_dropped)
+Episode 46/100 | Steps: 300 | Score:   -35.40 | ✗ failed (timeout_dropped)
+Episode 47/100 | Steps:  75 | Score:   -33.24 | ✗ failed (transport_stall)
+Episode 48/100 | Steps: 300 | Score:   -34.27 | ✗ failed (timeout_dropped)
+Episode 49/100 | Steps:  51 | Score:   -23.71 | ✗ failed (transport_stall)
+Episode 50/100 | Steps:  86 | Score:   144.51 | ✓ PLACED (success)
+Episode 51/100 | Steps:  48 | Score:   -11.36 | ✗ failed (fell_off_table)
+Episode 52/100 | Steps:  51 | Score:   -23.57 | ✗ failed (transport_stall)
+Episode 53/100 | Steps:  23 | Score:   149.11 | ✓ PLACED (success)
+Episode 54/100 | Steps:  83 | Score:   -26.06 | ✗ failed (transport_stall)
+Episode 55/100 | Steps:  51 | Score:   -23.57 | ✗ failed (transport_stall)
+Episode 56/100 | Steps:  39 | Score:   148.15 | ✓ PLACED (success)
+Episode 57/100 | Steps: 300 | Score:   -32.14 | ✗ failed (timeout_dropped)
+Episode 58/100 | Steps:  86 | Score:   -24.88 | ✗ failed (transport_stall)
+Episode 59/100 | Steps:  47 | Score:   -13.82 | ✗ failed (fell_off_table)
+Episode 60/100 | Steps: 300 | Score:   -34.84 | ✗ failed (timeout_dropped)
+Episode 61/100 | Steps:  96 | Score:   -26.58 | ✗ failed (transport_stall)
+Episode 62/100 | Steps: 300 | Score:   -31.79 | ✗ failed (timeout_dropped)
+Episode 63/100 | Steps: 300 | Score:   -31.35 | ✗ failed (timeout_dropped)
+Episode 64/100 | Steps:  24 | Score:    -9.69 | ✗ failed (fell_off_table)
+Episode 65/100 | Steps:  51 | Score:   -24.81 | ✗ failed (transport_stall)
+Episode 66/100 | Steps: 300 | Score:   -32.55 | ✗ failed (timeout_dropped)
+Episode 67/100 | Steps:  51 | Score:   -23.91 | ✗ failed (transport_stall)
+Episode 68/100 | Steps:  51 | Score:   -23.57 | ✗ failed (transport_stall)
+Episode 69/100 | Steps:  14 | Score:   150.90 | ✓ PLACED (success)
+Episode 70/100 | Steps:  40 | Score:    -3.18 | ✗ failed (fell_off_table)
+Episode 71/100 | Steps:  36 | Score:   148.69 | ✓ PLACED (success)
+Episode 72/100 | Steps:  83 | Score:   145.43 | ✓ PLACED (success)
+Episode 73/100 | Steps:  54 | Score:   148.05 | ✓ PLACED (success)
+Episode 74/100 | Steps:  43 | Score:   147.56 | ✓ PLACED (success)
+Episode 75/100 | Steps:  51 | Score:   -24.46 | ✗ failed (transport_stall)
+Episode 76/100 | Steps:  19 | Score:   149.32 | ✓ PLACED (success)
+Episode 77/100 | Steps:  88 | Score:   144.35 | ✓ PLACED (success)
+Episode 78/100 | Steps:  64 | Score:   147.31 | ✓ PLACED (success)
+Episode 79/100 | Steps:  34 | Score:   148.92 | ✓ PLACED (success)
+Episode 80/100 | Steps:  33 | Score:   148.36 | ✓ PLACED (success)
+Episode 81/100 | Steps:  90 | Score:   144.33 | ✓ PLACED (success)
+Episode 82/100 | Steps:  51 | Score:   -22.85 | ✗ failed (transport_stall)
+Episode 83/100 | Steps: 300 | Score:   -33.35 | ✗ failed (timeout_dropped)
+Episode 84/100 | Steps: 300 | Score:   -33.04 | ✗ failed (timeout_dropped)
+Episode 85/100 | Steps: 300 | Score:   -33.84 | ✗ failed (timeout_dropped)
+Episode 86/100 | Steps:  39 | Score:   147.96 | ✓ PLACED (success)
+Episode 87/100 | Steps:  86 | Score:   145.79 | ✓ PLACED (success)
+Episode 88/100 | Steps:  37 | Score:    -2.78 | ✗ failed (fell_off_table)
+Episode 89/100 | Steps:  42 | Score:    -2.94 | ✗ failed (fell_off_table)
+Episode 90/100 | Steps:  51 | Score:   -23.64 | ✗ failed (transport_stall)
+Episode 91/100 | Steps:  86 | Score:   145.16 | ✓ PLACED (success)
+Episode 92/100 | Steps:  34 | Score:   148.19 | ✓ PLACED (success)
+Episode 93/100 | Steps:  16 | Score:   150.49 | ✓ PLACED (success)
+Episode 94/100 | Steps: 300 | Score:   -41.61 | ✗ failed (timeout_dropped)
+Episode 95/100 | Steps: 116 | Score:   143.01 | ✓ PLACED (success)
+Episode 96/100 | Steps: 117 | Score:   142.44 | ✓ PLACED (success)
+Episode 97/100 | Steps:  19 | Score:   150.00 | ✓ PLACED (success)
+Episode 98/100 | Steps:  82 | Score:   144.49 | ✓ PLACED (success)
+Episode 99/100 | Steps:  24 | Score:   148.28 | ✓ PLACED (success)
+Episode 100/100 | Steps:  92 | Score:   145.50 | ✓ PLACED (success)
+
+======================================================================
+RESULTS (End-to-End: Grasp → Place)
+======================================================================
+  Place success:    52/100 (52.0%)
+  Mean score:       64.92 ± 86.16
+  Mean steps:       100.0 ± 99.7
+  Outcomes:         success:52  timeout_dropped:19  transport_stall:19  fell_off_table:8  release_miss:2
+======================================================================
+

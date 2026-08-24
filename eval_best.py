@@ -22,6 +22,10 @@ p.add_argument("--ckpt", required=True)
 p.add_argument("--episodes", type=int, default=30)
 p.add_argument("--level", type=float, default=1.0)
 p.add_argument("--seed", type=int, default=123)
+p.add_argument("--require-lift", action="store_true",
+               help="Certify grasps with the scripted lift the place "
+                    "stage applies at handoff. Without it the score "
+                    "measures momentary contact only.")
 a = p.parse_args()
 
 # Every algorithm's deployed actor is 46->64->32->7 with tanh; the trunk/mean
@@ -31,7 +35,8 @@ sd = torch.load(os.path.join(a.ckpt, "actor_td3"), map_location="cpu")
 sd = {k: v for k, v in sd.items() if not k.startswith("log_std")}
 net.load_state_dict(sd); net.eval()
 
-env = make_spawn_grasp_env("PickPlace", seed=a.seed, curriculum=False, level=a.level)
+env = make_spawn_grasp_env("PickPlace", seed=a.seed, curriculum=False,
+                           level=a.level, require_lift=a.require_lift)
 succ, steps_all, reasons = 0, [], {}
 for ep in range(a.episodes):
     obs = env.reset(); done = False; steps = 0; info = {}

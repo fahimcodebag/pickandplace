@@ -29,6 +29,10 @@ from robosuite.wrappers import GymWrapper
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from td3 import Agent
+# LayerNorm critics + primacy-bias resets, the same remedy that was worth
+# +20 to +30 points on the grasp stage. The actor is untouched (still the
+# deployed 64->32), so nothing about the ESP32 artifact changes.
+from td3_ln import Agent as AgentLN
 from place_env_wrapper import PlaceGymWrapper
 
 
@@ -36,7 +40,8 @@ from place_env_wrapper import PlaceGymWrapper
 # Environment factory
 # ---------------------------------------------------------------------------
 
-def make_place_env(env_name="PickPlace", seed=None, grasp_chkpt_dir=None):
+def make_place_env(env_name="PickPlace", seed=None, grasp_chkpt_dir=None,
+                   random_spawn=False):
     """Create a single robosuite environment with place-only reward."""
     if grasp_chkpt_dir is None:
         grasp_chkpt_dir = os.path.join(
@@ -63,17 +68,23 @@ def make_place_env(env_name="PickPlace", seed=None, grasp_chkpt_dir=None):
         single_object_mode=2,
         object_type="bread",
     )
-    # Fix object spawn to a constant position (matching grasp training)
-    _orig_gpi = env._get_placement_initializer
-    def _fixed_placement():
-        _orig_gpi()
-        s = env.placement_initializer.samplers["CollisionObjectSampler"]
-        s.x_range = np.array([0.0, 0.0])
-        s.y_range = np.array([0.0, 0.0])
-        s.rotation = 0.0
-        s.ensure_object_boundary_in_range = False
-        s.ensure_valid_placement = False
-    env._get_placement_initializer = _fixed_placement
+    # Spawn. The original training pinned this to a constant, matching the
+    # fixed-spawn grasp model of the time. A transport policy trained that way
+    # only ever sees objects held in ONE orientation, so it stalls when handed a
+    # rotated grasp -- which is what the lift-certified grasp policy produces.
+    # random_spawn leaves robosuite's native sampler alone: full position box
+    # plus uniform z-rotation, the same distribution as grasp spawn level 2.0.
+    if not random_spawn:
+        _orig_gpi = env._get_placement_initializer
+        def _fixed_placement():
+            _orig_gpi()
+            s = env.placement_initializer.samplers["CollisionObjectSampler"]
+            s.x_range = np.array([0.0, 0.0])
+            s.y_range = np.array([0.0, 0.0])
+            s.rotation = 0.0
+            s.ensure_object_boundary_in_range = False
+            s.ensure_valid_placement = False
+        env._get_placement_initializer = _fixed_placement
 
     # GymWrapper first (flattens obs_dict → 46-dim vector)
     raw_env = env
@@ -89,14 +100,16 @@ def make_place_env(env_name="PickPlace", seed=None, grasp_chkpt_dir=None):
 # Subprocess-parallel vectorized environment
 # ---------------------------------------------------------------------------
 
-# Global to pass grasp checkpoint dir to workers
+# Globals to pass config to forked workers
 _GRASP_CHKPT_DIR = None
+_RANDOM_SPAWN = False
 
 
 def _worker(remote, parent_remote, env_name, seed):
     """Worker loop that runs in a child process."""
     parent_remote.close()
-    env = make_place_env(env_name, seed=seed, grasp_chkpt_dir=_GRASP_CHKPT_DIR)
+    env = make_place_env(env_name, seed=seed, grasp_chkpt_dir=_GRASP_CHKPT_DIR,
+                         random_spawn=_RANDOM_SPAWN)
     while True:
         try:
             cmd, data = remote.recv()
@@ -309,22 +322,25 @@ def _drop_summary(diag, window):
 # Training loop
 # ---------------------------------------------------------------------------
 
-def train(env_name="PickPlace", n_envs=8, n_episodes=10000):
+def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
+          grasp_chkpt_dir=None, random_spawn=False, place_chkpt_dir=None,
+          warm_start_from=None, critic_reset_every=0, layer_norm=False):
     """
     Train the Place sub-policy using TD3 with subprocess-parallel envs.
 
     Each episode starts with a grasp rollout (using the trained grasp model),
     then the place policy trains on the lift → transport → place phase.
     """
-    global _GRASP_CHKPT_DIR
+    global _GRASP_CHKPT_DIR, _RANDOM_SPAWN
 
-    place_chkpt_dir = os.path.join(
+    place_chkpt_dir = place_chkpt_dir or os.path.join(
         os.path.dirname(__file__), "..", "checkpoints", "td3_place"
     )
-    grasp_chkpt_dir = os.path.join(
+    grasp_chkpt_dir = grasp_chkpt_dir or os.path.join(
         os.path.dirname(__file__), "..", "checkpoints", "td3_grasp"
     )
     _GRASP_CHKPT_DIR = grasp_chkpt_dir
+    _RANDOM_SPAWN = bool(random_spawn)
 
     print("=" * 70)
     print(f"PLACE MODEL TRAINING: {env_name}")
@@ -333,6 +349,7 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000):
     print(f"Total episodes: {n_episodes}")
     print(f"Network:        64 → 32 (actor & critic)")
     print(f"Grasp model:    {grasp_chkpt_dir}")
+    print(f"Spawn:          {'NATIVE random (position + rotation)' if random_spawn else 'fixed'}")
     print(f"Checkpoints:    {place_chkpt_dir}")
     print("=" * 70 + "\n")
 
@@ -371,7 +388,9 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000):
     noise_scale = np.ones(n_actions, dtype=np.float32)
 
     # --- Agent --------------------------------------------------------------
-    agent = Agent(
+    _Agent = AgentLN if (layer_norm or critic_reset_every) else Agent
+    _extra = {"layer_norm": True} if _Agent is AgentLN else {}
+    agent = _Agent(
         alpha=actor_lr,
         beta=critic_lr,
         input_dims=input_dims,
@@ -384,14 +403,30 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000):
         max_size=max_buffer_size,
         warmup=warmup,
         chkpt_dir=place_chkpt_dir,
+        **_extra,
     )
 
     # --- Resume from checkpoint if available --------------------------------
-    try:
-        agent.load_models()
-        print("Resumed network weights from saved checkpoint.")
-    except Exception:
-        print("No network checkpoint found, starting from scratch.")
+    # warm_start_from takes precedence and seeds a FRESH run in a new
+    # place_chkpt_dir from an existing policy -- retraining transport against a
+    # different grasp distribution should not overwrite the artifact it is
+    # seeded from, and should not silently resume a half-trained run.
+    if warm_start_from:
+        import torch as _T
+        src = os.path.join(warm_start_from, "actor_td3")
+        if not os.path.exists(src):
+            raise FileNotFoundError(f"warm start actor not found: {src}")
+        sd = _T.load(src, map_location="cpu")
+        sd = {k: v for k, v in sd.items() if not k.startswith("log_std")}
+        agent.actor.load_state_dict(sd)
+        agent.target_actor.load_state_dict(sd)
+        print(f"Warm-started actor from {warm_start_from} (critics fresh).")
+    else:
+        try:
+            agent.load_models()
+            print("Resumed network weights from saved checkpoint.")
+        except Exception:
+            print("No network checkpoint found, starting from scratch.")
 
     buf_path = os.path.join(place_chkpt_dir, "replay_buffer.npz")
     buf_loaded = agent.memory.load(buf_path)
@@ -553,6 +588,12 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000):
 
         # ---- Learn ONCE per timestep ---------------------------------------
         agent.learn()
+        if (critic_reset_every and agent.learn_step_cntr > 0
+                and agent.learn_step_cntr % critic_reset_every == 0
+                and hasattr(agent, 'reset_critic_heads')):
+            agent.reset_critic_heads()
+            print(f'  [primacy-bias reset @ {agent.learn_step_cntr} updates]',
+                  flush=True)
 
         observations = next_observations
 
@@ -588,9 +629,30 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    ENV_NAME = "PickPlace"
-    N_ENVS = 2
-    N_EPISODES = 10000
+    import argparse
+    _p = argparse.ArgumentParser()
+    _p.add_argument("--env-name", default="PickPlace")
+    _p.add_argument("--n-envs", type=int, default=2)
+    _p.add_argument("--episodes", type=int, default=10000)
+    _p.add_argument("--grasp-chkpt-dir", default=None,
+                    help="Grasp stage to train transport against. Was "
+                         "hardcoded to checkpoints/td3_grasp.")
+    _p.add_argument("--random-spawn", action="store_true",
+                    help="Native robosuite spawn (position + rotation) instead "
+                         "of the fixed pose the original training used.")
+    _p.add_argument("--place-chkpt-dir", default=None)
+    _p.add_argument("--critic-reset-every", type=int, default=0,
+                    help="Reinitialise critic output layers every N updates "
+                         "(Nikishin et al.). The place stage shows the same "
+                         "decay as the grasp stage: 79%% at ep 1500, 8%% by 2500.")
+    _p.add_argument("--layer-norm", action="store_true")
+    _p.add_argument("--warm-start-from", default=None,
+                    help="Place checkpoint dir to seed the actor from.")
+    _a = _p.parse_args()
+
+    ENV_NAME = _a.env_name
+    N_ENVS = _a.n_envs
+    N_EPISODES = _a.episodes
 
     print(f"\n{'=' * 70}")
     print("PLACE SUB-POLICY TRAINING (Decomposed)")
@@ -602,4 +664,10 @@ if __name__ == "__main__":
     print(f"  Replay buffer:  200,000 transitions")
     print(f"{'=' * 70}\n")
 
-    agent = train(ENV_NAME, N_ENVS, N_EPISODES)
+    agent = train(ENV_NAME, N_ENVS, N_EPISODES,
+                  grasp_chkpt_dir=_a.grasp_chkpt_dir,
+                  random_spawn=_a.random_spawn,
+                  place_chkpt_dir=_a.place_chkpt_dir,
+                  warm_start_from=_a.warm_start_from,
+                  critic_reset_every=_a.critic_reset_every,
+                  layer_norm=_a.layer_norm)

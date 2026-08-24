@@ -1,0 +1,68 @@
+================================================================================
+TRANSPORT RETRAINING: TWO NEGATIVE RESULTS
+The original fixed-spawn transport policy remains the best artifact.
+================================================================================
+
+MOTIVATION
+After lift-certifying the grasp stage, end-to-end reached 82% with the ORIGINAL
+transport policy -- trained long ago against a fixed spawn and the old grasp
+model. Remaining failures were transport_stall (9) and timeout_dropped (5), so
+retraining transport against the new grasp distribution looked like the obvious
+next lever. It was not.
+
+SETUP
+train_place.py gained a CLI (--grasp-chkpt-dir, --random-spawn,
+--place-chkpt-dir, --warm-start-from, --critic-reset-every, --layer-norm); the
+grasp checkpoint and fixed spawn had both been hardcoded. All runs: 8000
+episodes, 5 envs, native random spawn (position + rotation), grasp stage =
+liftcert_phaseB_s2/best, warm-started from td3_place/best, critics fresh.
+Reset arms use LayerNorm critics with head resets every 7000 updates (~7 per
+run, matched to the grasp ablation's cadence -- see the note below).
+
+END-TO-END LADDER (test_place.py, 100 episodes, --random-spawn, same grasp)
+  policy                                    success
+  ORIGINAL transport (never retrained)        82%
+  retrained control  s0 / s1 / s2        75 / 38 / 52   mean 55.0  sd 18.5
+  retrained + resets s0 / s1 / s2        16 / 58 /  1   mean 25.0  sd 30.5
+
+RESULT 1 -- retraining transport on the new distribution HURT.
+The best retrained seed (75%) is below the untouched original (82%). A policy
+trained directly on rotated holds generalises worse than one that never saw
+them. Not investigated further; the original is kept.
+
+RESULT 2 -- critic resets HURT the place stage, badly.
+Mean 55 -> 25, with seed 2 collapsing to 1/100 (transport_stall:82). This is
+the OPPOSITE sign to the grasp stage, where the same remedy was worth +20.3
+(level 1.0) and +30.0 (level 2.0), 3/3 seeds each.
+
+WHY THE SIGN FLIPS (hypothesis, not established)
+Transport does ~6.7 gradient steps per episode against grasp's ~48. After each
+reset the critic has far fewer updates to recover before the next one, so the
+run spends most of its time in the post-reset hole rather than the
+post-recovery peak. The place stage also runs a carry curriculum, and a wrecked
+critic stalls curriculum advancement -- the grasp task has no analogue.
+
+The takeaway for the thesis is that plasticity-loss resets are NOT a general
+fix for this pipeline. They are specific to the grasp stage's learning
+dynamics, and applying them by analogy to another stage cost 30 points.
+
+TWO MEASUREMENT TRAPS HIT ALONG THE WAY
+1. Reset interval was first set to 20000 updates, copied from the grasp stage
+   without rederiving it. That fired only 1 reset by episode 3000 (~2-3 over a
+   full run) instead of ~7. The arms were relaunched at 7000. Sizing a
+   schedule in gradient steps does not transfer between stages with different
+   episode lengths.
+2. best_metric is frac50 x place50, so it mixes curriculum progress with
+   placement skill. Comparing arms at DIFFERENT episode counts made controls
+   look better purely because they had advanced further through the curriculum.
+   Only matched-episode or end-to-end numbers are meaningful.
+
+Also fixed: test_place.py loaded the place policy as a full td3.Agent, pulling
+critics it never uses, which crashed on every LayerNorm checkpoint. It now
+loads the actor alone, as place_env_wrapper.py already does for the grasp
+stage.
+
+STATUS
+Pipeline best remains: lift-certified grasp (liftcert_phaseB_s2) + ORIGINAL
+transport = 82% end-to-end under full position and rotation randomisation,
+against 92% for the fixed-pose baseline in thesis_context Sec 8.4.

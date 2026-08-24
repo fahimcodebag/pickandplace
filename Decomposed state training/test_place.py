@@ -19,6 +19,7 @@ import sys
 import time
 
 import numpy as np
+import torch as T
 
 # Add parent directory for shared modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -188,7 +189,15 @@ def main():
     )
 
     print("Loading trained place model...")
-    agent.load_models()
+    # Only the actor is used below (choose_action(validation=True) is a
+    # deterministic forward pass). load_models() also pulls the critics, which
+    # fails on any checkpoint trained with LayerNorm critics -- they carry
+    # ln1/ln2 keys that plain CriticNetwork rejects. Load the actor alone so
+    # td3, td3_ln and SAC place checkpoints all evaluate here.
+    _sd = T.load(os.path.join(place_chkpt_dir, "actor_td3"), map_location="cpu")
+    _sd = {k: v for k, v in _sd.items() if not k.startswith("log_std")}
+    agent.actor.load_state_dict(_sd)
+    agent.actor.eval()
     print("Models loaded.\n")
 
     # --- Evaluation loop ----------------------------------------------------
