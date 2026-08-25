@@ -1,0 +1,114 @@
+================================================================================
+HANDOFF-POSE DIAGNOSTIC
+Why does an identical transport policy fail 5x more often depending on which
+grasp policy feeds it?
+================================================================================
+
+QUESTION
+The end-to-end ladder held the transport policy BYTE-IDENTICAL across four arms,
+yet transport_stall ranged 13 -> 73 per 400 episodes and timeout_dropped
+73 -> 24. Something in the handoff state, not the transport weights, is driving
+this. handoff_diag.py records the object's pose IN THE GRIPPER FRAME (and, in
+round 2, end-effector position and gripper width) at the moment the grasp stage
+hands off, then the episode outcome. 400 episodes per arm (4 seeds x 100).
+
+--------------------------------------------------------------------------------
+FINDING 1 -- THE CORNER GRIP. Confirmed, large, actionable.
+--------------------------------------------------------------------------------
+The predictive feature is not raw relative yaw but distance from a flat face:
+diag = min(|rel_yaw|, 90 - |rel_yaw|). The bread is a box -- at 0 or 90 degrees
+the fingers close on flat faces, at ~45 degrees they close on CORNERS.
+
+  grip angle        baseline   gripfix_s0   gripfix_s2
+  flat   ( 0-15)      74.7%       72.2%       92.6%
+  mid    (15-30)      71.4%       59.9%       81.7%
+  corner (30-45)      54.7%       45.7%       70.2%
+  p (failures more diagonal)  4.1e-3      4.9e-5      9.8e-8
+
+Monotonic in all three arms. Cost of a corner grip: 20-26 points of end-to-end
+success. Prevalence: 94/400 = 24%, IDENTICAL across arms -- object rotation is
+uniform and no policy compensates for it.
+
+The damage is done through drops, not stalls:
+  drop rate flat -> corner:  baseline 11.3 -> 25.3, s0 3.0 -> 17.0, s2 1.7 -> 7.4
+
+WHY THE REWARD ALLOWS IT
+A corner grip passes lift certification. It survives a straight vertical pull,
+so W_GRASP_SUCCESS pays in full. It fails only later, under the lateral
+accelerations of transport. The grasp policy commands wrist yaw through
+OSC_POSE -- it CAN align to a face; it has no incentive to.
+
+Headroom: gripfix_s2 scores 92.6% on flat grips against 81.0% overall.
+Eliminating corner grips is worth ~+9 points end-to-end with no change to the
+transport policy.
+
+--------------------------------------------------------------------------------
+FINDING 2 -- STALLS ARE NOT EXPLAINED BY OBJECT-IN-GRIPPER POSE. Hypothesis
+refuted.
+--------------------------------------------------------------------------------
+Restricting to FLAT grips only, where handoff object pose is statistically
+indistinguishable between the two policies:
+
+  stall rate on flat grips:   gripfix_s0 16.0%   gripfix_s2 2.3%
+
+A 7x gap with the same transport policy and the same grip geometry. Within s0,
+stalls are not separated from successes by lateral offset (p=0.38), object
+height (p=0.61), gripper width (p=0.21) or handoff attempts (p=0.21) -- only by
+grip angle, weakly (p=0.02).
+
+--------------------------------------------------------------------------------
+FINDING 3 -- s0's TRANSPORT DEGRADES WITH DISTANCE; s2's DOES NOT.
+--------------------------------------------------------------------------------
+Stall rate vs Euclidean distance from the end-effector to the target bin
+(bin at x=0.198, y=0.158) at the moment of handoff:
+
+  dist (m)      gripfix_s0            gripfix_s2
+                stall   success       stall   success
+  0.00-0.35     16.3%    61.2%         2.6%    79.2%
+  0.35-0.45     16.5%    72.9%         5.9%    81.2%
+  0.45-0.55     21.1%    69.7%         3.2%    83.1%
+  0.55-1.00     42.6%    37.7%         2.6%    89.5%
+  p(stall vs success)  4.2e-4              2.9e-1 (ns)
+
+s0 collapses as the carry gets longer. s2 is flat, and its success rate
+actually RISES with distance.
+
+Critically, this is NOT a distance effect: s2 hands off FARTHER on average
+(median 0.480 m) than s0 (0.369 m) and stalls 7x less. Distance is the axis
+along which s0's defect becomes visible, not the cause.
+
+INTERPRETATION (hypothesis, not established)
+A per-episode outlier pose would show up as a tail. This shows up as a
+distribution-wide bias that compounds with path length -- consistent with s0
+handing off with a small systematic error in the held-object configuration, so
+transport's commanded direction is slightly off and the path curves. Over a
+short carry it arrives before the 50-step no-new-best stall timer trips; over a
+long carry it does not. Not verified.
+
+--------------------------------------------------------------------------------
+MEASUREMENT LIMITATION
+--------------------------------------------------------------------------------
+Round 2 intended to test arm posture, but robosuite does not expose
+"robot0_joint_pos" -- it publishes robot0_joint_pos_cos / _sin. The dict lookup
+silently returned its zero default, so all seven joint columns are zeros and
+JOINT CONFIGURATION REMAINS UNTESTED. The Panda is 7-DOF and redundant, so two
+policies can present an object identically while leaving the arm in different
+joint postures; transport's observation includes proprioception, making this a
+live hypothesis for Finding 3. End-effector position, which WAS captured, is
+what Finding 3 rests on.
+
+--------------------------------------------------------------------------------
+WHAT TO DO
+--------------------------------------------------------------------------------
+1. RECOMMENDED -- add a wrist-alignment term to the grasp reward penalising
+   min(|rel_yaw|, 90-|rel_yaw|) at gripper close. Attacks a 24%-prevalence,
+   20-point failure at its source. Finding 1 is established across three
+   independent policies.
+2. NOT RECOMMENDED -- retraining transport on the wider handoff distribution.
+   Already attempted: best retrained seed 75% vs 82% untouched
+   (Results/transport_retrain_negative.txt).
+
+Note that Findings 2 and 3 concern gripfix_s0, which is NOT the selected
+policy. gripfix_s2 stalls at 2.6-5.9% with no distance dependence at all, so
+the stall pathology is largely absent from the chosen pipeline. Finding 1 is
+the one that applies to s2 and carries the remaining headroom.
