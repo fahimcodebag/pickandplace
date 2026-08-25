@@ -1,0 +1,81 @@
+================================================================================
+WRIST ALIGNMENT: NEGATIVE RESULT
+The term barely moved the mechanism it targeted, and cost flat-grip quality.
+gripfix_s2 remains the best artifact.
+================================================================================
+
+HYPOTHESIS
+The handoff diagnostic established that 24% of grasps close on the object's
+corners, that corner grips cost 20-26 points end-to-end across three
+independent policies, and that they pass lift certification unpunished. Adding
+a wrist-alignment term to the grasp reward should reduce corner prevalence and
+move end-to-end success toward gripfix_s2's flat-grip rate of 92.6%.
+
+SETUP
+Three seeds, config byte-identical to the gripfix runs with --align-grip added
+(success-bonus multiplier in [0.5, 1.0] plus potential-based approach shaping).
+All three hit the 85% early-stop target at 4584 / 2111 / 3846 episodes.
+Evaluated at 400 end-to-end episodes each (4 eval seeds x 100) through
+handoff_diag.py, so one pass yields both outcome and grip angle.
+
+RESULT 1 -- GRASP STAGE UNCHANGED (expected, not the test)
+  certified grasp, 800 deterministic episodes
+    align   s0/s1/s2   73.0 / 83.1 / 80.4   mean 78.8%
+    gripfix s0/s1/s2   78.4 / 80.5 / 78.8   mean 79.2%
+A corner grip already passes certification, so this number was never the
+target. Flat here is the correct outcome.
+
+RESULT 2 -- THE MECHANISM BARELY FIRED
+Mean angle from the nearest flat face (lower = better aligned):
+    gripfix_s2  18.9 deg
+    align_s0    16.8 deg   p=0.011  (significant, but only 2.1 deg)
+    align_s1    18.1 deg   p=0.181  ns
+    align_s2    18.2 deg   p=0.307  ns
+Corner-grip prevalence (>=30 deg): 23.5% -> 20.5 / 24.5 / 20.5%.
+The term was supposed to remove corner grips. It removed ~2 points of them in
+one seed of three. Wrist-yaw spread barely changed (sd 19.9 -> 15.1/32.0/18.8),
+so the policies did not adopt a meaningfully different rotation strategy.
+
+RESULT 3 -- IT DAMAGED THE GRIPS THAT WERE ALREADY GOOD
+  success by grip angle       flat 0-15    mid 15-30   corner 30-45
+    gripfix_s2                  92.6%        81.7%        70.2%
+    align_s0                    85.8%        78.5%        73.2%
+    align_s1                    81.9%        73.5%        63.3%
+    align_s2                    85.2%        79.3%        74.4%
+Flat-grip success fell 92.6% -> 81.9-85.8% (align_s2 vs gripfix_s2: z=2.25,
+p=0.024). Corner-grip success rose slightly in two seeds. The term traded away
+quality on the majority case to buy a little on the minority case.
+
+RESULT 4 -- NET END-TO-END IS WORSE
+  gripfix_s2   335/400  83.8%
+  align_s0     325/400  81.2%   (vs gripfix_s2: z=1.04, ns)
+  align_s2     324/400  81.0%   (ns)
+  align_s1     301/400  75.2%   (z=3.03, significantly WORSE)
+  align mean            79.1%
+Two of three seeds are statistically indistinguishable from the incumbent and
+one is significantly worse. No seed beats it.
+
+WHY IT PROBABLY FAILED (hypothesis, not established)
+The multiplier reduces the success bonus for ANY grip that is not perfectly
+flat -- which is most successful grasps. Its intended effect was to
+differentiate corner from flat; its actual effect was to weaken the primary
+grasp-success signal across the board while offering at most +10 reward units,
+discounted, at episode end, against W_GRASP's +10 PER STEP for simply holding
+on. The shaping term adds approach-phase gradient but is worth only ~+2. The
+incentive to rotate was never competitive with the incentive to grip and hold,
+so the policies mostly ignored it and paid the diluted bonus instead.
+
+WHAT THIS DOES NOT OVERTURN
+The diagnostic itself still stands: corner grips ARE worse, monotonically, in
+all four policies measured here as well (align_s2: 85.2 -> 79.3 -> 74.4). The
+finding was correct; this particular intervention did not exploit it.
+
+A future attempt should make alignment a GATE rather than a multiplier -- e.g.
+require alignment before the hold counter advances, so a corner grip cannot
+certify at all -- rather than competing with W_GRASP on reward magnitude. Not
+attempted here.
+
+STATUS
+Pipeline best remains gripfix_s2 + ORIGINAL transport. Its grasp rate was
+confirmed on held-out eval seeds (2024/555: 79.5% vs 78.8% on the selection
+seeds), so it is not a selection artifact.
