@@ -1,0 +1,61 @@
+================================================================================
+DEPLOYED FSM, FP32 VALIDATION
+100.0% on the thesis benchmark condition; 84.0% under full randomisation.
+================================================================================
+
+WHY THIS WAS NEEDED
+Every end-to-end number in this project came from test_place.py /
+place_env_wrapper.py -- the TRAINING/EVAL wrapper. The artefact that actually
+ships is pick_and_place_INT8_FSM.ino. The two are not equivalent, and the
+differences were never measured:
+
+  - The sketch has NO transport-stall early termination. place_env_wrapper
+    kills a carry after 50 steps without new-best XY progress; the sketch gives
+    it the full 300-step PLACE_HORIZON. transport_stall is the dominant
+    remaining failure mode, so this alone could move the headline number.
+  - GRASP_CAP is 250 in the sketch vs _GRASP_HORIZON 200 in the wrapper.
+
+fsm_sim.py is a host-side FP32 replica of the sketch: all 9 phases, all
+constants transcribed verbatim, plus hil_main.py's respawn-and-retry loop and
+its grasp/success flag derivation. Only the serial round-trip is removed; the
+two FP32 actors run in-process.
+
+RESULTS (deterministic, multiple eval seeds)
+  config                                  success        1st-try handoff
+  bi_s0 + ORIGINAL transport, FIXED      200/200 100.0%       100%
+  bi_s0 + ORIGINAL transport, RANDOM     336/400  84.0%        98%
+  gripfix_s2 + ORIGINAL transport, RANDOM 154/200 77.0%        92%
+
+AGAINST THE THESIS'S OWN BASELINES (same fixed spawn)
+  thesis_context Sec 8.4 Python baseline      92%
+  INT8 HIL on hardware (10 episodes)          90%
+  current pipeline, deployed FSM, FP32       100.0%  (200 episodes)
+
+SANITY CHECKS ON THE PERFECT SCORE
+Median 126 scored steps (min 70, max 145); every episode ran the full pipeline;
+mean handoff attempts 1.00, max 1 -- no retries were needed at all. Both eval
+seeds returned 100/100 independently. Not a degenerate pass.
+
+FINDING 1 -- THE HARNESSES AGREE
+  deployed FSM   336/400  84.0%
+  Python wrapper 344/400  86.0%   z = -0.79, ns
+The 86.0% figure was not an artefact of the eval wrapper. This was the real
+risk being tested, and it is closed.
+
+FINDING 2 -- THE FSM DISCRIMINATES MORE SHARPLY THAN THE WRAPPER
+  gap bi_s0 - gripfix_s2:  deployed FSM +7.0 pts   Python wrapper +2.2 pts
+The built-in-reward grasp gain is LARGER through the real FSM than through the
+eval harness. Most plausibly the sketch's lack of a transport-stall cutoff lets
+marginal carries recover, and bi_s0's better grips exploit that where
+gripfix_s2's do not. Not verified.
+
+STATUS
+FP32 is fully validated end to end. What remains unvalidated is the INT8 step
+and hardware: grasp_int8.tflite / place_int8.tflite date from Aug 17 (commit
+cbd4535) and predate lift certification, the checkpoint-selection fix, and the
+built-in reward. The recorded 90% HIL figure describes different models, on
+fixed spawn, over 10 episodes -- a sample size that has run ~10 points
+optimistic four times in this project.
+
+Quantization now has a known FP32 reference to measure its drop against:
+100.0% fixed / 84.0% random.
