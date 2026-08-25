@@ -1,0 +1,30 @@
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+wrote Results/reward_audit/dense_verify.csv
+
+====================================================================================================
+REWARD AUDIT  |  checkpoints/td3_grasp_rand_td3_ln_rv2_s2/best
+300 episodes, spawn level 2.0, seed 7, action noise 0.2
+====================================================================================================
+outcome                           n     %      reach  grip_clos  grasp_hol  success_b  partial_c  align_sha  dense_ali       idle       drop       away
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+CERTIFIED                       227 75.7%       24.1        2.8       84.0      264.1        0.0        0.0      -15.3      -36.2       -1.1       -0.3
+slip (gripped, lift failed)      31 10.3%       31.7        6.4       85.2        0.0       12.9        0.0      -26.4      -47.6       -2.3       -0.7
+touched (timeout)                19  6.3%      117.1       21.9       48.9        0.0        0.0        0.0     -142.3     -220.0       -7.1      -31.4
+never gripped (timeout)          16  5.3%       71.0       10.7        0.0        0.0        0.0        0.0      -63.6     -220.0        0.0      -47.3
+flicker (>=3 drops, timeout)      7  2.3%      131.0       26.0       94.3        0.0        0.0        0.0     -157.9     -220.0      -22.1      -19.1
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+
+outcome                          steps   drops    held       TOTAL   DISCOUNTED
+-------------------------------------------------------------------------------
+CERTIFIED                           33     0.2     8.6       322.1        237.0
+slip (gripped, lift failed)         43     0.5     9.0        59.1         38.7
+touched (timeout)                  200     1.4     4.9      -212.9        -78.8
+never gripped (timeout)            200     0.0     0.0      -249.3       -106.5
+flicker (>=3 drops, timeout)       200     4.4    10.1      -167.8        -51.5

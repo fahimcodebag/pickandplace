@@ -161,8 +161,32 @@ class GraspRewardWrapper:
     #     may slow very early training before the agent can grasp at all.
     V2_P_IDLE       = -1.1
 
+    # --- dense alignment penalty (dense_align=True) --------------------------
+    # WHY DENSE, AND WHY NOT POTENTIAL-BASED. Measured on rv2_s2: the terminal
+    # reward correlates +0.85 with grip alignment, but the CRITIC's
+    # Q(s, pi(s)) correlates -0.004 with it, and is non-monotonic (mean Q:
+    # flat 92.3, mid 103.7, corner 90.8). The actor's gradient is dQ/da, so a
+    # value function blind to alignment gives the policy ZERO gradient toward
+    # rotating no matter how correctly the reward is shaped. That is why the
+    # align_grip multiplier and the reward-v2 graded bonus both failed: both
+    # paid alignment ONLY at the terminal step, and the signal never survived
+    # ~25 steps of TD bootstrapping against reward components 4x larger.
+    #
+    # This term enters the critic at EVERY approach transition instead. It is
+    # deliberately NOT potential-based: potential shaping is constructed to
+    # leave the optimal policy unchanged, which is precisely the wrong property
+    # here -- the earlier align_grip shaping was worth ~2 units total and, by
+    # design, could not alter behaviour.
+    #
+    # Penalty rather than bonus: a per-step BONUS for being aligned and near
+    # would make hovering profitable again (the safe-hold collapse). As a
+    # penalty, a flat-faced approach costs nothing extra and a corner approach
+    # is charged, while hovering stays net negative via V2_P_IDLE.
+    W_DENSE_ALIGN     = 2.0    # (per step) full charge at a 45-deg corner
+    DENSE_ALIGN_RANGE = 0.15   # (m) approach zone where the term is active
+
     def __init__(self, env, require_lift=False, align_grip=False,
-                 reward_v2=False):
+                 reward_v2=False, dense_align=False):
         """require_lift: certify grasps with a scripted lift before calling
         them a success. Default False so every result recorded before this
         existed stays reproducible; new runs should pass True."""
@@ -170,6 +194,7 @@ class GraspRewardWrapper:
         self._require_lift = bool(require_lift)
         self._align_grip = bool(align_grip)
         self._reward_v2 = bool(reward_v2)
+        self._dense_align = bool(dense_align)
         self._held_paid = 0
         self._success_given = False
         self._prev_grasped = False
@@ -183,6 +208,7 @@ class GraspRewardWrapper:
         return {"reach": 0.0, "grip_close": 0.0, "idle": 0.0, "drop": 0.0,
                 "away": 0.0, "grasp_hold": 0.0, "success_bonus": 0.0,
                 "partial_credit": 0.0, "align_shape": 0.0,
+                "dense_align": 0.0,
                 "n_drops": 0, "n_grasped_steps": 0}
 
     def __getattr__(self, name):
@@ -416,6 +442,15 @@ class GraspRewardWrapper:
         if not grasped and self._prev_d_reach is not None:
             if d_reach > self._prev_d_reach + 0.005:
                 r += self.P_AWAY; t["away"] += self.P_AWAY
+
+        # ---- Dense alignment penalty (approach only) -----------------------
+        # Charged per step while closing in and not yet holding, so the critic
+        # sees alignment in every transition rather than once at termination.
+        if self._dense_align and not grasped and d_reach < self.DENSE_ALIGN_RANGE:
+            _q = self._wrist_alignment(obs_dict)
+            if _q is not None:
+                _v = -self.W_DENSE_ALIGN * (1.0 - _q)
+                r += _v; t["dense_align"] += _v
 
         # ---- Wrist alignment (potential-based) -----------------------------
         # gamma*Phi(s') - Phi(s). The first step of an episode has no previous

@@ -19,7 +19,7 @@ from grasp_spawn_wrapper import make_spawn_grasp_env
 from networks import ActorNetwork
 
 TERMS = ["reach", "grip_close", "grasp_hold", "success_bonus",
-         "partial_credit", "align_shape", "idle", "drop", "away"]
+         "partial_credit", "align_shape", "dense_align", "idle", "drop", "away"]
 
 
 def classify(info, steps):
@@ -42,6 +42,7 @@ def main():
     p.add_argument("--level", type=float, default=2.0)
     p.add_argument("--gamma", type=float, default=0.99)
     p.add_argument("--reward-v2", action="store_true")
+    p.add_argument("--dense-align", action="store_true")
     p.add_argument("--csv", default=None,
                    help="Dump per-episode terms + grip angle + lift rise, so "
                         "candidate rewards can be priced offline.")
@@ -53,7 +54,8 @@ def main():
 
     env = make_spawn_grasp_env("PickPlace", seed=a.seed, curriculum=False,
                                level=a.level, require_lift=True,
-                               reward_v2=a.reward_v2)
+                               reward_v2=a.reward_v2,
+                               dense_align=a.dense_align)
     actor = ActorNetwork(env.observation_space.shape[0], 64, 32,
                          env.action_space.shape[0], chkpt_dir=a.ckpt)
     sd = T.load(os.path.join(a.ckpt, "actor_td3"), map_location="cpu")

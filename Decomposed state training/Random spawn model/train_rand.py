@@ -64,7 +64,8 @@ from training_probe import probe
 # terminal step, so this cannot drift from the reward under test. A run
 # without the instrumented wrapper simply writes blanks.
 _RTERMS = ["reach", "grip_close", "grasp_hold", "success_bonus",
-           "partial_credit", "align_shape", "idle", "drop", "away"]
+           "partial_credit", "align_shape", "dense_align",
+           "idle", "drop", "away"]
 
 
 def _rterm_cols(inf):
@@ -78,13 +79,15 @@ def _rterm_cols(inf):
 
 
 def _worker(remote, parent_remote, env_name, seed, spawn_level,
-            require_lift=False, align_grip=False, reward_v2=False):
+            require_lift=False, align_grip=False, reward_v2=False,
+            dense_align=False):
     parent_remote.close()
     env = GraspDiagnosticsWrapper(
         make_spawn_grasp_env(env_name, seed=seed, curriculum=False,
                              require_lift=require_lift,
                              align_grip=align_grip,
                              reward_v2=reward_v2,
+                             dense_align=dense_align,
                              level=spawn_level))
     while True:
         try:
@@ -108,7 +111,8 @@ def _worker(remote, parent_remote, env_name, seed, spawn_level,
 
 class SubprocVecEnv:
     def __init__(self, env_name, n_envs, spawn_level, seed0=0,
-                 require_lift=False, align_grip=False, reward_v2=False):
+                 require_lift=False, align_grip=False, reward_v2=False,
+                 dense_align=False):
         self.n_envs = n_envs
         self.closed = False
         ctx = mp.get_context("fork")
@@ -119,7 +123,8 @@ class SubprocVecEnv:
         for i, (wr, r) in enumerate(zip(work_remotes, self.remotes)):
             p = ctx.Process(target=_worker,
                             args=(wr, r, env_name, seed0 + i, spawn_level,
-                                  require_lift, align_grip, reward_v2),
+                                  require_lift, align_grip, reward_v2,
+                                  dense_align),
                             daemon=True)
             p.start()
             wr.close()
@@ -262,7 +267,8 @@ def train(args):
                             seed0=args.seed * 1000,
                             require_lift=args.require_lift,
                             align_grip=args.align_grip,
-                            reward_v2=args.reward_v2)
+                            reward_v2=args.reward_v2,
+                            dense_align=args.dense_align)
     agent = build_agent(args.algo, vec_env, chkpt_dir, args)
 
     status = warm_start(agent, args.algo, chkpt_dir, source_dir)
@@ -297,7 +303,8 @@ def train(args):
                         # regression actually needs to be diagnosed.
                         "r_reach", "r_grip_close", "r_grasp_hold",
                         "r_success_bonus", "r_partial_credit",
-                        "r_align_shape", "r_idle", "r_drop", "r_away",
+                        "r_align_shape", "r_dense_align",
+                        "r_idle", "r_drop", "r_away",
                         "n_drops", "n_grasped_steps",
                         "grip_align", "lift_rise",
                         "avg_score_100", "success_100", "best_metric",
@@ -532,6 +539,15 @@ def parse_args(argv=None):
                         "level 0.83) that §9.3 reseeds Phase A from; pass "
                         "checkpoints/td3_grasp for the fixed-spawn 95%% model, "
                         "or '' to train from scratch.")
+    p.add_argument("--dense-align", action="store_true",
+                   help="Per-step alignment penalty during the approach. The "
+                        "terminal reward already correlates +0.85 with grip "
+                        "alignment, but the CRITIC's Q correlates -0.004 -- so "
+                        "the actor gets no gradient toward rotating. This puts "
+                        "the signal in every approach transition instead of "
+                        "once at termination. Deliberately not potential-"
+                        "based. Primary metric is corr(Q, alignment), not "
+                        "success rate.")
     p.add_argument("--reward-v2", action="store_true",
                    help="Three reward fixes priced on recorded episodes before "
                         "training (Results/reward_audit/): (A) success bonus "

@@ -1,0 +1,75 @@
+================================================================================
+MONOLITHIC CONTROL (v7/v8): CORNER GRIPS WERE NEVER THE PROBLEM
+The old monolithic policy certifies 98.7% of grasps with the SAME corner rate.
+================================================================================
+
+WHY THIS TEST
+Four reward interventions failed to reduce corner grips in the decomposed grasp
+stage. Before concluding that alignment is unlearnable, the obvious control was
+the user's earlier MONOLITHIC model: same task, same 46-D observation, same
+OSC_POSE action space, same native full-rotation spawn -- but 2.2M actor
+parameters against the decomposed stage's 5.2k, and 30M timesteps of training.
+Checkpoints live outside the repo at /home/fahim/Thesis_fahim/checkpoints/.
+
+train_v8.py's own docstring records the motivation for decomposing:
+  "The v7 agent grasps and lifts perfectly but jitters after lifting."
+
+MATCHED-CRITERIA COMPARISON
+Identical to the decomposed stage: 8 consecutive grasped steps, then a 20-step
+scripted lift, >=3cm rise, still grasped, 200-step horizon, native spawn.
+
+  model                    grasped   lift-cert   corner%   flat%   mean diag
+  v7 final (seed 7)          99.3%      98.7%     26.5%   41.3%      19.7
+  v7 final (seed 123)        98.7%      98.0%     24.7%   40.9%      19.8
+  v8 best   (seed 7)         97.3%      96.3%     20.5%   49.3%      17.9
+  decomposed gripfix_s2         --      79.2%     23.5%   43.8%      18.9
+
+TWO FINDINGS, THE SECOND OVERTURNS EARLIER WORK
+
+1. THE MONOLITHIC GRASP STAGE IS ~20 POINTS BETTER.
+   98.7% vs 79.2% lift-certified, reproduced across two eval seeds. The user's
+   recollection that the monolithic model "could grasp from random spawn pretty
+   well" is correct and understated.
+
+2. IT DOES NOT ALIGN ITS WRIST EITHER -- AND DOES NOT NEED TO.
+   Corner-grip prevalence is statistically the same (26.5% vs 23.5%), mean
+   angle from a flat face is the same (19.7 vs 18.9 deg). But its corner grips
+   SUCCEED:
+
+     lift certification by grip angle (v7 final, 600 episodes)
+       flat   0-15 deg   n=244   100.0%
+       mid   15-30 deg   n=198    99.5%
+       corner 30-45 deg  n=152    98.0%
+
+     decomposed gripfix_s2, end-to-end by the same angle buckets
+       flat 92.6%   mid 81.7%   corner 70.2%
+
+CORRECTION TO Results/handoff_diagnostic.txt
+That document reported corner grips as costing 20-26 points end-to-end,
+monotonic across three policies, p<5e-3, and treated the angle as the causal
+mechanism worth fixing. The correlation was real, but it is NOT causal: a
+stronger policy lifts corner grips at 98.0%. Grip angle was a PROXY for grip
+quality inside weak policies, not the constraint. Four reward interventions
+(align_grip multiplier, reward-v2 graded bonus, dense alignment penalty, and
+the wrist-alignment arm) were therefore aimed at the wrong variable. The
+critic-blindness measurement (corr(Q, alignment) ~ 0 across six critics) still
+stands as a fact; it simply no longer matters.
+
+WHAT THE REAL GAP IS
+Not angle. The decomposed 5.2k actor grips worse than the 2.2M actor at every
+angle, corners most visibly because they are the hardest case. This is a
+capacity/optimisation gap in the grasp policy itself, not a reward-shaping
+problem -- which is consistent with every reward fix failing to move it.
+
+CHECKPOINT NOTE
+v7's "best" file is WORSE than its final (54.0% vs 97.3% lift-cert): best_score
+was recorded against v7's own carry-inclusive reward, not grasp quality. v8
+shows the opposite (best 96.3%, final 63.3%) -- it decayed after its peak.
+Neither file name can be trusted without measuring.
+
+NEXT DIRECTION
+Distillation. The monolithic policy is 2.2M parameters and cannot run on an
+ESP32, but it is a 98.7% teacher for exactly the sub-task the 5.2k student is
+weak at. Behaviour cloning / DAgger from v7 into the 64x32 grasp actor targets
+the measured gap directly, and compression-for-MCU is already the thesis's
+subject. Untested.

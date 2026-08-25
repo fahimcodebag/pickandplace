@@ -88,7 +88,8 @@ class SpawnCurriculumGraspWrapper(GraspRewardWrapper):
     _REGRESS     = 0.15   # below this -> step back down (rare)
 
     def __init__(self, env, curriculum=True, level=None, static_spec=None,
-                 require_lift=False, align_grip=False, reward_v2=False):
+                 require_lift=False, align_grip=False, reward_v2=False,
+                 dense_align=False):
         """
         Args:
             env:          raw robosuite env whose _get_placement_initializer
@@ -109,7 +110,8 @@ class SpawnCurriculumGraspWrapper(GraspRewardWrapper):
                           the same reason.
         """
         super().__init__(env, require_lift=require_lift,
-                         align_grip=align_grip, reward_v2=reward_v2)
+                         align_grip=align_grip, reward_v2=reward_v2,
+                         dense_align=dense_align)
         self._curriculum = curriculum
         self._static_spec = static_spec
         if curriculum:
@@ -180,7 +182,7 @@ class SpawnCurriculumGraspWrapper(GraspRewardWrapper):
 def make_spawn_grasp_env(env_name="PickPlace", seed=None, render=False,
                          curriculum=True, level=None, static_spec=None,
                          require_lift=False, align_grip=False,
-                         reward_v2=False):
+                         reward_v2=False, dense_align=False):
     """Create a robosuite env with grasp rewards + dynamic spawn control.
 
     The placement initializer is patched to read env._spawn_spec on every
@@ -234,7 +236,8 @@ def make_spawn_grasp_env(env_name="PickPlace", seed=None, render=False,
                                       level=level, static_spec=static_spec,
                                       require_lift=require_lift,
                                       align_grip=align_grip,
-                                      reward_v2=reward_v2)
+                                      reward_v2=reward_v2,
+                                      dense_align=dense_align)
     env = GymWrapper(env)
     if seed is not None:
         env.seed(seed)
