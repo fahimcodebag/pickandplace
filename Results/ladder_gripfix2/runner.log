@@ -1,0 +1,9 @@
+launched baseline_liftcert_s2 eval7 -> Results/ladder_gripfix2/baseline_liftcert_s2_eval7.log (pid 1282)
+launched baseline_liftcert_s2 eval123 -> Results/ladder_gripfix2/baseline_liftcert_s2_eval123.log (pid 1283)
+launched gripfix_s0 eval7 -> Results/ladder_gripfix2/gripfix_s0_eval7.log (pid 1284)
+launched gripfix_s0 eval123 -> Results/ladder_gripfix2/gripfix_s0_eval123.log (pid 1285)
+launched gripfix_s1 eval7 -> Results/ladder_gripfix2/gripfix_s1_eval7.log (pid 1286)
+launched gripfix_s1 eval123 -> Results/ladder_gripfix2/gripfix_s1_eval123.log (pid 1287)
+launched gripfix_s2 eval7 -> Results/ladder_gripfix2/gripfix_s2_eval7.log (pid 1288)
+launched gripfix_s2 eval123 -> Results/ladder_gripfix2/gripfix_s2_eval123.log (pid 1289)
+ALL LADDER RUNS COMPLETE

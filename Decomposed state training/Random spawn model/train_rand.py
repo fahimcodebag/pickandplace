@@ -348,20 +348,33 @@ def train(args):
 
             # Difficulty-weighted rolling best (§3 Hurdle 9): a policy sets a
             # record only by succeeding often AT difficulty.
+            #
+            # The window was 50 episodes, which has SE ~6.5 points at p=0.7. A
+            # run produces ~40 such windows and this keeps the MAXIMUM, so the
+            # saved checkpoint is systematically a lucky window rather than a
+            # good policy -- classic max-of-noisy-estimates bias. Measured on
+            # the gripfix runs, the window that triggered best/ overstated the
+            # checkpoint's true 800-episode rate by +27 / +8 / +4 points across
+            # seeds. Worse, a lucky-but-weak window claims the slot and blocks
+            # a genuinely better policy later in the run from being saved.
+            #
+            # --best-window widens it (SE ~3.2 at 200). Selection still uses
+            # training data, so it remains noisy; it is just far less biased.
             is_best = False
-            if len(success_hist) >= 50:
-                lvl50 = float(np.mean(level_hist[-50:])) / level_max
-                suc50 = float(np.mean(success_hist[-50:]))
+            bw = args.best_window
+            if len(success_hist) >= bw:
+                lvl50 = float(np.mean(level_hist[-bw:])) / level_max
+                suc50 = float(np.mean(success_hist[-bw:]))
                 metric = lvl50 * suc50
                 writer.add_scalar("GraspRand/Metric", metric, total_episodes)
-                if metric > best_metric + 0.005:
+                if metric > best_metric + args.best_margin:
                     best_metric = metric
                     agent.save_models()
                     preserve_best(chkpt_dir)
                     is_best = True
                     print(f"Ep {total_episodes:5d} | * BEST  "
-                          f"level50={lvl50 * level_max:.2f} "
-                          f"grasp50={suc50 * 100:5.1f}% metric={metric:.3f} "
+                          f"level{bw}={lvl50 * level_max:.2f} "
+                          f"grasp{bw}={suc50 * 100:5.1f}% metric={metric:.3f} "
                           f"| score {score:7.2f}", flush=True)
 
             csv_w.writerow([
@@ -494,6 +507,14 @@ def parse_args(argv=None):
                         "applies at handoff. Without it the metric accepts "
                         "momentary contact: 86%% of grasps passed the old "
                         "criterion but only 43%% survived handoff.")
+    p.add_argument("--best-window", type=int, default=200,
+                   help="Episodes in the rolling window used to select best/. "
+                        "Was 50, whose SE (~6.5 points) made checkpoint "
+                        "selection pick lucky windows rather than good "
+                        "policies. 200 gives SE ~3.2.")
+    p.add_argument("--best-margin", type=float, default=0.01,
+                   help="Metric improvement required to overwrite best/. "
+                        "Larger margins resist noise-driven overwrites.")
     p.add_argument("--probe-every", type=int, default=25,
                    help="episodes between agent-internal probes "
                         "(critic Q stats, action saturation, SAC alpha)")

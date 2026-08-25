@@ -122,7 +122,15 @@ def main():
                         help="Uniform +/-R meters of x/y spawn noise around the "
                              "nominal training pose (rotation fixed). Graded "
                              "generalization test, e.g. 0.02, 0.05.")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Seed numpy/torch so the spawn sequence is "
+                             "reproducible. Two runs at different seeds give "
+                             "independent estimates of the same policy.")
     args = parser.parse_args()
+
+    if args.seed is not None:
+        np.random.seed(args.seed)
+        T.manual_seed(args.seed)
 
     place_chkpt_dir = os.path.join(
         os.path.dirname(__file__), "..", "checkpoints", "td3_place"
@@ -139,6 +147,7 @@ def main():
     print("PLACE MODEL EVALUATION (Full Pipeline: Grasp → Place)")
     print(f"{'=' * 70}")
     print(f"  Episodes:        {args.episodes}")
+    print(f"  Eval seed:       {args.seed}")
     print(f"  Render:          {args.render}")
     print(f"  Grasp checkpoint: {grasp_chkpt_dir}")
     print(f"  Place checkpoint: {place_chkpt_dir}")
@@ -202,6 +211,7 @@ def main():
 
     # --- Evaluation loop ----------------------------------------------------
     successes = 0
+    handoff_attempts = []
     scores = []
     steps_list = []
     reasons = []
@@ -225,6 +235,10 @@ def main():
             step += 1
 
         place_ok = info.get("place_success", False)
+        # Every episode, not just the successes: the retry count is how hard
+        # the handoff filter is working to reject unliftable grasps. Sec 8.4
+        # reported 1.00 at fixed spawn.
+        handoff_attempts.append(int(info.get("handoff_attempts", 1)))
         if place_ok:
             successes += 1
 
@@ -244,6 +258,10 @@ def main():
           f"({successes / args.episodes * 100:.1f}%)")
     print(f"  Mean score:       {np.mean(scores):.2f} ± {np.std(scores):.2f}")
     print(f"  Mean steps:       {np.mean(steps_list):.1f} ± {np.std(steps_list):.1f}")
+    if handoff_attempts:
+        _ha = np.array(handoff_attempts)
+        print(f"  Handoff attempts: mean {_ha.mean():.2f}  max {_ha.max()}  "
+              f"first-try {100.0 * (_ha == 1).mean():.0f}%")
     from collections import Counter
     tally = "  ".join(f"{k}:{v}" for k, v in Counter(reasons).most_common())
     print(f"  Outcomes:         {tally}")

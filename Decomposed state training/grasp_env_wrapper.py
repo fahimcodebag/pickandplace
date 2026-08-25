@@ -59,6 +59,13 @@ class GraspRewardWrapper:
     # table. These mirror place_env_wrapper's probe EXACTLY so the two stages
     # agree on what a grasp is.
     N_GRASP_HOLD_LIFT   = 8     # matches place_env_wrapper._GRASP_HOLD
+    # Partial credit for a failed lift must stay WELL below the success bonus.
+    # The first version paid W_GRASP_SUCCESS * (rise/threshold) linearly, on top
+    # of the +20 already paid for reaching the hold -- so a lift that failed at
+    # 14mm scored 29.2 while a lift that PASSED scored 20. Failing paid more
+    # than succeeding, and the policy duly plateaued at a 13.8mm median rise.
+    LIFT_PARTIAL_CAP    = 0.25  # max share of W_GRASP_SUCCESS a failure may earn
+    LIFT_PARTIAL_POW    = 3.0   # cubic: flat until close, steep near threshold
     TEST_LIFT_STEPS     = 20    # matches _TEST_LIFT_STEPS
     TEST_LIFT_DZ        = 0.5   # matches _TEST_LIFT_DZ
     TEST_LIFT_MIN_RISE  = 0.03  # matches _TEST_LIFT_MIN_RISE
@@ -118,11 +125,14 @@ class GraspRewardWrapper:
                 info["grasp_success"] = survived
                 info["lift_certified"] = survived
                 info["lift_rise"] = rise
-                # Partial credit for partial rise: a grip that lifts 2cm is
-                # closer to useful than one that slips immediately.
                 frac = float(np.clip(rise / self.TEST_LIFT_MIN_RISE, 0.0, 1.0))
-                if not survived:
-                    reward += self.W_GRASP_SUCCESS * frac
+                if survived:
+                    # The bonus is paid HERE, not on reaching the hold, so it
+                    # is contingent on the lift actually succeeding.
+                    reward += self.W_GRASP_SUCCESS
+                else:
+                    reward += (self.W_GRASP_SUCCESS * self.LIFT_PARTIAL_CAP
+                               * frac ** self.LIFT_PARTIAL_POW)
             else:
                 info["grasp_success"] = True
 
@@ -250,7 +260,12 @@ class GraspRewardWrapper:
             r += self.W_GRASP
 
         # ---- One-time stable grasp bonus -----------------------------------
-        if not self._success_given and self._grasp_hold_count >= self.N_GRASP_HOLD:
+        # With require_lift the bonus is contingent on the lift, and is paid in
+        # step() once _certify_by_lift has run. Paying it here as well would
+        # reward merely holding contact, which is the behaviour that produced
+        # unliftable grips in the first place.
+        if (not self._require_lift and not self._success_given
+                and self._grasp_hold_count >= self.N_GRASP_HOLD):
             r += self.W_GRASP_SUCCESS
             self._success_given = True
 
