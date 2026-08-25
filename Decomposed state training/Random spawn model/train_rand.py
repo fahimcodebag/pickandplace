@@ -59,6 +59,24 @@ from training_probe import probe
 # Vectorized env (spawn level passed explicitly — no module-global)
 # ---------------------------------------------------------------------------
 
+# Per-term reward columns. The wrapper accumulates these inside
+# _grasp_reward itself and emits them in info["reward_terms"] on the
+# terminal step, so this cannot drift from the reward under test. A run
+# without the instrumented wrapper simply writes blanks.
+_RTERMS = ["reach", "grip_close", "grasp_hold", "success_bonus",
+           "partial_credit", "align_shape", "idle", "drop", "away"]
+
+
+def _rterm_cols(inf):
+    t = inf.get("reward_terms") or {}
+    out = [f"{t[k]:.2f}" if k in t else "" for k in _RTERMS]
+    out += [t.get("n_drops", ""), t.get("n_grasped_steps", "")]
+    ga, lr = inf.get("grip_align"), inf.get("lift_rise")
+    out += [f"{ga:.4f}" if ga is not None else "",
+            f"{lr:.4f}" if lr is not None else ""]
+    return out
+
+
 def _worker(remote, parent_remote, env_name, seed, spawn_level,
             require_lift=False, align_grip=False, reward_v2=False):
     parent_remote.close()
@@ -273,6 +291,15 @@ def train(args):
                         "done_reason", "spawn_level", "spawn_x", "spawn_y",
                         "spawn_yaw", "grasp_steps", "first_grasp_step",
                         "max_grasp_run", "min_reach_dist",
+                        # Per-term reward accounting (see reward_audit.py).
+                        # score alone shows THAT reward moved; these show
+                        # which term moved it, which is what a reward
+                        # regression actually needs to be diagnosed.
+                        "r_reach", "r_grip_close", "r_grasp_hold",
+                        "r_success_bonus", "r_partial_credit",
+                        "r_align_shape", "r_idle", "r_drop", "r_away",
+                        "n_drops", "n_grasped_steps",
+                        "grip_align", "lift_rise",
                         "avg_score_100", "success_100", "best_metric",
                         "env_steps", "grad_steps", "wall_s"])
 
@@ -390,6 +417,7 @@ def train(args):
                 inf.get("grasp_steps", -1), inf.get("first_grasp_step", -1),
                 inf.get("max_grasp_run", -1),
                 f"{inf.get('min_reach_dist', -1.0):.4f}",
+                *_rterm_cols(inf),
                 f"{avg_score:.3f}", f"{succ_100:.2f}", f"{best_metric:.4f}",
                 env_steps, getattr(agent, "learn_step_cntr", 0),
                 f"{time.time() - t0:.1f}"])

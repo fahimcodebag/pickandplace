@@ -1,0 +1,75 @@
+================================================================================
+REWARD V2 (A+C+D): MECHANICALLY SUCCESSFUL, END-TO-END A WASH
+================================================================================
+
+METHOD NOTE -- this is the transferable part
+Each fix was priced on 400 RECORDED episodes before any training, using
+reward_audit.py and per-term accounting emitted from inside _grasp_reward
+itself. The predicted accumulated value was then compared against a live run of
+the implemented reward:
+
+  outcome      predicted   measured
+  CERTIFIED        336.0      336.0
+  slip              90.2       90.2
+  flicker          -17.5      -17.5
+  touched          -80.7      -80.7
+  never gripped    -85.9      -85.9
+
+All five classes matched to 0.1. Every claim below was therefore known before
+an hour of GPU time was spent, and the one failure was diagnosable.
+
+WHAT THE AUDIT FOUND ON THE INCUMBENT
+1. The success bonus was min 150.0, max 150.0, sd 0.000 across 290 certified
+   grasps while quality varied 8-fold (lift rise 38-318mm, alignment
+   0.01-0.99). corr(total reward, alignment) = +0.05. The reward was BLIND to
+   grasp quality: no gradient existed past the certification bar.
+2. Flicker-farming was suppressed but not dead -- it scored 150.5, SECOND-BEST
+   of all outcomes and above slip. Net +8.43 per held step made farming beat a
+   clean success at 26 held steps of 200; the policy already reached 14, a
+   margin of 1.79x. The earlier W_GRASP_SUCCESS 20 -> 150 override had only
+   moved break-even to 39, never closing it.
+3. Parking near the object netted +54.1: P_IDLE (-0.4) never covered W_REACH
+   (up to +1.0).
+
+RESULT 1 -- (C) AND (D) WORKED, EXACTLY AS PRICED
+  flicker per 50 episodes   17-22  ->  5-6
+  drops per episode, first 300 -> last 300
+      s0  0.41 -> 0.13    s1  0.48 -> 0.31    s2  0.65 -> 0.25
+  margin certified/best-failure   1.62x -> 3.73x
+  flicker break-even              26 held steps -> impossible
+
+RESULT 2 -- (A)'s ALIGNMENT HALF IS INERT
+  corner prevalence   23.5% -> 25.5 / 25.5 / 22.2
+  mean angle from a flat face  18.9 -> 20.3 / 20.0 / 18.4 deg
+The graded bonus created a real, correctly-signed gradient (corr with
+alignment +0.05 -> +0.85) that the policy simply did not climb.
+
+RESULT 3 -- QUALITY WAS REDISTRIBUTED, NOT INCREASED
+  success by grip angle      flat 0-15      corner 30-45
+    gripfix_s2                  92.6%          70.2%
+    rv2_s2                      87.4%          80.9%
+                             z=-1.80         z=+1.86
+Corner grips gained 10.7 points, flat grips lost 5.2. This is the LIFT-RISE
+half of (A) working as specified -- it pays for higher lift regardless of
+angle, so marginal grips became more liftable -- while the angle distribution
+never shifted. The two effects very nearly cancel.
+
+RESULT 4 -- NET END-TO-END UNCHANGED (400 episodes each)
+  gripfix_s2 (incumbent)   335/400  83.8%
+  rv2_s2                   338/400  84.5%   z=+0.29  ns
+  rv2_s0                   320/400  80.0%   z=-1.38  ns
+  rv2_s1                   313/400  78.2%   z=-1.99  significantly worse
+Grasp stage: rv2 mean 77.2% vs gripfix 79.2%.
+
+DECISION
+gripfix_s2 is KEPT as the pipeline artifact. rv2_s2 is statistically
+indistinguishable (+0.7 points), has a weaker grasp stage, and switching on
+that basis would repeat the best-of-N selection error corrected earlier.
+gripfix_s2 is additionally confirmed on held-out eval seeds.
+
+STANDING CONCLUSION ON WRIST ANGLE
+Three interventions have now failed to move grip ANGLE through reward
+magnitude: the align_grip multiplier (measurably hurt), and the graded bonus
+(inert on alignment). The policy takes the reward loss rather than rotate.
+Reward magnitude appears to be the wrong lever; see reward_v2_followup for
+whether the angle is controllable at all.
