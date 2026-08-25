@@ -185,8 +185,28 @@ class GraspRewardWrapper:
     W_DENSE_ALIGN     = 2.0    # (per step) full charge at a 45-deg corner
     DENSE_ALIGN_RANGE = 0.15   # (m) approach zone where the term is active
 
+    # --- robosuite built-in shaped reward (builtin_reward=True) --------------
+    # The monolithic v7 policy -- which certifies 98.7% of grasps against this
+    # stage's 79.2% (Results/monolithic_control.txt) -- trained on robosuite's
+    # OWN staged reward (reward_shaping=True), not this custom one. Reading
+    # PickPlace.staged_rewards(), the structural difference is a DENSE LIFT
+    # TERM:
+    #     r_lift = 0.35 + (1 - tanh(15 * z_dist)) * 0.15
+    # Once grasped, reward rises continuously with object height, every step.
+    #
+    # This stage has NO lift term at all. It pays W_GRASP=10/step for merely
+    # being grasped, terminates at 8 holds, and only then certifies the lift as
+    # a terminal binary. So "grip it well enough to lift it" -- the exact
+    # quality signal every reward fix here has been chasing -- was a terminal
+    # scalar rather than a per-step gradient, on a variable (height) the policy
+    # directly controls, unlike wrist angle.
+    #
+    # Scale: staged_rewards maxes at ~0.7/step. BUILTIN_SCALE brings it onto
+    # the same footing as W_GRASP so it is visible to the critic.
+    BUILTIN_SCALE   = 15.0
+
     def __init__(self, env, require_lift=False, align_grip=False,
-                 reward_v2=False, dense_align=False):
+                 reward_v2=False, dense_align=False, builtin_reward=False):
         """require_lift: certify grasps with a scripted lift before calling
         them a success. Default False so every result recorded before this
         existed stays reproducible; new runs should pass True."""
@@ -195,6 +215,7 @@ class GraspRewardWrapper:
         self._align_grip = bool(align_grip)
         self._reward_v2 = bool(reward_v2)
         self._dense_align = bool(dense_align)
+        self._builtin_reward = bool(builtin_reward)
         self._held_paid = 0
         self._success_given = False
         self._prev_grasped = False
@@ -208,7 +229,7 @@ class GraspRewardWrapper:
         return {"reach": 0.0, "grip_close": 0.0, "idle": 0.0, "drop": 0.0,
                 "away": 0.0, "grasp_hold": 0.0, "success_bonus": 0.0,
                 "partial_credit": 0.0, "align_shape": 0.0,
-                "dense_align": 0.0,
+                "dense_align": 0.0, "builtin": 0.0,
                 "n_drops": 0, "n_grasped_steps": 0}
 
     def __getattr__(self, name):
@@ -230,7 +251,8 @@ class GraspRewardWrapper:
         obs_dict, _, _, info = self._rs_env.step(action)
         self._step_count += 1
 
-        reward = self._grasp_reward(obs_dict)
+        reward = (self._builtin_step_reward(obs_dict) if self._builtin_reward
+                  else self._grasp_reward(obs_dict))
 
         # Check termination: stable grasp or timeout
         grasped = self._is_grasped()
@@ -407,6 +429,41 @@ class GraspRewardWrapper:
             return float(np.clip(abs(qpos[0]) / 0.04, 0.0, 1.0))
         except Exception:
             return 0.5
+
+    def _builtin_step_reward(self, obs_dict):
+        """robosuite's own staged shaped reward, scaled.
+
+        Uses max(staged_rewards) exactly as PickPlace.reward() does, so the
+        per-step signal is identical in shape to what the monolithic v7 policy
+        trained on -- including the dense lift term this stage never had. The
+        one-time certification bonus is still paid in step(); without a terminal
+        bonus that dominates, a policy can out-earn a clean success by holding
+        the object for the full horizon (the flicker attractor priced in
+        Results/reward_audit/).
+        """
+        t = self._rterms
+        try:
+            r = float(max(self._rs_env.staged_rewards())) * self.BUILTIN_SCALE
+        except Exception:
+            return 0.0
+        # An idle cost is REQUIRED here, and is not part of robosuite's reward.
+        # v7 ran a 500-step horizon with no early termination, so every episode
+        # collected the same number of steps and lingering cost nothing. This
+        # stage terminates on a certified grasp, so a successful episode
+        # FORFEITS its remaining built-in income. Priced without this, a policy
+        # that never grips scored 105.2 -- second-best of all outcomes, ahead of
+        # both slip and touched. The idle cost restores the ordering.
+        _idle = self.V2_P_IDLE if self._reward_v2 else self.P_IDLE
+        r += _idle; t["idle"] += _idle
+
+        grasped = self._is_grasped()
+        if self._prev_grasped and not grasped:
+            r += self.P_DROP; t["drop"] += self.P_DROP; t["n_drops"] += 1
+        if grasped:
+            t["n_grasped_steps"] += 1
+        self._prev_grasped = grasped
+        t["builtin"] += r
+        return r
 
     def _grasp_reward(self, obs_dict):
         r = 0.0

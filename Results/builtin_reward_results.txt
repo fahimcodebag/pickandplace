@@ -1,0 +1,77 @@
+================================================================================
+BUILT-IN SHAPED REWARD: THE GRASP CEILING BREAKS
+79.2% -> 87.1% certified grasp. Angle dependence dissolves without being
+targeted. The bottleneck moves to transport.
+================================================================================
+
+ORIGIN OF THE IDEA
+The user asked whether v7's use of robosuite's default reward_shaping mattered.
+It did. Reading PickPlace.staged_rewards(), the structural difference from this
+stage's custom reward is a DENSE LIFT TERM:
+
+    r_lift = 0.35 + (1 - tanh(15 * z_dist)) * 0.15      # only while grasped
+
+Once grasped, reward rises continuously with object height, EVERY STEP. The
+decomposed grasp stage had no lift term at all: it paid W_GRASP=10/step for
+merely being grasped, terminated at 8 holds, and certified the lift as a
+terminal binary. "Grip it well enough to lift it" -- the quality signal four
+reward interventions had been chasing -- was a terminal scalar rather than a
+per-step gradient, on a variable (height) the policy directly controls.
+
+PRICING CAUGHT A TRAP BEFORE TRAINING
+Straight built-in reward priced badly: "never gripped" scored 105.2, SECOND
+BEST of all outcomes, ahead of slip and touched. The asymmetry is that v7 ran a
+500-step horizon with no early termination -- every episode collected the same
+number of steps, so lingering cost nothing. This stage terminates on a
+certified grasp, so a success FORFEITS its remaining income. Adding the idle
+cost restored the ordering (certified 198.4, slip 56.0, never -54.8, touched
+-83.2, flicker -118.2; margin 3.5x). Copying a reward across setups without
+re-deriving it against the termination rule would have rebuilt the parking
+attractor.
+
+RESULT 1 -- THE GRASP CEILING BREAKS
+  certified grasp, 800 deterministic episodes per seed
+    gripfix (after 4 reward interventions)   79.2%
+    reward-v2                                77.2%
+    built-in   s0/s1/s2   88.9 / 83.4 / 89.0  mean 87.1%
+  bi_s2 (712/800) vs gripfix_s2 (630/800): z = +5.63
+  Training-window best_metric: 0.910 / 0.870 / 0.915 vs gripfix 0.79/0.785/0.785.
+
+RESULT 2 -- ANGLE DEPENDENCE DISSOLVES WITHOUT BEING TARGETED
+  end-to-end success by grip angle       flat      corner    spread
+    monolithic v7 (2.2M params)         100.0%      98.0%     2.0
+    gripfix_s2                           92.6%      70.2%    22.4
+    bi_s0                                86.9%      84.2%     2.7
+    bi_s2                                82.8%      79.8%     3.0
+Corner prevalence is UNCHANGED (~25%). The policy still does not align its
+wrist. It simply grips well enough that the angle stops mattering -- the
+monolithic model's exact signature, reproduced at 5.2k parameters. This is
+independent confirmation that grip angle was a symptom of weak grips, not the
+cause, and that all four alignment interventions were aimed at the wrong
+variable.
+
+RESULT 3 -- THE BOTTLENECK MOVES TO TRANSPORT
+  end-to-end, 400 episodes    vs gripfix_s2 (83.8%)
+    bi_s0   86.0%   z=+0.89  ns
+    bi_s2   81.5%   z=-0.84  ns
+    bi_s1   74.0%   z=-3.40  significantly worse
+
+  transport_stall per 400 episodes
+    gripfix_s2  14      bi_s0  30      bi_s1  36      bi_s2  41
+
+Stalls roughly TRIPLE. A better grasp policy hands off a different distribution
+of held-object states, and the ORIGINAL fixed-spawn transport policy -- which
+never saw them -- handles them worse. The grasp gain is real and is consumed
+downstream.
+
+CAVEAT
+bi_s1 is weak on both stages (83.4% grasp, 74.0% end-to-end), so this arm
+carries more seed variance than gripfix did. 87.1% should not be treated as
+settled without more seeds.
+
+NEXT
+Retrain transport against the bi grasp distribution. Transport retraining was
+previously a negative result (55.0 and 25.0 vs 82%), but that was against the
+OLD grasp distribution from a policy that is now measurably different, and
+unlike the alignment work there is a measured mechanism pointing at it (stall
+count tripling) rather than a hypothesis.

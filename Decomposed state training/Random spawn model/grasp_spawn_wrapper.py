@@ -89,7 +89,7 @@ class SpawnCurriculumGraspWrapper(GraspRewardWrapper):
 
     def __init__(self, env, curriculum=True, level=None, static_spec=None,
                  require_lift=False, align_grip=False, reward_v2=False,
-                 dense_align=False):
+                 dense_align=False, builtin_reward=False):
         """
         Args:
             env:          raw robosuite env whose _get_placement_initializer
@@ -111,7 +111,8 @@ class SpawnCurriculumGraspWrapper(GraspRewardWrapper):
         """
         super().__init__(env, require_lift=require_lift,
                          align_grip=align_grip, reward_v2=reward_v2,
-                         dense_align=dense_align)
+                         dense_align=dense_align,
+                         builtin_reward=builtin_reward)
         self._curriculum = curriculum
         self._static_spec = static_spec
         if curriculum:
@@ -182,7 +183,8 @@ class SpawnCurriculumGraspWrapper(GraspRewardWrapper):
 def make_spawn_grasp_env(env_name="PickPlace", seed=None, render=False,
                          curriculum=True, level=None, static_spec=None,
                          require_lift=False, align_grip=False,
-                         reward_v2=False, dense_align=False):
+                         reward_v2=False, dense_align=False,
+                         builtin_reward=False):
     """Create a robosuite env with grasp rewards + dynamic spawn control.
 
     The placement initializer is patched to read env._spawn_spec on every
@@ -237,7 +239,8 @@ def make_spawn_grasp_env(env_name="PickPlace", seed=None, render=False,
                                       require_lift=require_lift,
                                       align_grip=align_grip,
                                       reward_v2=reward_v2,
-                                      dense_align=dense_align)
+                                      dense_align=dense_align,
+                                      builtin_reward=builtin_reward)
     env = GymWrapper(env)
     if seed is not None:
         env.seed(seed)
