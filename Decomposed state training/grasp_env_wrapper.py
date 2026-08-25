@@ -101,8 +101,12 @@ class GraspRewardWrapper:
     # Floor on the success multiplier. MUST stay above LIFT_PARTIAL_CAP (0.25):
     # below it a certified-but-misaligned lift would pay LESS than a near-miss
     # failure -- the same reward inversion that produced unliftable grips the
-    # first time (see the LIFT_PARTIAL_CAP note above). At 0.5 the worst
-    # certified grip earns 10.0 against a failure's 5.0 ceiling.
+    # first time (see the LIFT_PARTIAL_CAP note above).
+    # CORRECTION: an earlier version of this comment priced the floor against
+    # the BASE W_GRASP_SUCCESS of 20 ("10.0 vs 5.0"). The random-spawn wrapper
+    # overrides it to 150, so the real figures are 75.0 vs a 37.5 failure
+    # ceiling. The 2:1 ordering the floor protects is unchanged, but any
+    # arithmetic here must use the override, not the base.
     ALIGN_MIN       = 0.5
     # Potential-based shaping (Ng et al. 1999): r += gamma*Phi(s') - Phi(s).
     # Policy-invariant by construction, so unlike a plain per-step alignment
@@ -120,19 +124,66 @@ class GraspRewardWrapper:
     ALIGN_GAMMA     = 0.99   # matches the agents' discount
     ALIGN_NEAR      = 0.10   # (m) proximity scale of the shaping gate
 
-    def __init__(self, env, require_lift=False, align_grip=False):
+    # --- reward v2 (reward_v2=True) -----------------------------------------
+    # Three fixes, priced on 400 recorded episodes before training
+    # (Results/reward_audit/). Baseline margin of a certified grasp over the
+    # best failure mode was 1.62x, with flicker-farming profitable at 26 held
+    # steps of 200. Together these give 3.72x and make flicker impossible.
+    #
+    # (A) GRADED SUCCESS BONUS. Measured across 290 certified grasps, the bonus
+    #     was min 150.0, max 150.0, sd 0.000 -- perfectly flat -- while grasp
+    #     quality varied 8-fold (lift rise 38-318mm, alignment 0.01-0.99).
+    #     Correlation of total reward with alignment was +0.05 and with lift
+    #     rise -0.04: the reward was BLIND to quality, so there was no gradient
+    #     to climb once over the certification bar. Pays W*(1+q), q in [0,1],
+    #     so the range is [W, 2W] and a good grasp earns MORE. It never pays
+    #     below W. That direction matters: the earlier align_grip multiplier
+    #     scaled the bonus DOWN for imperfect grips, which weakened the primary
+    #     success signal and measurably hurt (Results/wrist_alignment_negative).
+    V2_RISE_SPAN    = 0.07   # (m) above TEST_LIFT_MIN_RISE for full rise credit
+    V2_W_RISE       = 0.5    # blend of the two quality signals
+    V2_W_ALIGN      = 0.5
+    # (C) HOLD-INCOME CAP. W_GRASP pays 10/step for every held step, so a
+    #     flickering policy (grip, slip, regrip) collected 10/step without ever
+    #     certifying: measured 140.0 of flicker's 150.5 total. Net income was
+    #     +8.43 per held step after drop penalties, making farming beat a clean
+    #     success at 26 held steps -- the policy already reached 14, a margin of
+    #     only 1.79x. Raising W_GRASP_SUCCESS (20 -> 150) had suppressed this
+    #     without closing it; it only moved break-even to 39. Capping the number
+    #     of PAID held steps removes the unbounded income, so no amount of
+    #     flickering can beat a success. Certified grasps hold ~8 steps and are
+    #     essentially unaffected (244.2 -> 242.0).
+    V2_HOLD_CAP     = 12     # paid held steps per episode (certified use ~8)
+    # (D) IDLE COST. P_IDLE (-0.4) did not cover W_REACH (up to +1.0), so
+    #     parking next to the object netted ~+0.15/step: a never-gripping
+    #     episode scored +54.1. Set above W_REACH so hovering is strictly
+    #     negative. Risk: every failure mode becomes strongly negative, which
+    #     may slow very early training before the agent can grasp at all.
+    V2_P_IDLE       = -1.1
+
+    def __init__(self, env, require_lift=False, align_grip=False,
+                 reward_v2=False):
         """require_lift: certify grasps with a scripted lift before calling
         them a success. Default False so every result recorded before this
         existed stays reproducible; new runs should pass True."""
         self._rs_env = env
         self._require_lift = bool(require_lift)
         self._align_grip = bool(align_grip)
+        self._reward_v2 = bool(reward_v2)
+        self._held_paid = 0
         self._success_given = False
         self._prev_grasped = False
         self._prev_d_reach = None
         self._prev_align_pot = None
         self._grasp_hold_count = 0
         self._step_count = 0
+        self._rterms = self._new_rterms()
+
+    def _new_rterms(self):
+        return {"reach": 0.0, "grip_close": 0.0, "idle": 0.0, "drop": 0.0,
+                "away": 0.0, "grasp_hold": 0.0, "success_bonus": 0.0,
+                "partial_credit": 0.0, "align_shape": 0.0,
+                "n_drops": 0, "n_grasped_steps": 0}
 
     def __getattr__(self, name):
         return getattr(self._rs_env, name)
@@ -145,6 +196,8 @@ class GraspRewardWrapper:
         self._prev_align_pot = None
         self._grasp_hold_count = 0
         self._step_count = 0
+        self._rterms = self._new_rterms()
+        self._held_paid = 0
         return obs_dict
 
     def step(self, action):
@@ -176,17 +229,33 @@ class GraspRewardWrapper:
                 # A corner grip certifies but transports badly, so it must not
                 # earn what a flat grip earns. Floored at ALIGN_MIN to keep a
                 # certified success strictly above the failure ceiling.
-                align_q = self._wrist_alignment(obs_dict) if self._align_grip else None
-                align_mult = 1.0 if align_q is None else (
-                    self.ALIGN_MIN + (1.0 - self.ALIGN_MIN) * align_q)
+                # Alignment is ALWAYS measured and reported so reward_audit.py
+                # can price candidate rewards offline; it only enters the
+                # reward when align_grip is on.
+                align_q = self._wrist_alignment(obs_dict)
                 info["grip_align"] = align_q
+                align_mult = 1.0 if (align_q is None or not self._align_grip) else (
+                    self.ALIGN_MIN + (1.0 - self.ALIGN_MIN) * align_q)
+                if self._reward_v2:
+                    # (A) supersedes the align_grip multiplier: quality raises
+                    # the bonus above W rather than cutting it below.
+                    q_rise = float(np.clip(
+                        (rise - self.TEST_LIFT_MIN_RISE) / self.V2_RISE_SPAN,
+                        0.0, 1.0))
+                    q_align = 0.0 if align_q is None else align_q
+                    q = self.V2_W_RISE * q_rise + self.V2_W_ALIGN * q_align
+                    align_mult = 1.0 + q
+                    info["grip_quality"] = q
                 if survived:
                     # The bonus is paid HERE, not on reaching the hold, so it
                     # is contingent on the lift actually succeeding.
                     reward += self.W_GRASP_SUCCESS * align_mult
+                    self._rterms["success_bonus"] += self.W_GRASP_SUCCESS * align_mult
                 else:
-                    reward += (self.W_GRASP_SUCCESS * self.LIFT_PARTIAL_CAP
-                               * frac ** self.LIFT_PARTIAL_POW)
+                    _v = (self.W_GRASP_SUCCESS * self.LIFT_PARTIAL_CAP
+                          * frac ** self.LIFT_PARTIAL_POW)
+                    reward += _v
+                    self._rterms["partial_credit"] += _v
             else:
                 info["grasp_success"] = True
 
@@ -196,6 +265,8 @@ class GraspRewardWrapper:
             if "grasp_success" not in info:
                 info["grasp_success"] = False
 
+        if done:
+            info["reward_terms"] = dict(self._rterms)
         return obs_dict, reward, done, info
 
     # --- helpers -----------------------------------------------------------
@@ -313,6 +384,7 @@ class GraspRewardWrapper:
 
     def _grasp_reward(self, obs_dict):
         r = 0.0
+        t = self._rterms          # per-episode accumulator (audit instrument)
         eef_pos = np.array(obs_dict["robot0_eef_pos"])
         obj_pos = self._get_obj_pos(obs_dict)
         if obj_pos is None:
@@ -321,25 +393,29 @@ class GraspRewardWrapper:
         d_reach = np.linalg.norm(eef_pos - obj_pos)
 
         # ---- Stage 1: Reach toward object ----------------------------------
-        r += self.W_REACH * max(0.0, 1.0 - d_reach / self._REACH_SCALE)
+        _v = self.W_REACH * max(0.0, 1.0 - d_reach / self._REACH_SCALE)
+        r += _v; t["reach"] += _v
 
         # ---- Stage 2: Encourage gripper closing when very close ------------
         if d_reach < self._GRIP_RANGE:
             aperture = self._gripper_aperture(obs_dict)
-            r += self.W_GRIP_CLOSE * (1.0 - aperture)  # reward closing
+            _v = self.W_GRIP_CLOSE * (1.0 - aperture)  # reward closing
+            r += _v; t["grip_close"] += _v
 
         # ---- Grasp check ---------------------------------------------------
         grasped = self._is_grasped()
 
         # ---- Penalties -----------------------------------------------------
-        r += self.P_IDLE
+        _idle = self.V2_P_IDLE if self._reward_v2 else self.P_IDLE
+        r += _idle; t["idle"] += _idle
 
         if self._prev_grasped and not grasped:
-            r += self.P_DROP
+            r += self.P_DROP; t["drop"] += self.P_DROP
+            t["n_drops"] += 1
 
         if not grasped and self._prev_d_reach is not None:
             if d_reach > self._prev_d_reach + 0.005:
-                r += self.P_AWAY
+                r += self.P_AWAY; t["away"] += self.P_AWAY
 
         # ---- Wrist alignment (potential-based) -----------------------------
         # gamma*Phi(s') - Phi(s). The first step of an episode has no previous
@@ -347,7 +423,8 @@ class GraspRewardWrapper:
         if self._align_grip:
             pot = self._align_potential(obs_dict, d_reach)
             if self._prev_align_pot is not None:
-                r += self.ALIGN_GAMMA * pot - self._prev_align_pot
+                _v = self.ALIGN_GAMMA * pot - self._prev_align_pot
+                r += _v; t["align_shape"] += _v
             self._prev_align_pot = pot
 
         self._prev_grasped = grasped
@@ -355,7 +432,12 @@ class GraspRewardWrapper:
 
         if grasped:
             # ---- Stage 3: Sustained grasp ----------------------------------
-            r += self.W_GRASP
+            # (C) only the first V2_HOLD_CAP held steps of an episode are paid,
+            # so hold income is bounded and cannot be farmed by flickering.
+            if not self._reward_v2 or self._held_paid < self.V2_HOLD_CAP:
+                r += self.W_GRASP; t["grasp_hold"] += self.W_GRASP
+            self._held_paid += 1
+            t["n_grasped_steps"] += 1
 
         # ---- One-time stable grasp bonus -----------------------------------
         # With require_lift the bonus is contingent on the lift, and is paid in
@@ -364,7 +446,7 @@ class GraspRewardWrapper:
         # unliftable grips in the first place.
         if (not self._require_lift and not self._success_given
                 and self._grasp_hold_count >= self.N_GRASP_HOLD):
-            r += self.W_GRASP_SUCCESS
+            r += self.W_GRASP_SUCCESS; t["success_bonus"] += self.W_GRASP_SUCCESS
             self._success_given = True
 
         return float(r)

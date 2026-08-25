@@ -60,12 +60,13 @@ from training_probe import probe
 # ---------------------------------------------------------------------------
 
 def _worker(remote, parent_remote, env_name, seed, spawn_level,
-            require_lift=False, align_grip=False):
+            require_lift=False, align_grip=False, reward_v2=False):
     parent_remote.close()
     env = GraspDiagnosticsWrapper(
         make_spawn_grasp_env(env_name, seed=seed, curriculum=False,
                              require_lift=require_lift,
                              align_grip=align_grip,
+                             reward_v2=reward_v2,
                              level=spawn_level))
     while True:
         try:
@@ -89,7 +90,7 @@ def _worker(remote, parent_remote, env_name, seed, spawn_level,
 
 class SubprocVecEnv:
     def __init__(self, env_name, n_envs, spawn_level, seed0=0,
-                 require_lift=False, align_grip=False):
+                 require_lift=False, align_grip=False, reward_v2=False):
         self.n_envs = n_envs
         self.closed = False
         ctx = mp.get_context("fork")
@@ -100,7 +101,7 @@ class SubprocVecEnv:
         for i, (wr, r) in enumerate(zip(work_remotes, self.remotes)):
             p = ctx.Process(target=_worker,
                             args=(wr, r, env_name, seed0 + i, spawn_level,
-                                  require_lift, align_grip),
+                                  require_lift, align_grip, reward_v2),
                             daemon=True)
             p.start()
             wr.close()
@@ -242,7 +243,8 @@ def train(args):
     vec_env = SubprocVecEnv("PickPlace", args.n_envs, args.spawn_level,
                             seed0=args.seed * 1000,
                             require_lift=args.require_lift,
-                            align_grip=args.align_grip)
+                            align_grip=args.align_grip,
+                            reward_v2=args.reward_v2)
     agent = build_agent(args.algo, vec_env, chkpt_dir, args)
 
     status = warm_start(agent, args.algo, chkpt_dir, source_dir)
@@ -502,6 +504,17 @@ def parse_args(argv=None):
                         "level 0.83) that §9.3 reseeds Phase A from; pass "
                         "checkpoints/td3_grasp for the fixed-spawn 95%% model, "
                         "or '' to train from scratch.")
+    p.add_argument("--reward-v2", action="store_true",
+                   help="Three reward fixes priced on recorded episodes before "
+                        "training (Results/reward_audit/): (A) success bonus "
+                        "graded by grip quality, W*(1+q) instead of a flat W "
+                        "-- the old bonus was sd 0.000 across 290 successes "
+                        "while quality varied 8-fold; (C) hold income capped "
+                        "at 12 paid steps, which makes flicker-farming "
+                        "impossible rather than merely unprofitable; (D) "
+                        "P_IDLE -0.4 -> -1.1 so parking near the object is "
+                        "strictly negative. Margin of a certified grasp over "
+                        "the best failure mode: 1.62x -> 3.72x.")
     p.add_argument("--align-grip", action="store_true",
                    help="Reward closing the fingers on a flat face of the "
                         "object rather than a corner. The handoff diagnostic "
