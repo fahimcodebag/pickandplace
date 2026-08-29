@@ -138,6 +138,27 @@ def main():
                         "random spawn (position + rotation), the condition the "
                         "current pipeline is measured under.")
     p.add_argument("--out", required=True)
+    # --- FSM rule-layer parameters -------------------------------------------
+    # Sec 5 of thesis_context: FSM parameters alone took end-to-end 78% -> 92%
+    # at FIXED spawn, with identical weights. These values were tuned for that
+    # regime and have never been re-tuned for random spawn, where the dominant
+    # failure is now a transport horizon-out (7.5%) rather than anything the
+    # policies control.
+    p.add_argument("--near-target-xy", type=float, default=NEAR_TARGET_XY)
+    p.add_argument("--release-trig-hold", type=int, default=RELEASE_TRIG_HOLD)
+    p.add_argument("--place-horizon", type=int, default=PLACE_HORIZON)
+    p.add_argument("--translate-scale", type=float, default=TRANSLATE_SCALE)
+    p.add_argument("--carry-gain", type=float, default=CARRY_GAIN)
+    p.add_argument("--carry-clip", type=float, default=CARRY_CLIP)
+    p.add_argument("--rc-steps", type=int, default=RC_STEPS)
+    p.add_argument("--rc-tol", type=float, default=RC_TOL)
+    p.add_argument("--ds-steps", type=int, default=DS_STEPS)
+    p.add_argument("--ds-dz", type=float, default=DS_DZ)
+    p.add_argument("--touch-margin", type=float, default=TOUCH_MARGIN)
+    p.add_argument("--rt-steps", type=int, default=RT_STEPS)
+    p.add_argument("--rt-dz", type=float, default=RT_DZ)
+    p.add_argument("--grasp-cap", type=int, default=GRASP_CAP)
+    p.add_argument("--tag", default="", help="label carried into the CSV")
     p.add_argument("--int8", action="store_true",
                    help="Run both actors as INT8 .tflite interpreters instead "
                         "of FP32 PyTorch -- the acceptance test for the "
@@ -152,6 +173,14 @@ def main():
                         "sees reach/grasp states, so the grasp buffer is the "
                         "wrong calibration distribution for it.")
     a = p.parse_args()
+
+    # Apply rule-layer overrides to the module constants the FSM reads.
+    g = globals()
+    for k in ("NEAR_TARGET_XY", "RELEASE_TRIG_HOLD", "PLACE_HORIZON",
+              "TRANSLATE_SCALE", "CARRY_GAIN", "CARRY_CLIP", "RC_STEPS",
+              "RC_TOL", "DS_STEPS", "DS_DZ", "TOUCH_MARGIN", "RT_STEPS",
+              "RT_DZ", "GRASP_CAP"):
+        g[k] = getattr(a, k.lower())
 
     np.random.seed(a.seed); T.manual_seed(a.seed)
     raw = suite.make("PickPlace", robots="Panda",
@@ -245,7 +274,8 @@ def main():
                 break
         if not reached:
             rows.append(dict(episode=ep, attempts=attempts, success=0,
-                             phase="handoff_failed", steps=0)); continue
+                             phase="handoff_failed", steps=0, tag=a.tag))
+            continue
         # --- scored portion
         n = 0
         while n < 700:
@@ -260,7 +290,7 @@ def main():
                 break
         rows.append(dict(episode=ep, attempts=attempts,
                          success=int(fsm.phase == OK),
-                         phase=NAMES[fsm.phase], steps=n))
+                         phase=NAMES[fsm.phase], steps=n, tag=a.tag))
         if (ep + 1) % 25 == 0:
             s = sum(r["success"] for r in rows)
             print(f"  {ep+1}/{a.episodes}  success {s/len(rows)*100:.1f}%", flush=True)

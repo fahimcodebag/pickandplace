@@ -1,0 +1,67 @@
+================================================================================
+RULE-LAYER SWEEP + A 3-POINT MEASUREMENT CORRECTION
+Tuning: +2.25 pts (ns). The correction is the bigger result.
+================================================================================
+
+MOTIVATION
+Sec 5 of thesis_context recorded that FSM parameters ALONE took end-to-end
+78% -> 92% at fixed spawn with identical weights. Those values were never
+re-tuned for random spawn, where the grasp stage now reaches transport in
+400/400 episodes and every remaining failure is downstream.
+
+STAGE 1 -- coordinate sweep, 25 configs x 100 episodes
+Only TRANSLATE_SCALE (multiplier on the transport policy's commanded
+translation) showed a coherent trend:
+    0.4    0.5(base)  0.6   0.7   0.8   1.0
+    80%      82%      86%   86%   85%   83%
+Everything else was inside noise. Two informative nulls:
+  * PLACE_HORIZON 200 / 400 / 500 all scored 82%. The failing carries are
+    STUCK, NOT SLOW -- more time cannot help them.
+  * NEAR_TARGET_XY 0.10 cost 11 points: the release trigger never fires.
+
+STAGE 2 -- top candidates, 400 episodes each
+All five beat baseline (+1.8 to +3.5) but none individually significant.
+
+CONFIRMATION -- 1200 episodes per arm (12 eval seeds x 100)
+  baseline rule layer                                1048/1200  87.33%
+  tuned (TSCALE 0.65, CARRY_GAIN 6.0, NEAR_XY 0.18)  1075/1200  89.58%
+  difference                          +2.25 pts, z = +1.73, NOT significant
+
+Real but small, and no Sec 5-scale win: the parameters were already close to
+right for this regime. Adopted anyway (free, and every stage-2 candidate beat
+baseline), but not claimed as significant.
+
+--------------------------------------------------------------------------------
+THE CORRECTION -- this matters more than the tuning
+--------------------------------------------------------------------------------
+The BASELINE, unchanged configuration, scores 87.33% over 1200 episodes against
+the 84.0% previously reported from 400. Per-seed, identical config:
+
+  seed    7  31  47  89 101 123 211 307 401 503 555 2024
+        82  90  85  89  88  88  88  91  90  91  82   84
+
+Per-seed sd = 3.3 points, so a 4-seed mean carries SE 1.6 -- and the original
+draw (7, 123, 555, 2024) took three of the four lowest seeds in the set.
+
+This is the 100-episode lesson one level up. Moving 100 -> 400 episodes fixed
+WITHIN-seed noise while keeping only 4 eval seeds, and at that scale
+BETWEEN-seed variance dominates. New rule: >= 12 eval seeds x 100 episodes,
+not merely >= 400 episodes.
+
+CORRECTED HEADLINE (tuned rule layer, 1200 episodes each)
+                    fixed spawn        random spawn
+  FP32              100.0% (200 ep)       89.58%
+  INT8               96.58%               76.08%
+  INT8 cost           ~-3.4                -13.50
+
+Superseded: FP32 random 84.0%, INT8 random 70.0%, INT8 fixed 95.2% -- all from
+4-7 eval seeds and low by 3-6 points. Rankings in Results/int8_deployment.txt
+are unaffected (all arms measured under the same protocol); only the absolute
+values move.
+
+STATUS
+Deployed configuration: grasp qat_output_fix/grasp_bi_noqat_int8.tflite +
+transport qat_output_bi/place_orig_int8.tflite, tuned rule layer.
+The rule-layer constants must be mirrored into pick_and_place_INT8_FSM.ino
+(TRANSLATE_SCALE, CARRY_GAIN, NEAR_TARGET_XY) before the next HIL run --
+NOT yet done.

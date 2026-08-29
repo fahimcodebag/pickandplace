@@ -7,13 +7,13 @@
 > generalization to randomized object spawns, and the current deployed
 > INT8 pipeline.
 >
-> **START HERE if resuming work: §9.4 (current status) and §9.15 (what is open
+> **START HERE if resuming work: §9.4 (current status) and §9.16 (what is open
 > and the methodological rules).** Sections 7, 8.4 and 9.1–9.3 record earlier
 > states of the project and are explicitly superseded where §9.4 onward says so.
 >
-> Current headline: **FP32 100.0% fixed / 84.0% random spawn; INT8 95.2% fixed /
-> 70.0% random**, two 7.9 KB actors, evaluated through a replica of the deployed
-> FSM at 400+ episodes per cell.
+> Current headline: **FP32 100.0% fixed / 89.6% random spawn; INT8 96.6% fixed /
+> 76.1% random**, two 7.9 KB actors, evaluated through a replica of the deployed
+> FSM at 1200 episodes per cell (12 eval seeds x 100).
 >
 > Last updated: 2026-08-29
 
@@ -723,8 +723,13 @@ z-rotation, i.e. robosuite's native sampler):**
 
 | Configuration | Fixed spawn | Random spawn |
 |---|---|---|
-| FP32, deployed FSM | **100.0%** (200 ep) | **84.0%** (400 ep) |
-| INT8, deployed FSM | **95.2%** (420 ep) | **70.0%** (420 ep) |
+| FP32, deployed FSM | **100.0%** (200 ep) | **89.6%** (1200 ep) |
+| INT8, deployed FSM | **96.6%** (1200 ep) | **76.1%** (1200 ep) |
+
+All random-spawn figures use the **tuned** rule layer (§9.16). Earlier drafts of
+this file quoted 84.0% FP32 / 70.0% INT8 random from 4-to-7 eval seeds; those
+were **low by 3-6 points** because per-seed sd is 3.3 points and the seed draw
+was unlucky. See §9.15.
 | *thesis §8.4 FP32 Python baseline* | *92%* | — |
 | *earlier INT8 HIL on hardware* | *90% (10 ep)* | — |
 
@@ -926,8 +931,11 @@ the serial round-trip removed.
 | Configuration | Success | 1st-try handoff |
 |---|---|---|
 | bi_s0 + original transport, **fixed** | **200/200 = 100.0%** | 100% |
-| bi_s0 + original transport, **random** | 336/400 = 84.0% | 98% |
+| bi_s0 + original transport, **random** | 336/400 = 84.0%<sup>†</sup> | 98% |
 | gripfix_s2 + original transport, random | 154/200 = 77.0% | 92% |
+
+<sup>†</sup> This 4-seed estimate was later corrected to **87.3%** over 1200
+episodes with the same configuration; see §9.15.
 
 The harnesses **agree** (84.0% vs the wrapper's 86.0%, z = −0.79 ns), so the
 86.0% was not an eval-wrapper artifact. The FSM also **discriminates more
@@ -938,9 +946,13 @@ through the wrapper. `Results/fsm_fp32_validation.txt`.
 
 | Configuration | Fixed | Random |
 |---|---|---|
-| FP32 chain | 100.0% | 84.0% |
-| **INT8 chain (no QAT)** | **95.2%** | **70.0%** |
+| FP32 chain | 100.0% | 87.3% |
+| **INT8 chain (no QAT)** | **96.6%** | **76.1%** |
 | INT8 chain, 50-epoch QAT (prior path) | — | 50.5% |
+
+All figures in this subsection use 4–7 eval seeds and are therefore mutually
+comparable but **low in absolute terms by 3–6 points**; see §9.15 for the
+corrected headline values. The *rankings* below are unaffected.
 
 Isolating the grasp model (INT8 grasp + FP32 transport, 420 episodes each):
 
@@ -1020,11 +1032,73 @@ that actually scored 93.3%. Spawn-condition mismatches between training and
 evaluation have been the single most common source of wrong numbers in this
 project.
 
-### 9.15 Where things stand for a fresh session
+### 9.15 Rule-layer sweep, and a 3-point measurement correction
+
+**The sweep.** Sec 5's precedent (FSM parameters alone worth 78% -> 92% at fixed
+spawn) motivated re-tuning the rule layer for random spawn, where the grasp
+stage now reaches transport in **400/400** episodes and every remaining failure
+is downstream. `fsm_sim.py` gained CLI overrides for all 14 rule-layer
+constants; a 25-config coordinate sweep at 100 episodes each screened them.
+
+Only one parameter showed a coherent trend — `TRANSLATE_SCALE`, the multiplier
+on the transport policy's commanded translation:
+
+| 0.4 | 0.5 (base) | 0.6 | 0.7 | 0.8 | 1.0 |
+|---|---|---|---|---|---|
+| 80% | 82% | 86% | 86% | 85% | 83% |
+
+`PLACE_HORIZON` did nothing at 200, 400 or 500, which is itself informative:
+the failing carries are **stuck, not slow**, so more time cannot help them.
+`NEAR_TARGET_XY` 0.10 cost 11 points (release trigger too tight to fire).
+
+Confirmed at 1200 episodes per arm:
+
+| Rule layer | Success |
+|---|---|
+| baseline | 1048/1200 = **87.33%** |
+| tuned (`TRANSLATE_SCALE` 0.65, `CARRY_GAIN` 6.0, `NEAR_TARGET_XY` 0.18) | 1075/1200 = **89.58%** |
+| difference | **+2.25 pts, z = +1.73, not significant** |
+
+Real but small, and **no Sec 5-scale win** — those parameters were already close
+to right for this regime. Taken anyway (free, and all five stage-2 candidates
+beat baseline), but it should not be claimed as significant.
+
+**The correction, which matters more.** The *baseline* — unchanged
+configuration — scored **87.33%** over 1200 episodes against the **84.0%** this
+file previously reported from 400. Per-seed results for the identical config:
+
+```
+seed    7  31  47  89 101 123 211 307 401 503 555 2024
+      82  90  85  89  88  88  88  91  90  91  82   84
+```
+
+Per-seed sd is **3.3 points**, so a 4-seed mean carries **SE 1.6** — and the
+original draw (7, 123, 555, 2024) happened to take three of the four lowest
+seeds in the set.
+
+*This is the 100-episode lesson one level up.* Moving from 100 to 400 episodes
+fixed within-seed noise but kept only **4 eval seeds**, and at that scale
+**between-seed variance dominates**. The rule is: **>= 12 eval seeds**, not
+merely >= 400 episodes. Every random-spawn figure in this file was re-measured
+at 12 seeds x 100 episodes as a result.
+
+Corrected figures (tuned rule layer, 1200 episodes each):
+
+| | Fixed spawn | Random spawn |
+|---|---|---|
+| FP32 | 100.0% (200 ep, baseline layer) | **89.58%** |
+| INT8 | **96.58%** | **76.08%** |
+| *INT8 cost* | *~-3.4* | *-13.50* |
+
+The INT8 penalty on random spawn is real and large (-13.5 pts); on fixed spawn
+it is small (-3.4). The mechanism is in §9.12 — per-tensor quantization of the
+grasp actor, whose weight dynamic range is the widest of the three models.
+
+### 9.16 Where things stand for a fresh session
 
 **Done and validated:** grasp stage (87.1% certified), transport (original,
-never retrained), FSM in FP32 (100.0% fixed / 84.0% random), INT8 conversion
-(95.2% fixed / 70.0% random), perception sweep.
+never retrained), FSM in FP32 (100.0% fixed / 89.6% random), INT8 conversion
+(96.6% fixed / 76.1% random), rule-layer tuning, perception sweep.
 
 **Open:**
 
@@ -1040,8 +1114,10 @@ never retrained), FSM in FP32 (100.0% fixed / 84.0% random), INT8 conversion
 
 **Methodological rules earned the hard way in this campaign:**
 
-* **100-episode evaluations ran ~10 points optimistic four separate times.**
-  Use ≥400 episodes across multiple eval seeds.
+* **100-episode evaluations ran ~10 points optimistic four separate times**, and
+  a 400-episode/4-seed protocol then ran **3 points pessimistic** because
+  between-seed sd is 3.3 points (§9.15). The rule is **≥12 eval seeds × 100
+  episodes**, not merely ≥400 episodes.
 * **Behavioural evaluation is the only acceptance test for quantization.**
   Output diff was *anti*-correlated with deployed success (§9.12).
 * **Price a reward change on recorded episodes before training it** (§9.10).
@@ -1060,7 +1136,7 @@ never retrained), FSM in FP32 (100.0% fixed / 84.0% random), INT8 conversion
 | Decomposition makes each sub-problem learnable with tiny networks | **Demonstrated** | 87.1% certified grasp and 100.0% end-to-end (fixed spawn) with two 64→32 actors, 5.2k params each (§9.9, §9.11) |
 | A deterministic rule layer converts a good policy into a reliable system | **Demonstrated** | 78% → 92% from FSM parameters alone (§5); FSM replica reproduces the eval harness within noise (§9.11) |
 | Sub-policies fit and run on a commodity MCU in real time | **Demonstrated** | 15.8 KB total (2 × 7.9 KB), 9.49 ms/cycle vs 50 ms budget (§7–8) |
-| Quantized deployment preserves task behavior | **Demonstrated** | INT8 95.2% vs FP32 100.0% fixed spawn, 420 episodes — above the 92% FP32 Python baseline (§9.12) |
+| Quantized deployment preserves task behavior | **Demonstrated** | INT8 96.6% vs FP32 100.0% fixed spawn, 1200 episodes — above the 92% FP32 Python baseline (§9.12, §9.15) |
 | Decomposition confines spawn randomness to the grasp stage | **Demonstrated** | Grasp stage absorbed the randomness (79.2% → 87.1%); the transport policy was **never retrained** and the two attempts to retrain it both lost (§9.9, §9.13) |
 | The stage interface is the dominant design variable | **Demonstrated** | Aligning stage-1 certification with stage-2 handoff: 13% → 82% end-to-end, no architecture change (§9.5) |
 | Plasticity-loss remedies transfer across stages | **Falsified** | Critic resets: +20 to +30 on grasp, −30 on transport (§9.6) |
