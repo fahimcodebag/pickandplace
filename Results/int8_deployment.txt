@@ -1,0 +1,87 @@
+================================================================================
+INT8 DEPLOYMENT: QAT WAS THE DAMAGE
+95.2% fixed / 70.0% random on 7.9 KB models. Prior artifact scored 50.5%.
+================================================================================
+
+HEADLINE
+  full INT8 chain (both models 7.9 KB), random spawn, 420 episodes per cell
+    FP32  bi_s0      + FP32 transport      84.0%
+    INT8  bi_s0      + INT8 transport      70.0%
+    INT8  gripfix_s2 + INT8 transport      69.8%     (z = -0.08 vs bi_s0, tied)
+    INT8  bi_s0, 50-epoch QAT (prior path) 50.5%
+
+  fixed spawn (the condition the thesis baselines were measured under)
+    FP32  bi_s0 + FP32 transport          100.0%
+    INT8  bi_s0 + INT8 transport           95.2%   (420 episodes)
+    INT8  gripfix_s2 + INT8 transport      83.3%
+    thesis_context Sec 8.4 Python baseline  92%
+    earlier INT8 HIL on hardware            90%    (10 episodes)
+
+  The deployed INT8 pipeline now BEATS the thesis's own FP32 Python baseline
+  on its own benchmark condition, at 420 episodes against that figure's much
+  smaller sample.
+
+FINDING 1 -- THE QAT DISTILLATION STEP WAS THE LARGEST SOURCE OF LOSS
+Isolation (INT8 grasp + FP32 transport, 420 episodes each):
+    variant                        success   1st-try handoff
+    gripfix_s2  no QAT              73.3%          75%
+    bi_s0       no QAT              70.2%          89%
+    bi_s0       50-epoch QAT        57.5%          46%
+    bi_s0       600-epoch QAT       51.7%          37%
+    gripfix_s2  50-epoch QAT        37.1%          42%
+Skipping QAT is worth +12.7 points (bi_s0) and +36.2 points (gripfix_s2).
+
+FINDING 2 -- OUTPUT FIDELITY RANKS THE VARIANTS BACKWARDS
+    variant                 mean|delta|   corr    behaviour
+    gripfix_s2 50-ep QAT      0.0922     0.952      37.1%   <- best corr, worst
+    bi_s0      50-ep QAT      0.0973     0.939      57.5%
+    bi_s0      600-ep QAT     0.0837     0.919      51.7%
+    bi_s0      no QAT         0.1837     0.872      70.2%
+    gripfix_s2 no QAT         0.1735     0.898      73.3%   <- worst corr, best
+Correlation with the FP32 teacher is ANTI-correlated with deployed success.
+Results/quantization_resetpolicy.txt already warned that behavioural evaluation
+is the acceptance test; it is stronger than that -- output diff actively
+misleads, and following it would have selected the 37.1% artifact.
+
+FINDING 3 -- LONGER QAT IS NOT THE FIX
+600 epochs at 3e-4 (12x epochs, 3x LR) moved refined-FP32-vs-teacher MSE from
+0.275990 to 0.276077. That is a floor, not slow convergence: per-tensor
+fake-quantisation error dominates, so the optimiser has nothing to recover.
+
+FINDING 4 -- WHY THE GRASP MODEL QUANTISES WORSE THAN TRANSPORT
+Per-tensor INT8 uses ONE scale per tensor, set by the largest weight.
+    model        layer   max/std   effective bits for a typical weight
+    bi_s0        fc1      10.0            3.67
+    bi_s0        fc2      10.8            3.55
+    gripfix_s2   fc1       9.3            3.78
+    transport    fc1       5.7            4.48
+Transport has roughly half the dynamic range and nearly a full extra bit, and
+it quantises for FREE: FP32 grasp + INT8 transport scored 85.5% against 84.0%
+all-FP32. The grasp model alone cost 26.5 points on the old path.
+
+FINDING 5 -- THE BETTER FP32 POLICY IS NOT AUTOMATICALLY THE BETTER DEPLOYED ONE
+    grasp model   FP32 (FSM)   INT8 no-QAT   quantisation cost
+    bi_s0            84.0%        70.0%          -14.0
+    gripfix_s2       77.0%        69.8%           -7.2
+On random spawn they are statistically tied despite a 7-point FP32 gap:
+gripfix_s2 loses half as much to quantisation, as its narrower weight range
+predicts. bi_s0 is kept because it is clearly better on fixed spawn
+(95.2% vs 83.3%) and no worse on random.
+
+METHOD NOTE
+The transport model has no replay buffer. Calibrating it on the grasp buffer
+would set activation ranges from a distribution it never sees; it was
+calibrated instead on 9,132 real TRANSPORT-phase states collected by
+instrumenting fsm_sim.py. Its near-zero quantisation cost suggests that
+mattered.
+
+DEPLOYABLE ARTIFACTS
+  qat_output_fix/grasp_bi_noqat_int8.tflite   7.9 KB  {int8: 8, int32: 3}
+  qat_output_bi/place_orig_int8.tflite        7.9 KB  {int8: 8, int32: 3}
+The repo's grasp_int8.tflite / place_int8.tflite (Aug 17, commit cbd4535) are
+NOT these and predate every model in this campaign. They have deliberately been
+left in place; swapping them is a separate decision.
+
+REMAINING
+Hardware HIL has not been re-run with these artifacts. The 90% on record is a
+different model, on fixed spawn, over 10 episodes.

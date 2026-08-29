@@ -202,7 +202,13 @@ def main():
                     o = (o.astype(np.float32) - zp) * sc
                 return T.tensor(o.astype(np.float32))
 
-        g_actor, p_actor = TFLiteActor(a.grasp_tflite), TFLiteActor(a.place_tflite)
+        # Mixed precision is allowed on purpose: swapping ONE stage to INT8
+        # isolates which model loses the points. FP32 first-try handoff is 98%
+        # and INT8 is 46%, so the handoff (grasp + test-lift) is the suspect.
+        g_actor = (TFLiteActor(a.grasp_tflite) if a.grasp_tflite
+                   else load_actor(a.grasp_ckpt))
+        p_actor = (TFLiteActor(a.place_tflite) if a.place_tflite
+                   else load_actor(a.place_ckpt))
     else:
         g_actor, p_actor = load_actor(a.grasp_ckpt), load_actor(a.place_ckpt)
 
