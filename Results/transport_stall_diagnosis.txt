@@ -1,0 +1,354 @@
+================================================================================
+WHY TRANSPORT STALLS -- a measured decomposition of the end-to-end loss
+Three causes, roughly equal. None of them is the transport policy.
+================================================================================
+
+MOTIVATION
+Sec 9.x reports FP32 89.58% / INT8 76.08% at random spawn (1200 episodes each),
+with the grasp stage reaching TRANSPORT in 1200/1200 and every remaining
+failure downstream. "Downstream" was as far as the analysis went: all failures
+carry the same DONE_FAIL label, so the 10.4 / 23.9 lost points were a single
+undifferentiated bucket, and the rule-layer sweep could not act on them.
+
+stall_diag.py instruments the carry itself -- distance to bin, commanded
+translation, object displacement, grasp state -- for all 1200 episodes per arm.
+
+--------------------------------------------------------------------------------
+RESULT -- the failures split three ways
+--------------------------------------------------------------------------------
+                                    FP32       INT8
+  SUCCESS                          89.58%     76.08%
+  lost grip during transport        3.33%     10.50%
+  released, missed the bin          3.17%      6.08%
+  blocked -- arm stuck, still held  3.08%      5.92%
+  wander (moving, not arriving)     0.83%      1.42%
+
+WANDER -- the class corresponding to "the transport policy cannot navigate" --
+is 0.8-1.4%. This independently explains why transport retraining failed twice
+over six seeds (Results/transport_retrain_negative.txt): the retrained
+component was not the broken one.
+
+--------------------------------------------------------------------------------
+CAUSE 1 -- LOST GRIP, AND NO RECOVERY BRANCH (3.33% FP32 / 10.50% INT8)
+--------------------------------------------------------------------------------
+  frac_grasped   median 0.09    -- object gone ~9% into the carry
+  z_end          median 0.843   -- lying on the table (p10 0.023 = on the floor)
+  path_tail      median 0.000   -- nothing moves for the last 50 steps
+  tr_steps       300 = horizon-out in every case
+
+The FSM flies an empty gripper for the full PLACE_HORIZON. The cause is a
+missing transition, not a policy error:
+
+    elif p == TEST_LIFT:
+        if not grasped:  self.phase = GRASP          # recovers
+    elif p == TRANSPORT:
+        if grasped and over_bin >= RELEASE_TRIG_HOLD: -> RECENTER
+        elif tr_steps >= PLACE_HORIZON:              -> FAIL   # no lost-grip path
+
+In some INT8 episodes the empty gripper hovered inside NEAR_TARGET_XY for 264
+consecutive steps and still could not trigger, because the trigger requires
+`grasped`. -> Fix A.
+
+--------------------------------------------------------------------------------
+CAUSE 2 -- BLOCKED (3.08% FP32 / 5.92% INT8)
+--------------------------------------------------------------------------------
+  act_tail   0.90-0.96   full-scale commands
+  path_tail  0.003-0.004 no displacement
+  frac_grasped 1.000     still holding the object
+  z_end      1.41 (FP32) / 1.52 (INT8), table at 0.80
+  d_end      0.45-0.47   far outside the 0.18 release radius
+
+The policy commands hard and nothing moves.
+
+NEGATIVE RESULT -- height is NOT the cause, and a carry-height clamp would
+have made things worse. Successful episodes reach z_end median 1.257 and max
+1.670; the blocked cases at 1.41-1.52 sit inside that range (success p90 1.44).
+Carrying high is normal behaviour. A clamp at 1.0 would break every working
+episode. Cause pending phase-2 (joint-limit / reach-extent instrumentation).
+
+--------------------------------------------------------------------------------
+CAUSE 3 -- RELEASED, MISSED THE BIN (3.17% FP32 / 6.08% INT8)
+--------------------------------------------------------------------------------
+  n_near     exactly 3 in every case -- trigger fires at the first legal instant
+  d_end      0.164 (fail) vs 0.161 (success)
+  z_end      1.114 (fail) vs 1.257 (success)
+  tr_steps   64 FP32 / 18 INT8 (fail) vs 43 / 47 (success)
+
+NEGATIVE RESULT -- "released too early and too high" is WRONG. The failures
+release LOWER than the successes and at the same XY error. Neither height nor
+XY separates the classes, so a Z gate on the release trigger is unfounded and
+points the wrong way.
+
+The surviving signal is timing: INT8 failures trigger after 18 transport steps
+against 47 for its successes. Phase-2 instrumentation of RECENTER/DESCEND/OPEN/
+RETRACT (phase2_diag.py) localises it -- first evidence is that RECENTER exits
+early on `not grasped`, i.e. the object is sheared out of the gripper by the
+CARRY_GAIN=6.0 open-loop XY servo. Confirmation pending at 1200 episodes.
+
+--------------------------------------------------------------------------------
+CONSEQUENCES
+--------------------------------------------------------------------------------
+1. Addressable without retraining: 9.6 of the 10.4 lost FP32 points and 22.5 of
+   the 23.9 lost INT8 points are rule-layer defects, not policy defects.
+2. The INT8 penalty is specific, not diffuse. It concentrates in grip retention
+   under carry (3.33 -> 10.50), i.e. a quantized GRASP net holding worse, not a
+   quantized transport net navigating worse. The dead-zone prediction (INT8
+   stalls clustering in near-miss) is refuted -- near-miss is not a class.
+3. Two of the three "obvious" fixes were refuted by the success-side
+   distribution before being implemented. Recording the success distribution,
+   not only the failure distribution, is what caught them.
+
+PROTOCOL
+1200 episodes per arm = 12 eval seeds x 100, per Results/fsm_rule_layer_sweep.txt.
+Artifacts: grasp qat_output_fix/grasp_bi_noqat_int8.tflite,
+transport qat_output_bi/place_orig_int8.tflite, tuned rule layer.
+
+================================================================================
+PART 2 -- THE THREE FIXES, MEASURED SEPARATELY
+1200 episodes per arm (12 eval seeds x 100), paired against the same seeds.
+================================================================================
+
+WHY PAIRED STATISTICS
+Every arm runs the same 12 seeds with the same spawn sequences, so between-seed
+variance -- the 3.3-point sd that made the 4-seed protocol read 3-6 points low
+(Results/fsm_rule_layer_sweep.txt) -- cancels. The pooled two-proportion z-test
+ignores this pairing and understates every effect here; Fix A reads z = +1.02
+("ns") pooled and t(11) = +4.71, sign-test p = 0.0010 paired. Same data.
+
+                        FP32                    INT8
+  baseline            89.58%                  76.08%
+  Fix A  regrasp      90.33%  +0.75  t=+2.69  77.83%  +1.75  t=+4.71  11up/0down
+  Fix B  unjam        89.92%  +0.33  t=+1.77  76.17%  +0.08  t=+1.00   1up/0down
+  Fix C  rc_steps 60  89.92%  +0.33  t=+1.30  76.58%  +0.50  t=+3.32   6up/0down
+
+--------------------------------------------------------------------------------
+FIX A -- lost-grip recovery in TRANSPORT.  ADOPTED (+1.75 INT8, p = 0.0010)
+--------------------------------------------------------------------------------
+Return to GRASP after LOST_GRIP_STEPS=5 consecutive ungrasped steps, bounded by
+MAX_REGRASP=2. The recovered episodes appear exactly where the mechanism
+predicts -- the 150-250 step band goes 11 -> 27 -- and no seed regressed.
+
+Recovery is partial by nature: 21 of 126 lost-grip episodes, ~17%. The rest are
+unrecoverable, not mis-handled -- z_end p10 = 0.023 means the object is on the
+floor, outside the workspace.
+
+--------------------------------------------------------------------------------
+FIX C -- RC_STEPS 30 -> 60.  ADOPTED (+0.50 INT8, p = 0.031, 0 seeds worse)
+--------------------------------------------------------------------------------
+RECENTER exits on `ph_steps >= RC_STEPS` at d = 0.074 against RC_TOL = 0.03.
+Successes need a median of 24 steps and p90 of exactly 30 -- the ceiling was
+binding on the tail of the distribution.
+
+Small because it is capped by a different cause: 38.3% of RECENTER_timeout
+episodes are already at a joint limit, against 17.1% of successes. Extra steps
+cannot help a pinned arm.
+
+WHY THE ORIGINAL SWEEP MISSED IT
+Results/fsm_sweep tested RC_STEPS 20/45 and RC_TOL 0.02/0.04 at 100 episodes:
+82, 83, 82, 82 vs 82 baseline -- correctly reported as noise. A 3.9% failure
+class is not resolvable at n=100. The sweep was not wrong; it was underpowered,
+and no amount of re-sweeping would have found this. Identifying the mechanism
+first, then sizing the experiment to the mechanism's incidence, is what worked.
+
+--------------------------------------------------------------------------------
+FIX B -- unjam a blocked carry.  NULL (+0.08 INT8), AND THE REASON IS KNOWN
+--------------------------------------------------------------------------------
+The diagnosis is solid. Blocked carries sit AT a joint stop: joint_margin
+median -0.000 and 86.4% below 0.02 rad, against 0.432 / 17.1% for successes,
+and it is joint 5 (wrist flexion) in 76 of 88 cases.
+
+The REMEDY was wrong, and the probe separates the two cleanly
+(Results/fixB_probe, 300 episodes):
+    detector fired on 28/300 = 9.3%   -- matches the 7.33% blocked rate
+    of those 28, recovered            -- 0
+    exhausted MAX_UNJAM=3             -- 16
+Detection works. Descending does not free the arm, and the arm re-jams
+immediately.
+
+Two candidate reasons, under test:
+  * Direction. Blocked carries are more extended than successes (reach_xy 0.313
+    vs 0.254) as well as higher (eef_z 1.531 vs 1.256), so retracting toward
+    the base may be the right escape where descending is not.
+  * Actuation. TRANSPORT executes `a[3:6] = 0.0` every step, discarding the
+    policy's rotational command. A pinned wrist joint can only be moved by
+    rotational actuation -- the FSM forbids exactly the DOF needed to escape.
+    That line is a fixed-spawn-era decision (object rotation pinned at 0.0),
+    never revisited for random spawn, where the wrist arrives at varied yaw.
+
+REFUTED ALONG THE WAY -- both before implementation, by the success-side
+distribution:
+  * carry-height clamp: successes reach z_end 1.67 and median 1.257; the
+    blocked cases at 1.41-1.52 are INSIDE the success range.
+  * Z gate on the release trigger: failures release LOWER (1.114) than
+    successes (1.257) at the same XY error. The gate points the wrong way.
+Recording the success distribution alongside the failure distribution is what
+caught both. A failure-only analysis would have shipped two regressions.
+
+================================================================================
+PART 3 -- THE BLOCKED CLASS IS NOT FIXABLE FROM THE RULE LAYER
+Three escape maneuvers, 1200 episodes each. All fire correctly. All recover 0.
+================================================================================
+
+                        success        unjam fired     recovered   paired
+  baseline INT8       913/1200 76.08%        --            --        --
+  unjam descend       (probe, 300 eps)     28 (9.3%)        0        --
+  unjam retract       913/1200 76.08%     88 (7.3%)         0     +0.00, 12 ties
+  unjam rotate        913/1200 76.08%     88 (7.3%)         0     +0.00, 12 ties
+  KEEP_ROTATION=1     285/1200 23.75%        --            --    -52.33, t=-26.8
+
+FINDING 1 -- NO OPEN-LOOP ESCAPE WORKS
+Three maneuvers with genuinely distinct actions (verified by unit test):
+    descend  xyz [ 0.000  0.000 -0.600]  rot [0.0 0.0 0.0]
+    retract  xyz [-0.384 -0.320 -0.300]  rot [0.0 0.0 0.0]
+    rotate   xyz [ 0.000  0.000 -0.300]  rot [0.0 0.5 0.0]
+The detector fires on the right episodes (7.3-9.3%, against a 7.33% blocked
+rate). Every mode recovers exactly 0, and the totals are IDENTICAL to baseline
+to the episode, all 12 seeds tied -- the jammed episodes fail under every
+escape while the rest are untouched. Once the arm reaches the stop, no
+open-loop rule-layer maneuver returns it to a workable configuration.
+
+This is a genuine limitation, not a missing patch. Removing it needs
+joint-limit-aware control, or a transport policy that does not drive itself
+there -- neither of which lives in the FSM.
+
+FINDING 2 -- `a[3:6] = 0.0` IS LOAD-BEARING, NOT LEGACY  (hypothesis refuted)
+The reasoning was: a pinned WRIST joint can only be freed by rotational
+actuation, TRANSPORT discards every rotational command, and that line dates
+from fixed spawn where object rotation was pinned at 0.0. Passing rotation
+through should therefore help.
+
+It is catastrophic: 23.75% against 76.08%, -52.33 points, all 12 seeds worse,
+t(11) = -26.8. The transport policy's rotational output is actively harmful and
+suppressing it is what makes the stage work at all. The FSM is not withholding
+the DOF needed to escape; it is masking a bad output channel.
+
+Worth noting for Sec 8: the decomposed transport policy is only usable because
+the rule layer discards 3 of its 7 outputs. That is a real cost of the
+decomposition, and it is measurable -- 52 points.
+
+--------------------------------------------------------------------------------
+FINAL DISPOSITION
+--------------------------------------------------------------------------------
+  Fix A  regrasp on lost grip     ADOPTED   +1.75 INT8 / +0.75 FP32  p=0.0010
+  Fix C  RC_STEPS 30 -> 60        ADOPTED   +0.50 INT8 / +0.33 FP32  p=0.031
+  Fix B  unjam a blocked carry    REJECTED  +0.00 after three maneuvers
+
+Remaining INT8 loss after A+C, by cause:
+  blocked at a joint limit         7.33%   not addressable from the rule layer
+  lost grip, object unrecoverable  8.75%   (10.50% class, 17% of it recovered)
+  RECENTER timeout                 3.42%   38.3% of these are also joint-limited
+  dropped during RECENTER          1.17%
+  released, not placed             1.00%
+
+The two dominant residuals are the same physical problem seen twice: the arm
+puts itself into configurations it cannot act from. That is the next real
+target, and it is a control/policy problem, not an FSM parameter.
+
+================================================================================
+PART 4 -- A+C STACKED, THE DELIVERABLE NUMBER
+================================================================================
+                     baseline        A+C          delta   t(11)   seeds   p
+  FP32 random       89.58%   ->   90.67%        +1.08    +2.40   8u/1d  0.0391
+  INT8 random       76.08%   ->   78.33%        +2.25    +5.74  11u/0d  0.0010
+
+The gains are exactly additive (1.75 + 0.50 = 2.25), as expected: Fix A acts on
+lost grips and Fix C on RECENTER timeouts, disjoint classes.
+
+CURRENT HEADLINE (tuned rule layer + Fix A + Fix C, 1200 episodes per cell)
+                    fixed spawn        random spawn
+  FP32                  --                90.67%
+  INT8               96.58% (pre-fix)     78.33%
+Fixed spawn has not been re-measured with A+C.
+
+NOT YET MIRRORED INTO pick_and_place_INT8_FSM.ino. Fix A adds a state
+transition (lost-grip -> GRASP with LOST_GRIP_STEPS / MAX_REGRASP), Fix C is a
+constant (RC_STEPS 30 -> 60). check_fsm_sync.py must gain the two new
+constants when that happens; it currently reports 22/22 because they are
+deliberately host-only until adopted.
+
+================================================================================
+PART 5 -- FIX D, THE POSE GATE.  REJECTED.
+The diagnosis is right, the remedy is in the wrong place.
+================================================================================
+
+THE FINDING IT WAS BUILT ON (Results/handoff_carry, 2400 episodes)
+The rule layer forces a[6] = 1.0 for every step of TRANSPORT, so the grasp
+policy exerts NO control over the grip during the carry. INT8 cannot be
+"holding worse" -- it is not holding at all. The damage is already present in
+the pose handed over.
+
+Measured, and consistent across BOTH precisions:
+  median at handoff        carried_ok      dropped
+    off_x  (depth)           -0.003        -0.018     6x
+    off_z  (height)          +0.001        +0.012    12x
+    off_xy                    0.007         0.020     3x
+    |rel_yaw|                 42.5 deg      67.8 deg
+    grip_w                   0.0474        0.0475    NO SIGNAL
+A durable grip is seated deep and level; a drop-prone one is shifted back and
+riding high -- a shallow fingertip grasp. Finger opening carries no signal,
+which is exactly why _check_grasp and the 3 cm lift certification pass these.
+
+Logistic fit on FP32: AUC 0.915, transferring to INT8 at 0.826. Applying the
+FP32 pose->drop map to INT8's ACTUAL handoff poses predicts an 8.49% drop rate
+against 3.59% for FP32, so of INT8's +8.54 pt excess the pose shift accounts
+for +4.90 pts -- 57%.
+
+off_x/off_y/off_z are obs[7:10], verified identical to R_eef^T (obj - eef).
+The gate needs no new sensing and no new computation on device.
+
+THE GATE, AND WHY IT FAILS
+Reject a handoff with s[OFF_X] < POSE_OFF_X_MIN or s[OFF_Z] > POSE_OFF_Z_MAX,
+set the object down (REGRIP_DOWN then REGRIP_OPEN) and re-pick. The set-down is
+required: the policy is deterministic, so re-lifting without releasing
+reproduces the identical rejected pose.
+
+  arm (stacked on A+C)     success    vs A+C   t(11)   seeds        sign p   fired
+  A+C baseline             78.33%       --       --      --           --       --
+  D loose  (-0.020/0.020)  79.42%     +1.08    +1.74   6u/3d/3t     0.5078    5.0%
+  D moder  (-0.016/0.012)  79.42%     +1.08    +1.22   6u/5d/1t     1.0000   15.2%
+
+Not significant, and 3-5 seeds regress -- against Fix A (t=4.71, 0 down) and
+Fix C (t=3.32, 0 down). The predicted ~4.2 pt ceiling did not materialise.
+
+THE DIAGNOSTIC DETAIL THAT EXPLAINS IT
+Episodes where the gate fired succeeded at 70.0% (loose) / 75.8% (moderate),
+BELOW the 79.4% overall rate. The gate identifies bad grips correctly; the
+re-pick does not produce a good one. Tripling the firing rate (5.0% -> 15.2%)
+changed the total by ZERO episodes -- the extra rejections helped as many
+episodes as they hurt. That is a gate with no usable operating point, not a
+gate that needs tuning.
+
+CONCLUSION -- THE FIX BELONGS IN THE METRIC, NOT THE CONTROLLER
+A runtime gate can only reject and retry, and every retry is drawn from the
+same deterministic policy that produced the rejected pose. Getting better poses
+requires changing what produces them.
+
+The actionable form of this finding is at TRAINING time: lift certification
+asks "grasped, and rose 3 cm?" and never inspects where the object sits, so a
+policy can certify at 100% while handing over grips that do not survive a
+300-step carry. Adding pose quality (off_x depth, off_z level) to the grasp
+reward or to the certification criterion selects for grips that survive
+transport rather than grips that merely hold for 8 steps.
+
+That also answers the standing question directly: the FP32 grasp model does not
+need to approach 100% on the CURRENT metric, because the current metric does
+not measure the property that determines downstream success.
+
+--------------------------------------------------------------------------------
+SESSION LEDGER
+--------------------------------------------------------------------------------
+  ADOPTED
+    Fix A  regrasp on lost grip      +1.75 INT8 / +0.75 FP32   p = 0.0010
+    Fix C  RC_STEPS 30 -> 60         +0.50 INT8 / +0.33 FP32   p = 0.031
+    together                         INT8 78.33%, FP32 90.67%
+  REJECTED (all measured at 1200 episodes, paired)
+    carry-height clamp               refuted before implementation
+    Z gate on release trigger        refuted before implementation
+    Fix B  unjam (3 maneuvers)       +0.00, 0/88 recovered
+    KEEP_ROTATION pass-through       -52.33 pts
+    Fix D  pose gate (2 thresholds)  +1.08, ns, 3-5 seeds worse
+
+Four refuted hypotheses against two adopted fixes. Three of the four were
+caught by looking at the SUCCESS distribution, not only the failure
+distribution; the fourth (Fix D) by measuring an extrapolation instead of
+trusting it.
