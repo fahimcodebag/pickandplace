@@ -138,6 +138,19 @@ def main():
                         "random spawn (position + rotation), the condition the "
                         "current pipeline is measured under.")
     p.add_argument("--out", required=True)
+    p.add_argument("--int8", action="store_true",
+                   help="Run both actors as INT8 .tflite interpreters instead "
+                        "of FP32 PyTorch -- the acceptance test for the "
+                        "deployed artifacts. Output diff is NOT the test: a "
+                        "full-scale sign flip on one action dim was seen at "
+                        "corr 0.94 while behaviour survived.")
+    p.add_argument("--grasp-tflite", default=None)
+    p.add_argument("--place-tflite", default=None)
+    p.add_argument("--dump-transport-states", default=None,
+                   help="Save states seen by the place actor (TRANSPORT phase) "
+                        "as an npz for INT8 calibration. The place model never "
+                        "sees reach/grasp states, so the grasp buffer is the "
+                        "wrong calibration distribution for it.")
     a = p.parse_args()
 
     np.random.seed(a.seed); T.manual_seed(a.seed)
@@ -162,7 +175,36 @@ def main():
     env.seed(a.seed)
     lo, hi = env.action_space.low, env.action_space.high
 
-    g_actor, p_actor = load_actor(a.grasp_ckpt), load_actor(a.place_ckpt)
+    if a.int8:
+        import tensorflow as tf
+
+        class TFLiteActor:
+            """Mirrors the sketch's runModel(): quantize input, invoke,
+            dequantize output. Same int8 path the ESP32 executes."""
+
+            def __init__(self, path):
+                self.it = tf.lite.Interpreter(model_path=path)
+                self.it.allocate_tensors()
+                self.inp = self.it.get_input_details()[0]
+                self.out = self.it.get_output_details()[0]
+
+            def __call__(self, x):
+                v = x.detach().numpy() if hasattr(x, "detach") else np.asarray(x)
+                v = v.reshape(1, -1).astype(np.float32)
+                sc, zp = self.inp["quantization"]
+                if self.inp["dtype"] == np.int8:
+                    v = np.clip(np.round(v / sc + zp), -128, 127).astype(np.int8)
+                self.it.set_tensor(self.inp["index"], v)
+                self.it.invoke()
+                o = self.it.get_tensor(self.out["index"])
+                sc, zp = self.out["quantization"]
+                if self.out["dtype"] == np.int8:
+                    o = (o.astype(np.float32) - zp) * sc
+                return T.tensor(o.astype(np.float32))
+
+        g_actor, p_actor = TFLiteActor(a.grasp_tflite), TFLiteActor(a.place_tflite)
+    else:
+        g_actor, p_actor = load_actor(a.grasp_ckpt), load_actor(a.place_ckpt)
 
     def flags():
         gr = pl = False
@@ -178,6 +220,7 @@ def main():
         return gr, pl
 
     rows = []
+    tstates = []
     for ep in range(a.episodes):
         # --- handoff: respawn-and-retry until TRANSPORT (hil_main.do_handoff)
         obs, attempts, reached = None, 0, False
@@ -201,6 +244,8 @@ def main():
         n = 0
         while n < 700:
             gr, pl = flags()
+            if a.dump_transport_states and fsm.phase == TRANSPORT:
+                tstates.append(np.asarray(obs, dtype=np.float32).copy())
             act = fsm.step(np.asarray(obs, dtype=np.float32), gr, pl,
                            g_actor, p_actor)
             obs, _, done, _ = env.step(np.clip(act, lo, hi))
@@ -213,6 +258,12 @@ def main():
         if (ep + 1) % 25 == 0:
             s = sum(r["success"] for r in rows)
             print(f"  {ep+1}/{a.episodes}  success {s/len(rows)*100:.1f}%", flush=True)
+
+    if a.dump_transport_states and tstates:
+        arr = np.asarray(tstates, dtype=np.float32)
+        np.savez(a.dump_transport_states, state_memory=arr,
+                 mem_cntr=np.array([len(arr)]))
+        print(f"wrote {len(arr)} transport states -> {a.dump_transport_states}")
 
     with open(a.out, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
