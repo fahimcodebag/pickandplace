@@ -4,9 +4,18 @@
 > complete training campaign (hurdles → diagnoses → solutions, with the key
 > training-log evidence retained), final results, INT8 quantization-aware
 > fine-tuning, hardware-in-the-loop (HIL) validation on ESP32, and the
-> in-progress generalization to randomized object spawns.
+> generalization to randomized object spawns, and the current deployed
+> INT8 pipeline.
 >
-> Last updated: 2026-08-22 01:04 +06
+> **START HERE if resuming work: §9.4 (current status) and §9.15 (what is open
+> and the methodological rules).** Sections 7, 8.4 and 9.1–9.3 record earlier
+> states of the project and are explicitly superseded where §9.4 onward says so.
+>
+> Current headline: **FP32 100.0% fixed / 84.0% random spawn; INT8 95.2% fixed /
+> 70.0% random**, two 7.9 KB actors, evaluated through a replica of the deployed
+> FSM at 400+ episodes per cell.
+>
+> Last updated: 2026-08-29
 
 ---
 
@@ -702,14 +711,361 @@ degrade it (transport has so far seen only the single fixed spawn→bin
 corridor, though its observation includes object coordinates and its shaping
 field spans 0.6 m — see §3 Hurdle 6).
 
+### 9.4 STATUS UPDATE — §9.1–9.3 above are superseded
+
+Everything from §9.1 to §9.3 is preserved as an accurate record of the earlier
+campaign, but its numbers and its conclusions have been overtaken. The
+random-spawn ladder's "3% at native randomization" and the curriculum diagnosis
+describe a pipeline that no longer exists. Read §9.4 onward as current.
+
+**Current headline (all at spawn level 2.0 = full position box + full
+z-rotation, i.e. robosuite's native sampler):**
+
+| Configuration | Fixed spawn | Random spawn |
+|---|---|---|
+| FP32, deployed FSM | **100.0%** (200 ep) | **84.0%** (400 ep) |
+| INT8, deployed FSM | **95.2%** (420 ep) | **70.0%** (420 ep) |
+| *thesis §8.4 FP32 Python baseline* | *92%* | — |
+| *earlier INT8 HIL on hardware* | *90% (10 ep)* | — |
+
+**Deployed artifacts:** grasp `qat_output_fix/grasp_bi_noqat_int8.tflite`
+(7.9 KB), transport `qat_output_bi/place_orig_int8.tflite` (7.9 KB). The repo's
+`grasp_int8.tflite` / `place_int8.tflite` date from commit `cbd4535` (Aug 17)
+and are **not** these; they were deliberately left in place.
+
+**Source checkpoints:** grasp
+`checkpoints/td3_grasp_rand_td3_ln_bi_s0/best` (built-in reward, seed 0);
+transport `checkpoints/td3_place/best` — the ORIGINAL fixed-spawn policy,
+never retrained.
+
+### 9.5 The single largest win: the two stages disagreed on what a grasp is
+
+Stage 1 certified a grasp as `_check_grasp()` true for 5 consecutive steps.
+Stage 2's handoff required an 8-step hold **plus** a scripted 20-step lift with
+≥3 cm rise. Measured: 86% of episodes satisfied the stage-1 criterion, only 43%
+survived the stage-2 handoff. Stage 1 was rewarding fast snatches that failed
+the moment the object left the table.
+
+`GraspRewardWrapper.require_lift=True` makes the stage-1 criterion **identical**
+to the stage-2 probe. End-to-end went **13% → 82%** with no change to the
+transport policy, the FSM, or the architecture. See
+`Results/lift_certification.txt`.
+
+*Lesson for the thesis: in a decomposed system, the interface contract between
+stages is a first-class design object. A mismatch there cost more than every
+reward and algorithm intervention in this project combined.*
+
+### 9.6 Plasticity loss is real, and stage-specific
+
+Decay was established as **plasticity loss**, not task contradiction: PPO decayed
+with no replay buffer at all (falsifying stale replay), and primacy-bias critic
+resets (Nikishin et al.) recovered performance the controls never reached.
+`td3_ln` is bit-reproducible (numpy-seeded exploration), which made the ablation
+causally decisive.
+
+| Stage | Critic resets |
+|---|---|
+| Grasp, level 1.0 | **+20.3** pts, 3/3 seeds, t=5.17 |
+| Grasp, level 2.0 | **+30.0** pts, 3/3 seeds, t=4.91 |
+| **Place/transport** | **−30.0** pts (mean 55.0 → 25.0), one seed collapsing to 1/100 |
+
+The sign **flips** between stages. Transport does ~6.7 gradient steps per
+episode against grasp's ~48, so after each reset it has far fewer updates to
+recover. Plasticity-loss resets are **not** a general remedy for this pipeline.
+Sizing a schedule in gradient steps does not transfer between stages with
+different episode lengths — the interval was first copied verbatim (20k) and
+fired ~1 reset instead of ~7. See `Results/reset_ablation.txt`,
+`Results/transport_retrain_negative.txt`.
+
+### 9.7 Checkpoint selection was silently costing points
+
+`best` was the argmax over a **50-episode** success window. At p=0.75 that
+window has SE ≈ 6.1 points, a run generates ~40 of them, and keeping the
+maximum is max-of-noisy-estimates bias. Measured overestimates: **+27 / +8 / +4**
+points for seeds 0/1/2.
+
+Widening to a 200-episode window (`--best-window`, `--best-margin`) is a pure
+**measurement** change — re-running the three seeds stopped at *identical*
+episodes — and was worth **74.0% → 79.2%** mean certified grasp for **zero**
+additional training. Seed spread collapsed from 23.3 points to 2.1: most of
+what looked like seed variance lived in the selection rule, not the policies.
+
+`train_place.py` still selects on a 50-episode window; that fix has **not** been
+applied there.
+
+### 9.8 Four failed interventions on grip angle, and the control that explained them
+
+A handoff diagnostic (`handoff_diag.py`) measured object pose in the gripper
+frame at handoff. Corner grips — fingers closing on a corner of the bread rather
+than a flat face, `min(|rel_yaw|, 90−|rel_yaw|)` near 45° — correlated
+monotonically with failure across three independent policies (92.6% → 70.2%
+flat→corner for the then-best policy, p < 5e-3), at 24% prevalence.
+
+Four interventions were then aimed at it, and **all four failed**:
+
+1. **Alignment multiplier on the success bonus** — measurably *hurt*
+   (`Results/wrist_alignment_negative.txt`).
+2. **Graded success bonus** (`--reward-v2`) — inert on alignment.
+3. **Dense per-step alignment penalty** (`--dense-align`) — the policy cut the
+   penalty ~30% by *shortening its approach* (65 → 47 steps) while alignment
+   fell in 2/3 seeds. Reward hacking.
+4. Network capacity — falsified directly: a supervised probe showed the
+   **existing 5.2k network computes grip alignment to 1.8° median error** from
+   the raw 46-D observation (chance 22.5°). Wider nets buy 0.7° and plateau.
+
+Two mechanisms were measured along the way and both stand as facts:
+
+* **The critic is blind to alignment.** Terminal reward correlates **+0.85**
+  with alignment; the critic's Q(s,π(s)) correlates **−0.004**, non-monotonic,
+  across **six** independently trained critics. The actor's gradient is ∂Q/∂a,
+  so no reward shaping could reach it.
+* Object orientation *is* observable (`obs[3:7]`, `obs[10:14]`) and the wrist
+  *is* controllable (73° per 20 steps), so neither observability nor authority
+  was the constraint.
+
+**Then the control that should have been run first.** The user's earlier
+**monolithic** policy (`train_v7.py`/`train_v8.py`, 2.2 M actor params, 30 M
+timesteps, checkpoints at `/home/fahim/Thesis_fahim/checkpoints/td3_v7`) was
+evaluated under criteria identical to the decomposed stage:
+
+| Model | Lift-certified | Corner prevalence | Corner-grip success |
+|---|---|---|---|
+| monolithic v7 (final) | **98.7% / 98.0%** (2 seeds) | 26.5% | **98.0%** |
+| decomposed gripfix_s2 | 79.2% | 23.5% | 70.2% |
+
+**The monolithic model does not align its wrist either — and does not need to.**
+Same corner rate, but its corner grips succeed at 98%. **Grip angle was a
+symptom of weak grips, not a cause.** `Results/handoff_diagnostic.txt` is
+superseded on this point by `Results/monolithic_control.txt`.
+
+*Lesson: a monotonic, highly significant correlation reproduced across three
+policies was still not causal. The cheap control — an existing model that
+solved the same sub-task — falsified it in one afternoon and would have saved
+four training campaigns.*
+
+### 9.9 The fix: robosuite's own shaped reward
+
+`train_v7.py` used `reward_shaping=True`, i.e. robosuite's
+`PickPlace.staged_rewards()`. Its structural difference from this project's
+custom grasp reward is a **dense lift term**:
+
+```python
+r_lift = 0.35 + (1 - tanh(15 * z_dist)) * 0.15     # only while grasped
+```
+
+Once grasped, reward rises **continuously with object height, every step**. The
+decomposed grasp stage had **no lift term at all** — it paid `W_GRASP = 10/step`
+for merely being grasped, terminated at 8 holds, and certified the lift as a
+*terminal binary*. "Grip it well enough to lift it" was a terminal scalar rather
+than a per-step gradient, on a variable (height) the policy directly controls.
+
+`--builtin-reward` swaps it in. Certified grasp over 800 deterministic episodes:
+
+| Arm | Certified grasp |
+|---|---|
+| gripfix (after 4 reward interventions) | 79.2% |
+| reward-v2 | 77.2% |
+| **built-in** | **87.1%** (88.9 / 83.4 / 89.0) |
+
+`bi_s2` vs `gripfix_s2`: **z = +5.63**. And the angle dependence **dissolved
+without being targeted** — end-to-end flat→corner spread went 22.4 pts →
+2.7 pts, matching the monolithic model's 2.0. Confirms §9.8's correction.
+
+**A pricing trap was caught before training.** Straight built-in reward scored
+"never gripped" at **105.2**, second-best of all outcomes: v7 ran a 500-step
+horizon with *no early termination*, so lingering was free, whereas this stage
+terminates on a certified grasp and so *forfeits* remaining income. Adding an
+idle cost restored the ordering (margin 3.5×). See
+`Results/builtin_reward_results.txt`.
+
+### 9.10 Reward auditing as a method (transferable)
+
+`reward_audit.py` rolls out a policy and reports **accumulated value per reward
+term per outcome class**, using per-term accounting emitted from inside
+`_grasp_reward` itself (so it cannot drift from the reward under test). Every
+candidate change is **priced on recorded episodes before training**.
+
+On the then-current policy it found:
+
+* The success bonus was **min 150.0, max 150.0, sd 0.000** across 290 certified
+  grasps while quality varied 8-fold (lift rise 38–318 mm, alignment 0.01–0.99).
+  `corr(total reward, alignment) = +0.05`. **The reward was blind to grasp
+  quality** — no gradient existed past the certification bar.
+* **Flicker-farming was suppressed but not dead.** It scored 150.5, *second-best*
+  of all outcomes. Net income +8.43 per held step made farming beat a clean
+  success at **26 held steps of 200**; the policy already reached 14 — a margin
+  of 1.79×. The earlier `W_GRASP_SUCCESS` 20 → 150 override had only pushed
+  break-even to 39, never closing it. Capping paid hold steps makes it
+  **mathematically impossible**.
+* Parking near the object netted **+54.1**: `P_IDLE` (−0.4) never covered
+  `W_REACH` (up to +1.0).
+
+`--reward-v2` implements all three. Predicted vs measured accumulated value
+matched **to 0.1 on all five outcome classes**. It fixed flicker (17–22 per 50
+episodes → 5–6) but left end-to-end unchanged — the alignment half was aimed at
+the wrong variable (§9.8). `Results/reward_v2_results.txt`.
+
+Per-term reward columns are now written to `logs/*/episodes.csv`
+(`r_reach`, `r_grasp_hold`, `r_success_bonus`, …, `n_drops`, `grip_align`,
+`lift_rise`), so a reward regression can be attributed to a *term* rather than
+merely observed in the score.
+
+### 9.11 Validating the FSM that actually ships
+
+Every end-to-end number before this point came from `test_place.py` /
+`place_env_wrapper.py` — the **training/eval wrapper**, not
+`pick_and_place_INT8_FSM.ino`. The two are not equivalent: the sketch has **no
+transport-stall early termination** (the wrapper kills a carry after 50 steps
+without new-best progress; the sketch allows the full 300), and `GRASP_CAP` is
+250 vs 200.
+
+`fsm_sim.py` is a host-side replica of the sketch — all 9 phases and constants
+transcribed verbatim, plus `hil_main.py`'s respawn-and-retry loop — with only
+the serial round-trip removed.
+
+| Configuration | Success | 1st-try handoff |
+|---|---|---|
+| bi_s0 + original transport, **fixed** | **200/200 = 100.0%** | 100% |
+| bi_s0 + original transport, **random** | 336/400 = 84.0% | 98% |
+| gripfix_s2 + original transport, random | 154/200 = 77.0% | 92% |
+
+The harnesses **agree** (84.0% vs the wrapper's 86.0%, z = −0.79 ns), so the
+86.0% was not an eval-wrapper artifact. The FSM also **discriminates more
+sharply**: bi_s0 beats gripfix_s2 by 7.0 points through the sketch vs 2.2
+through the wrapper. `Results/fsm_fp32_validation.txt`.
+
+### 9.12 INT8: the QAT step was the damage
+
+| Configuration | Fixed | Random |
+|---|---|---|
+| FP32 chain | 100.0% | 84.0% |
+| **INT8 chain (no QAT)** | **95.2%** | **70.0%** |
+| INT8 chain, 50-epoch QAT (prior path) | — | 50.5% |
+
+Isolating the grasp model (INT8 grasp + FP32 transport, 420 episodes each):
+
+| Variant | Success | corr to FP32 |
+|---|---|---|
+| gripfix_s2, **no QAT** | **73.3%** | 0.898 |
+| bi_s0, **no QAT** | **70.2%** | 0.872 |
+| bi_s0, 50-epoch QAT | 57.5% | 0.939 |
+| bi_s0, 600-epoch QAT | 51.7% | 0.919 |
+| gripfix_s2, 50-epoch QAT | **37.1%** | **0.952** |
+
+**Output fidelity ranks the variants backwards.** The best-correlated model is
+the worst-behaving. Following the diff metric would have shipped the 37.1%
+artifact. §7's QAT-fine-tuning recipe should be treated as **superseded**:
+skip QAT and PTQ the original weights.
+
+Longer QAT is not the fix — 12× epochs at 3× LR moved refined-vs-teacher MSE
+from 0.275990 to 0.276077, a floor set by per-tensor fake-quantization error.
+
+**Mechanism.** Per-tensor INT8 uses one scale per tensor, set by the largest
+weight:
+
+| Model | layer | max/std | effective bits, typical weight |
+|---|---|---|---|
+| bi_s0 | fc1 | 10.0 | 3.67 |
+| gripfix_s2 | fc1 | 9.3 | 3.78 |
+| **transport** | fc1 | **5.7** | **4.48** |
+
+Transport quantizes **for free** — FP32 grasp + INT8 transport scored 85.5% vs
+84.0% all-FP32 — and the grasp model alone cost 26.5 points on the old path.
+
+**The better FP32 policy is not automatically the better deployed one.**
+`gripfix_s2` loses half as much to quantization (−7.2 vs −14.0) and **ties**
+bi_s0 on random spawn (69.8% vs 70.0%, z = −0.08) despite a 7-point FP32
+deficit. bi_s0 is kept for its fixed-spawn margin (95.2% vs 83.3%).
+
+**Calibration matters.** The transport model has no replay buffer; calibrating
+it on the *grasp* buffer would set activation ranges from a distribution it
+never sees. It was calibrated on **9,132 real TRANSPORT-phase states** collected
+by instrumenting `fsm_sim.py`. `Results/int8_deployment.txt`.
+
+### 9.13 Two settled negative results — do not retry
+
+* **Retraining transport against a new grasp distribution.** Attempted twice,
+  six seeds total, both times losing to the untouched fixed-spawn original
+  (best retrained 75% vs 82%; and 83.5 / 79.5 / 52.0 vs 86.0). The second
+  attempt made `transport_stall` — the failure it targeted — **worse**
+  (144 / 57 / 44 per 400 vs 30). Treat as a property of this pipeline.
+* **Critic resets on the place stage** (§9.6).
+
+### 9.14 Perception sweep — measured, and the input to the AprilTag work
+
+`sweep_perception.py` degrades the object-pose channel and re-runs the pipeline.
+At **10 mm** position noise, spawn level 2.0:
+
+| Update period | `recompute` | `frozen` |
+|---|---|---|
+| 1 | 76.7% | — |
+| 2 | 73.3% | 73.3% |
+| 5 | 73.3% | 56.7% |
+| 10 | 86.7% | 26.7% |
+| 20 | **80.0%** | **6.7%** |
+
+**`recompute` is flat out to period 20; `frozen` collapses.** The distinction is
+that `recompute` re-derives `obs[7:14]` (object pose relative to the
+end-effector) from *proprioception* between detections, holding only the world
+pose stale — a zero-order hold on the tag, not on the observation. That drops
+the required ESP32 perception duty cycle from 20% to **5%**.
+
+*This is the key enabling result for AprilTag: detection can run at ~1 Hz
+against a 20 Hz control loop provided the relative pose is recomputed from
+proprioception each step.*
+
+An earlier version of this sweep routed `--spawn random` through robosuite's
+native sampler while scoring a level-1.0 policy, reporting 6.7% for a policy
+that actually scored 93.3%. Spawn-condition mismatches between training and
+evaluation have been the single most common source of wrong numbers in this
+project.
+
+### 9.15 Where things stand for a fresh session
+
+**Done and validated:** grasp stage (87.1% certified), transport (original,
+never retrained), FSM in FP32 (100.0% fixed / 84.0% random), INT8 conversion
+(95.2% fixed / 70.0% random), perception sweep.
+
+**Open:**
+
+1. **AprilTag closed-loop validation** — implemented (`apriltag_sim.py`,
+   `perception_wrapper.py`) but never measured end-to-end with rendering.
+   §9.14 gives the operating point.
+2. **HIL re-run** with the current artifacts. `hil_main.py:70` hard-codes a
+   fixed spawn ("Fixed spawn, matching how both policies were trained") — that
+   must change for a random-spawn number to be comparable. The 90% on record is
+   a different model, fixed spawn, 10 episodes.
+3. `train_place.py` still uses a 50-episode best-window (§9.7).
+4. Deployed `.tflite` files in the repo root are stale (§9.4).
+
+**Methodological rules earned the hard way in this campaign:**
+
+* **100-episode evaluations ran ~10 points optimistic four separate times.**
+  Use ≥400 episodes across multiple eval seeds.
+* **Behavioural evaluation is the only acceptance test for quantization.**
+  Output diff was *anti*-correlated with deployed success (§9.12).
+* **Price a reward change on recorded episodes before training it** (§9.10).
+* **Run the cheap control before the expensive intervention** (§9.8).
+* **Verify the harness matches the artifact that ships** (§9.11).
+* Check `.tflite` **tensor dtypes**, never exit status — a prior conversion
+  reported a perfect 0.00000 diff while silently remaining FP32.
+* Evaluations are embarrassingly parallel; shard ~28-wide on this 32-core host.
+
 ---
 
 ## 10. Thesis Claim Status
 
 | Claim | Status | Evidence |
 |---|---|---|
-| Decomposition makes each sub-problem learnable with tiny networks | **Demonstrated** | 95% grasp, 88% transport at frac 0.96, both 64→32 |
-| A deterministic rule layer converts a good policy into a reliable system | **Demonstrated** | 78% → 92% from FSM parameters alone, identical weights (§5) |
-| Sub-policies fit and run on a commodity MCU in real time | **Demonstrated** | 16.8 KB total, 9.49 ms/cycle vs 50 ms budget (§7–8) |
-| Quantized deployment preserves task behavior | **Demonstrated** | 90% on hardware vs 92% in simulation, same residual failure mode (§8.4) |
-| Decomposition confines spawn randomness to the grasp stage | **Partially shown — open work** | Transport holds ~80% at ±5 cm; grasp is the measured bottleneck at full randomization (§9.1); random-spawn grasp retraining in progress (§9.2–9.3) |
+| Decomposition makes each sub-problem learnable with tiny networks | **Demonstrated** | 87.1% certified grasp and 100.0% end-to-end (fixed spawn) with two 64→32 actors, 5.2k params each (§9.9, §9.11) |
+| A deterministic rule layer converts a good policy into a reliable system | **Demonstrated** | 78% → 92% from FSM parameters alone (§5); FSM replica reproduces the eval harness within noise (§9.11) |
+| Sub-policies fit and run on a commodity MCU in real time | **Demonstrated** | 15.8 KB total (2 × 7.9 KB), 9.49 ms/cycle vs 50 ms budget (§7–8) |
+| Quantized deployment preserves task behavior | **Demonstrated** | INT8 95.2% vs FP32 100.0% fixed spawn, 420 episodes — above the 92% FP32 Python baseline (§9.12) |
+| Decomposition confines spawn randomness to the grasp stage | **Demonstrated** | Grasp stage absorbed the randomness (79.2% → 87.1%); the transport policy was **never retrained** and the two attempts to retrain it both lost (§9.9, §9.13) |
+| The stage interface is the dominant design variable | **Demonstrated** | Aligning stage-1 certification with stage-2 handoff: 13% → 82% end-to-end, no architecture change (§9.5) |
+| Plasticity-loss remedies transfer across stages | **Falsified** | Critic resets: +20 to +30 on grasp, −30 on transport (§9.6) |
+| Reward shaping can direct fine-grained grasp geometry | **Falsified** | Four interventions failed; the critic never represents the axis (corr −0.004 across six critics) (§9.8) |
+| Perception can run far below control rate | **Demonstrated in simulation** | `recompute` flat to a 20× update period at 10 mm noise → 5% duty cycle (§9.14) |
+| AprilTag closed-loop perception on hardware | **Open** | §9.15 |
+
+---
