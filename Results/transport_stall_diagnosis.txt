@@ -352,3 +352,39 @@ Four refuted hypotheses against two adopted fixes. Three of the four were
 caught by looking at the SUCCESS distribution, not only the failure
 distribution; the fourth (Fix D) by measuring an extrapolation instead of
 trusting it.
+
+================================================================================
+PART 6 -- FIXED SPAWN AT FULL PROTOCOL. THE TABLE IS NOW INTERNALLY CONSISTENT.
+================================================================================
+
+All four cells at 1200 episodes = 12 eval seeds x 100. The FP32/fixed cell was
+previously 100.0% from 200 episodes -- the last figure in the results table not
+at full protocol, and the one flagged as most likely to be optimistic given that
+small samples had run high four times in this project.
+
+                    fixed spawn          random spawn      INT8 cost
+  FP32              100.00%                90.67%
+  INT8               96.67%                78.33%
+  quantization cost   -3.33                -12.34
+
+FP32/FIXED SURVIVES THE FULL PROTOCOL AT 100%
+  seed   7  31  47  89 101 123 211 307 401 503 555 2024
+       100 100 100 100 100 100 100 100 100 100 100  100
+12 seeds, 12 perfect scores, 1200/1200. The 200-episode figure was NOT
+optimistic -- the prediction that it would fall was wrong. This is the one place
+in the project where a small sample held up exactly, and it is worth stating
+plainly alongside the four cases where it did not.
+
+A+C DOES ESSENTIALLY NOTHING AT FIXED SPAWN, AS PREDICTED
+  FP32  100.00% -> 100.00%   +0.00, 12 ties     (nothing left to recover)
+  INT8   96.58% ->  96.67%   +0.08, 1 seed up, ns
+This is the correct outcome and a useful check on the attribution. Both fixes
+target failure classes that are rare at fixed spawn -- the entire INT8
+fixed-spawn failure rate is 3.42%, against 23.92% at random. A large gain here
+would have meant the mechanism analysis was wrong.
+
+WHAT THE TABLE NOW SAYS
+Quantization costs 3.3 points at the pose the system was tuned for and 12.3
+points under full randomisation -- a 3.7x amplification. The decomposition and
+the rule layer are not the limiting factor at fixed spawn; they are perfect
+there. Everything this campaign measured is a randomisation cost.
