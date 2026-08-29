@@ -77,12 +77,19 @@ static const float BIN_Z = 0.80f;
 static const float TABLE_Z = 0.78f;   // obj z below this = fell off table
 
 // ── Locked deployment FSM params (place_env_wrapper.py + eval sweep) ────────
-static const float NEAR_TARGET_XY   = 0.14f; // over-bin release trigger radius
+// Rule-layer values re-tuned for RANDOM spawn (Results/fsm_rule_layer_sweep.txt).
+// Sweep at 1200 episodes/arm: 87.33% -> 89.58% (+2.25 pts, z=+1.73, ns).
+// Previous fixed-spawn values were NEAR_TARGET_XY 0.14, TRANSLATE_SCALE 0.5,
+// CARRY_GAIN 4.0. NEAR_TARGET_XY 0.10 was measured at -11 points (the release
+// trigger stops firing), so do not tighten this below ~0.12.
+static const float NEAR_TARGET_XY   = 0.18f; // over-bin release trigger radius
 static const int   RELEASE_TRIG_HOLD = 3;    // consecutive over-bin steps
 static const int   PLACE_HORIZON    = 300;   // transport-phase step cap
 static const int   GRASP_HOLD       = 8;     // consecutive grasp frames to confirm
 static const int   GRASP_CAP        = 250;   // give-up cap for grasp phase
-static const float TRANSLATE_SCALE  = 0.5f;  // transport translation gentling
+// The only rule-layer parameter with a coherent trend in the sweep:
+// 0.4 -> 80%, 0.5 -> 82%, 0.6 -> 86%, 0.7 -> 86%, 0.8 -> 85%, 1.0 -> 83%.
+static const float TRANSLATE_SCALE  = 0.65f; // transport translation gentling
 
 // Test-lift (grasp-robustness probe)
 static const int   TL_STEPS  = 20;
@@ -90,7 +97,7 @@ static const float TL_DZ     = 0.5f;
 static const float TL_MIN_RISE = 0.03f;
 
 // Scripted release (P-controller phases)
-static const float CARRY_GAIN = 4.0f;
+static const float CARRY_GAIN = 6.0f;
 static const float CARRY_CLIP = 0.5f;
 static const int   RC_STEPS  = 30;    static const float RC_TOL   = 0.03f;
 static const int   DS_STEPS  = 30;    static const float DS_DZ    = -0.12f;

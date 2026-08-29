@@ -23,11 +23,15 @@ from networks import ActorNetwork
 # --- constants, verbatim from pick_and_place_INT8_FSM.ino -------------------
 OBJ_X, OBJ_Y, OBJ_Z = 0, 1, 2
 BIN_X, BIN_Y, BIN_Z = 0.1975, 0.1575, 0.80
-NEAR_TARGET_XY, RELEASE_TRIG_HOLD = 0.14, 3
+# Rule-layer values re-tuned for RANDOM spawn; these MIRROR
+# pick_and_place_INT8_FSM.ino. Keep the two in sync -- a default here that does
+# not match the sketch reintroduces exactly the harness-vs-artifact gap that
+# Sec 9.11 was written to close.
+NEAR_TARGET_XY, RELEASE_TRIG_HOLD = 0.18, 3
 PLACE_HORIZON, GRASP_HOLD, GRASP_CAP = 300, 8, 250
-TRANSLATE_SCALE = 0.5
+TRANSLATE_SCALE = 0.65
 TL_STEPS, TL_DZ, TL_MIN_RISE = 20, 0.5, 0.03
-CARRY_GAIN, CARRY_CLIP = 4.0, 0.5
+CARRY_GAIN, CARRY_CLIP = 6.0, 0.5
 RC_STEPS, RC_TOL = 30, 0.03
 DS_STEPS, DS_DZ, TOUCH_MARGIN = 30, -0.12, 0.02
 OP_STEPS, RT_STEPS, RT_DZ = 8, 12, 0.3
