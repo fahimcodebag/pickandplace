@@ -1,0 +1,143 @@
+================================================================================
+GRIP ROBUSTNESS UNDER SCRIPTED DISTURBANCE
+Jerk resistance is not the constraint. Grip QUALITY is, and the monolithic
+policy has 11-13 points more of it.
+================================================================================
+
+WHY THIS TEST
+Every previous measurement of mid-carry drops ran the learned transport policy,
+so grip quality and trajectory quality were confounded: "the policy shakes the
+object loose" and "the grip was weak" predict the same data. grip_jerk_test.py
+removes the transport policy. It grasps, certifies the lift with the deployed
+criterion (8 held steps, 20-step scripted lift, >=3cm rise), then applies a
+SCRIPTED open-loop motion under TRANSPORT's own rule layer (a[3:6]=0 rotation
+discarded, a[6]=1.0 gripper forced closed). Whatever drops now is the grip.
+
+Three profiles, so "jerk" is tested against a control rather than assumed:
+  hold      zero translation                      -- control
+  carry     constant 0.5 on one axis (=CARRY_CLIP)-- steady travel
+  jerk      bang-bang +-0.5 every 3 steps         -- acceleration/deceleration
+  jerkhard  bang-bang +-1.0 every 2 steps         -- max the controller allows
+
+3 arms x 12 eval seeds x 100 episodes. Direction = ep%4 -> +x,-x,+y,-y, so all
+arms see identical spawns AND identical disturbances; comparisons are paired.
+10800 episodes in the main grid, 3600 in the jerkhard supplement.
+
+--------------------------------------------------------------------------------
+RESULT 1: JERK IS NOT THE MECHANISM
+--------------------------------------------------------------------------------
+survival is conditional on lift certification -- the population that reaches
+TRANSPORT on the real pipeline.
+
+  arm                     hold     carry    jerk    jerkhard   jerkhard-hold
+  monolithic v7 FP32     98.14%   97.13%   98.14%   98.14%       +0.00
+  decomposed FP32        95.59%   94.12%   95.67%   95.59%       +0.00
+  decomposed INT8        87.26%   84.03%   87.17%   86.98%       -0.28
+
+Doubling to maximum amplitude changes survival by -0.00/-0.09/-0.19 pts
+(paired, p=nan/0.59/0.17, 0-2 of 12 seeds down). Nothing.
+
+THE PROFILES DID MOVE THE ARM -- this is not a null test. Measured eef motion
+during the disturbance window (median, 25 episodes, decomposed FP32):
+
+  profile    path(m)   NET DISP(m)   v_max(m/s)   A_MAX(m/s^2)
+  hold        0.0196     0.0151        0.074         0.80
+  carry       0.3586     0.3163        0.140         1.44
+  jerk        0.2135     0.0182        0.119         2.19
+  jerkhard    0.3226     0.0283        0.207         4.04
+
+jerkhard delivers 5x the control's acceleration and 2.8x carry's, and costs
+nothing. carry has the LOWEST acceleration of the three moving profiles and the
+LARGEST net displacement, and is the only one that costs anything (-1.0 to
+-3.2 pts). The damaging variable is DISPLACEMENT, not acceleration.
+
+Mechanically this is unsurprising in hindsight: 4.04 m/s^2 is 0.41g lateral,
+and that is the most the OSC_POSE controller can deliver at full command. The
+actuator cannot generate enough lateral acceleration to shake a certified grip
+loose. Hardening the grip against jerk optimises against a disturbance this
+robot cannot produce. What travel does instead is change the arm CONFIGURATION
+-- which is the joint-limit story, not a grip story.
+
+--------------------------------------------------------------------------------
+RESULT 2: THE MONOLITHIC GRIP IS 11-13 POINTS BETTER, AND IT IS BETTER TWICE
+--------------------------------------------------------------------------------
+  arm                     lift-cert   survives carry   BOTH
+  monolithic v7 FP32        98.67%        98.14%      96.83%
+  decomposed FP32           96.33%        95.59%      92.08%
+  decomposed INT8           87.67%        87.17%      76.42%
+
+Paired per-seed, all three profiles, 12/12 seeds up, 0 down:
+  monolithic vs decomposed INT8   +10.93 / +13.11 / +11.02 pts   p < 0.0001
+  decomposed FP32 vs INT8          +8.37 / +10.10 /  +8.54 pts   p < 0.0001
+
+INT8 loses ~11 points at certification AND another ~11 at survival. It is weak
+at both ends, not at one.
+
+SUGGESTIVE, NOT PROOF: the BOTH column tracks measured end-to-end success
+closely -- FP32 92.08% vs 90.67% actual, INT8 76.42% vs 78.33% actual. Grip
+retention through a SCRIPTED carry nearly reproduces end-to-end performance,
+i.e. the learned transport policy adds little on top of "did the grip survive
+being moved". This is consistent with, and independently explains, transport
+retraining having failed twice over six seeds. It is an agreement of two
+numbers, not a controlled attribution -- the disturbance is not the real
+trajectory, and RETRACT failures and jams are outside this harness.
+
+--------------------------------------------------------------------------------
+RESULT 3 (NEGATIVE): A HANDOFF JOINT-MARGIN GATE WOULD FIRE ON NOISE
+--------------------------------------------------------------------------------
+Built to test "tune the FSM to reach a stable posture after grasping". It
+inverts: pinned episodes survive BETTER.
+
+  decomposed INT8, jerk    pinned <0.02  n=410  survive 89.76%
+                           tight .02-.10 n=136  survive 92.65%
+                           clear  >0.10  n=506  survive 83.60%
+
+Cause: 395 of those 410 "pinned" cases are JOINT 5, whose lower bound is
+-0.0175 ~ 0, so a normal reaching posture reads as pinned by construction. Same
+trap documented in regrasp_jam_diag.py. A handoff-margin gate would fire on
+39% of INT8 episodes, almost all benign. Do not build it.
+
+THE JAM FINDING SURVIVES THIS. Re-checked against Results/rj_diag: jammed
+episodes end at margin -0.0004 (actually violating the limit), successes at
++0.43 (INT8) / +0.58 (FP32). Being near joint 5's bound at handoff is common
+and harmless; being stuck against it for 285 of 300 carry steps is the failure.
+The two measurements are not the same variable.
+
+Note without a conclusion attached: the monolithic arm is pinned at handoff
+0.00% of 1184 times, decomposed 19.4% (FP32) / 39.0% (INT8). A structurally
+different posture. On this evidence it is not what drives its advantage.
+
+--------------------------------------------------------------------------------
+RESULT 4: CORNER GRIPS ARE AN INT8 PROBLEM SPECIFICALLY
+--------------------------------------------------------------------------------
+survival under jerk by grip angle from a flat face:
+
+  arm                      0-15 deg   15-30 deg   30-46 deg   spread
+  monolithic v7 FP32        99.59%     97.21%      97.03%     -2.6
+  decomposed FP32           96.80%     95.05%      94.74%     -2.1
+  decomposed INT8           93.99%     82.63%      82.78%    -11.2
+
+This REVISES Results/monolithic_control.txt, which concluded "corner grips were
+never the problem". That holds for FP32 and monolithic. It is false for INT8,
+where quantization turns a tolerable non-flat grip into a fragile one. The
+earlier document tested lift certification only; this tests retention under
+motion, which is where the angle actually bites.
+
+--------------------------------------------------------------------------------
+WHAT THIS MEANS FOR THE THREE PROPOSED DIRECTIONS
+--------------------------------------------------------------------------------
+1. "Train a grip that survives jerk"        REFUTED as posed. Jerk resistance
+   is not the binding variable; the controller cannot produce damaging
+   acceleration. But the INTENT -- a better grip -- is correct and is the
+   largest single lever measured in this campaign (+11-13 pts).
+2. "FSM stabilisation after grasp"           The joint-margin form is dead
+   (Result 3). Not yet tested: an unconditional repositioning move.
+3. "Retrain on a wider dropzone"             Unchanged, still deferred. Note it
+   only improves recovery AFTER a drop; a better grip reduces drop frequency,
+   which dominates.
+
+NEXT DIRECTION
+Distillation, already proposed in Results/monolithic_control.txt and now with a
+measured target: v7 is a 98.67%-certify / 98.14%-retain teacher for the exact
+sub-task the 5.2k student fails at, and the student's INT8 form is fragile
+specifically at non-flat grip angles. Untested.
