@@ -1,0 +1,103 @@
+================================================================================
+QAT INSIDE THE RL LOOP: +4.43 INT8 POINTS, AND IT OVERTURNS AN EARLIER VERDICT
+The quantisation gap falls 5.63 -> 1.89. Quantisation is no longer the binding
+constraint; FP32 capacity is.
+================================================================================
+
+WHAT WAS ACTUALLY REFUTED BEFORE
+Results/int8_deployment.txt concluded "QAT WAS THE DAMAGE" -- 50-epoch QAT cost
+12.7 points and gripfix_s2 lost 36.2. That verdict is correct about what was
+tested and WRONG as a verdict on QAT. qat_finetune.py:184 optimised
+    loss = F.mse_loss(qat_out, teacher_out)
+i.e. output fidelity to an FP32 teacher on a frozen calibration buffer. The
+same document's Finding 2 measured that objective as ANTI-correlated with
+deployed success (best corr 0.952 -> worst behaviour 37.1%; worst corr 0.872 ->
+best behaviour 70.2%). Finding 3's "600 epochs moved MSE 0.275990 -> 0.276077,
+that is a floor" is a statement about THAT loss, not about quantisation damage
+being irrecoverable.
+
+WHAT IS TESTED HERE
+td3.Agent.enable_actor_fakequant: per-tensor symmetric INT8 fake-quant on the
+actor's Linear weights with a straight-through estimator, inside the RL loop,
+so the RETURN is optimised under the quantisation that actually ships. The
+quantised actor also drives choose_action, so the replay data reflects the
+quantised behaviour policy. Target networks stay FP32 -- they are a
+training-time bootstrap and quantising them only adds target noise.
+
+Verified before launch: forward changes under fake-quant; weights stay FP32
+(quantisation is in the forward, not storage); all 255 int8 levels used; STE
+gradients update weights; residual quantise-dequantise error 0.00036 against
+mean|w| 0.081.
+
+DESIGN
+Both arms carry --actor-wclip 8 and share warm start, config and training
+seeds, so QAT is the SINGLE variable. 6 training seeds x 12 eval seeds x 100
+episodes per cell. Arms share both levels, so pairing is on (training seed,
+eval seed) = 72 pairs. All 9 new artifacts converted with --per_tensor and
+verified to carry exactly 1 scale per quantised tensor (8088 bytes, identical
+to the deployed artifact).
+
+--------------------------------------------------------------------------------
+RESULT
+--------------------------------------------------------------------------------
+  tseed    QAT INT8   ctl INT8       d     QAT FP32   ctl FP32       d
+  s0         81.83%     84.67%   -2.83       90.58%     89.08%   +1.50
+  s1         73.92%     71.67%   +2.25       77.08%     76.50%   +0.58
+  s2         84.83%     80.08%   +4.75       84.42%     85.83%   -1.42
+  s3         84.08%     70.17%  +13.92       80.75%     75.83%   +4.92
+  s4         74.17%     67.17%   +7.00       69.58%     75.08%   -5.50
+  s5         77.67%     76.17%   +1.50       85.42%     81.42%   +4.00
+  mean       79.42%     74.99%   +4.43       81.31%     80.62%   +0.68
+
+  INT8  +4.43  t=4.62 p<0.0001  wilcoxon p=0.0001  46/24/2 pairs  5/6 seeds up
+  FP32  +0.68  t=0.98 p=0.3289  wilcoxon p=0.2574  34/32/6 pairs  4/6 seeds up
+
+The signature is exactly right: QAT moves INT8 and leaves FP32 alone. It is not
+making a better policy, it is making a policy that survives quantisation.
+
+ROBUSTNESS. s3 (+13.92) is an outlier and carries part of the mean:
+  mean +4.43 | median +3.50 | drop s3 +2.53 | drop min and max +3.88
+The effect survives every trim, but the honest range is +2.5 to +4.4, not +4.4.
+s0 is negative (-2.83), so this is not universal across seeds.
+
+--------------------------------------------------------------------------------
+THE GAP IS NEARLY CLOSED
+--------------------------------------------------------------------------------
+  per-tensor INT8 quantisation gap, this session
+    no clip        (wclip0)          11.22
+    clip k=8       (3 seeds)          5.00
+    clip k=8       (6 seeds)          5.63
+    clip k=8 + QAT (6 seeds)          1.89
+    transport model (quantises free)  0.00
+Two independent interventions took the gap from 11.22 to 1.89. Note they act on
+different things: clipping caps max/std, and Results/weight_range_regularisation
+showed that mechanism EXHAUSTED (k=4 reached max/std 4.00, below transport's
+free-quantising 5.7, and still left 4.72). QAT closes what remains, which
+confirms the residue was never dynamic range.
+
+CONSEQUENCE FOR THE 90% TARGET
+At a 1.89-point gap, INT8 >= 90% needs FP32 >= 91.89%. Best FP32 observed
+across ~21 cells this session is 90.67%. So quantisation is no longer the
+binding constraint -- the decomposed 5.2k actor's FP32 ceiling is. That
+reverses the situation at the start of the session, when the gap was 12.3 and
+capacity was second-order.
+
+CAVEATS
+- Control at 6 seeds (74.99%) reads BELOW deployed bi_s0 (78.33%); seeds 3-5
+  trained worse. So QAT's mean is +1.09 over the deployed artifact, while the
+  matched causal effect over its own control is +4.43. Do not quote the first
+  as the effect or the second as a deployment delta.
+- Best single QAT cell is 84.83%, best-of-6, i.e. a selected maximum. The
+  wclip campaign showed such a maximum halving on held-out seeds. Not confirmed.
+- best_metric during training also favoured QAT (0.9125 vs 0.8833, 6/6 seeds),
+  which is consistent but is a biased max-over-window statistic and grasp-stage
+  only. It is corroboration, not evidence.
+
+NEXT
+Capacity is now the binding constraint, and Results/monolithic_control.txt
+already names the teacher: v7 at 2.2M params certifies 98.7% of grasps against
+the decomposed stage's 79.2%. A 256/128 actor (45,440 weights, ~45KB INT8) fits
+the ESP32 budget (4MB flash, 320KB SRAM, 40KB arena, 9.5ms of 50ms), but it
+cannot inherit the 5-stage warm-start curriculum -- shape mismatch -- so it
+needs either the ladder re-run at the new width or function-preserving widening
+(Net2WiderNet) from the trained 64/32 policy. That is the next real experiment.

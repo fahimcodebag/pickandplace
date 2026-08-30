@@ -167,7 +167,8 @@ def build_agent(algo, vec_env, chkpt_dir, args):
     common = dict(alpha=args.lr_actor, beta=args.lr_critic,
                   input_dims=vec_env.observation_space.shape, tau=0.005,
                   env=vec_env, n_actions=vec_env.action_space.shape[0],
-                  layer1_size=64, layer2_size=32, batch_size=args.batch_size,
+                  layer1_size=args.fc1, layer2_size=args.fc2,
+                  batch_size=args.batch_size,
                   chkpt_dir=chkpt_dir)
     if algo == "td3":
         import td3
@@ -259,7 +260,8 @@ def train(args):
               f"({updates_per_step / args.n_envs:.3f} per env-step; "
               f"historical baseline 0.5)")
         print(f"  Buffer              : {args.buffer_size:,}")
-    print(f"  Network             : 64 -> 32 (deployment-fixed)")
+    print(f"  Network             : {args.fc1} -> {args.fc2}"
+          f"  ({46*args.fc1 + args.fc1*args.fc2 + args.fc2*7:,} weights)")
     print(f"  Warm start          : {args.warm_start_from or '(scratch)'}")
     print(f"  Checkpoints         : {chkpt_dir}")
     print("=" * 72 + "\n")
@@ -275,6 +277,11 @@ def train(args):
     # Weight-range regularisation for per-tensor INT8. See td3.Agent.
     # _clip_actor_weights: max/std IS the quantisation cost under one scale per
     # tensor. 0.0 leaves the update path byte-identical to the bi_s0 baseline.
+    if getattr(args, "actor_fakequant", False):
+        if not hasattr(agent, "enable_actor_fakequant"):
+            raise SystemExit(f"--actor-fakequant unsupported by algo={args.algo}")
+        agent.enable_actor_fakequant()
+        print("  Actor QAT           : per-tensor INT8 fake-quant, STE grads")
     if getattr(args, "actor_wclip", 0.0):
         if not hasattr(agent, "actor_wclip"):
             raise SystemExit(f"--actor-wclip unsupported by algo={args.algo}")
@@ -593,6 +600,20 @@ def parse_args(argv=None):
                         "applies at handoff. Without it the metric accepts "
                         "momentary contact: 86%% of grasps passed the old "
                         "criterion but only 43%% survived handoff.")
+    p.add_argument("--fc1", type=int, default=64,
+                   help="Actor hidden 1. 64 is the deployed size (5.2k params, "
+                        "8KB INT8). ESP32 headroom is large: 4MB flash, 320KB "
+                        "SRAM, 40KB arena, 9.5ms of a 50ms budget -- 256/128 "
+                        "(~45k params) fits comfortably.")
+    p.add_argument("--fc2", type=int, default=32, help="Actor hidden 2.")
+    p.add_argument("--actor-fakequant", action="store_true",
+                   help="QAT inside the RL loop: per-tensor symmetric INT8 "
+                        "fake-quant on actor weights with a straight-through "
+                        "estimator, so the RL return is optimised under the "
+                        "quantisation that actually ships. Distinct from "
+                        "qat_finetune.py, which minimised MSE to an FP32 "
+                        "teacher -- an objective measured to be ANTI-correlated "
+                        "with deployed success.")
     p.add_argument("--actor-wclip", type=float, default=0.0,
                    help="Clamp each actor Linear weight tensor to |w| <= k*std(w) "
                         "after every actor update, capping max/std -- the per-tensor "

@@ -5,6 +5,21 @@ import numpy as np
 from buffer import ReplayBuffer
 from networks import ActorNetwork, CriticNetwork
 
+
+class _FakeQuantSTE(T.autograd.Function):
+    """Per-tensor symmetric INT8 quantise-dequantise, straight-through grad."""
+
+    @staticmethod
+    def forward(ctx, w):
+        s = w.detach().abs().max() / 127.0
+        if s == 0:
+            return w
+        return T.clamp(T.round(w / s), -127.0, 127.0) * s
+
+    @staticmethod
+    def backward(ctx, g):
+        return g
+
 class Agent:
     def __init__(self, alpha, beta, input_dims, tau, env, gamma=0.99,
                  update_actor_interval=2, warmup=1000, n_actions=2,
@@ -33,6 +48,14 @@ class Agent:
         # |w| <= k*std after every update, capping that ratio at k.
         # None = off, and the update path is then byte-identical to before.
         self.actor_wclip = None
+        # Route (b): QAT in the RL loop. The only QAT tried before
+        # (qat_finetune.py:184) minimised MSE to an FP32 teacher on a frozen
+        # calibration buffer -- an objective Results/int8_deployment.txt Fnd 2
+        # showed is ANTI-correlated with deployed success (best corr 0.952 ->
+        # worst behaviour 37.1%). This instead fake-quantises the actor inside
+        # training so the RL return itself is optimised under quantisation.
+        # None = off, update path byte-identical to before.
+        self.actor_fakequant = False
         self.device = T.device('cuda' if T.cuda.is_available() else 'cpu')
         
         # Create checkpoint directory
@@ -180,6 +203,24 @@ class Agent:
         self._clip_actor_weights()
         
         self.update_network_parameters()
+
+    def enable_actor_fakequant(self):
+        """Per-tensor symmetric INT8 fake-quant on actor weights, STE gradient.
+
+        Mirrors the deployed converter's TENSORWISE granularity: one scale per
+        weight tensor taken from max|w|, which is exactly the quantisation the
+        ESP-NN kernels run. Patches self.actor only -- it is the artifact that
+        ships, and it drives both choose_action and the actor loss, so the
+        replay data reflects the quantised behaviour policy. Target networks
+        stay full precision: they are a training-time bootstrap, and
+        quantising them only injects noise into the targets.
+        """
+        self.actor_fakequant = True
+        for m in self.actor.modules():
+            if isinstance(m, T.nn.Linear) and not getattr(m, "_fq", False):
+                m._fq = True
+                m.forward = (lambda x, m=m:
+                             F.linear(x, _FakeQuantSTE.apply(m.weight), m.bias))
 
     def _clip_actor_weights(self):
         """Project actor weight tensors onto |w| <= actor_wclip * std(w).
