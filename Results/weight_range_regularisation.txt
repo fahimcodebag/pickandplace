@@ -51,9 +51,45 @@ HEAD-TO-HEAD vs THE DEPLOYED ARTIFACT (12 eval seeds x 100, A+C rule layer)
   wclip6_s1   77.75%  vs  78.33%   -0.58  ns
 SELECTION CAVEAT: wclip8_s0 is the best of 12 cells, so +6.33 is a selected
 maximum, not an unbiased estimate. The unbiased causal effect of clipping is
-the arm-level +7.25 / +6.64 against the matched control. Not every cell beats
-the deployed model. Confirming wclip8_s0 needs fresh eval seeds or more
-training seeds; until then treat it as a candidate, not a result.
+the arm-level +7.25 / +6.64 against the matched control.
+
+HELD-OUT CONFIRMATION -- THE CANDIDATE CLAIM SHRINKS BY HALF AND LOSES p<0.05
+12 eval seeds disjoint from the sweep (13 59 71 137 199 257 331 419 547 601
+733 911), 100 episodes each. The deployed model was RE-MEASURED on the same
+fresh seeds rather than compared against its known 78.33%, so a shift in seed
+difficulty cannot masquerade as a treatment effect -- and there was one:
+deployed INT8 reads 80.42% here against 78.33% on the sweep seeds.
+
+  model      FP32%    INT8%    gap
+  deployed   89.67%   80.42%  +9.25
+  wclip8s0   90.50%   83.33%  +7.17
+  wclip6s0   88.50%   81.83%  +6.67
+
+  paired vs deployed, 12 pairs
+    INT8  wclip8s0  +2.92  p=0.0787  8/3 up     (was +6.33 p=0.0019 selected)
+          wclip6s0  +1.42  p=0.2312  6/4 up     (was +3.58 p=0.0570)
+    FP32  wclip8s0  +0.83  p=0.3177  7/5        (no FP32 cost after all)
+          wclip6s0  -1.17  p=0.2497  5/7
+
+READ THIS CAREFULLY, THE TWO CLAIMS HAVE DIFFERENT STANDING:
+  1. CLIPPING WORKS. The arm-level +7.25 (p=0.0002, 36 pairs, k=6) compares
+     matched arms across all 3 training seeds and involved no selection. It
+     stands unchanged. The gap reduction reproduces here too: 9.25 deployed
+     vs 7.17 / 6.67 clipped.
+  2. wclip8_s0 AS A SPECIFIC ARTIFACT IS NOT CONFIRMED. +2.92 at p=0.0787 does
+     not clear 0.05. Direction is consistent (8/3 seeds up) and n=12 single-cell
+     pairs is far less powerful than the 36-pair arm test, so this is an
+     underpowered test of a shrunken estimate, NOT evidence of no effect. The
+     honest point estimate for this artifact is +2.92, not +6.33.
+
+One earlier worry is retired: wclip8_s0's FP32 was 89.08% on the selection
+seeds, below the deployed 90.67%, suggesting the clip cost FP32 quality. On
+held-out seeds it reads 90.50% vs deployed 89.67% (+0.83, ns). The apparent
+FP32 cost was seed noise.
+
+DO NOT ship wclip8_s0 on the strength of the sweep maximum. The supported route
+is to retrain k=6/k=8 over more seeds and select on a held-out criterion, or
+accept the arm-level effect and pick any k>=6 model by median rather than max.
 
 TRAINING-SEED VARIANCE DOMINATES RAW PERFORMANCE
 Control FP32 across three seeds: 74.58 / 84.92 / 90.67 -- a 16-point spread.
@@ -90,6 +126,9 @@ STATUS AND NEXT
 Adopt-able: --actor-wclip 6 (or 8) as a default for any actor destined for
 per-tensor INT8. It is one projection after the optimiser step, costs nothing
 in FP32, and both removes ~7 points of quantisation loss and the collapse mode.
-Not yet done: confirm wclip8_s0 on held-out eval seeds; re-run the grip-jerk
+Done: held-out confirmation (above) -- effect real at arm level, candidate
+artifact not individually confirmed.
+Not yet done: retrain k=8 over more seeds and select by held-out median;
+re-run the grip-jerk
 harness on a clipped model to see whether the +7 lands on lift certification,
 on retention under motion, or both; mirror nothing to the .ino yet.
