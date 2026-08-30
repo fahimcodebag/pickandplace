@@ -1,0 +1,95 @@
+================================================================================
+WEIGHT-RANGE REGULARISATION FOR PER-TENSOR INT8
+Capping max/std recovers ~7 points of INT8 success at no FP32 cost, and
+removes the catastrophic-collapse failure mode.
+================================================================================
+
+THE MECHANISM BEING TESTED
+Per-tensor INT8 sets ONE scale per tensor from the largest weight, so a
+tensor's max/std IS its quantisation cost (Results/int8_deployment.txt Fnd 4):
+transport quantises FREE at 5.7, gripfix_s2 costs -7.2 at 9.3, bi_s0 -14.0 at
+10.0. td3.Agent._clip_actor_weights projects every actor Linear weight onto
+|w| <= k*std(w) after each actor update. Verified to hit the fixed point
+exactly: 9.96/10.82 -> 6.00/6.00 at k=6; tensors already below k untouched.
+
+DESIGN
+4 arms (k = 0/4/6/8) x 3 training seeds x {FP32, INT8} x 12 eval seeds x 100
+episodes = 28800 episodes. Training config is bi_s0's manifest verbatim, k the
+only variable; k=0 is a FRESH control at matched seeds, not the old run.
+Arms share training seeds AND eval seeds, so (training seed, eval seed) is a
+legitimate pairing unit -- 36 pairs per comparison.
+
+--------------------------------------------------------------------------------
+RESULT: k=6 AND k=8 WIN, k=4 OVER-CONSTRAINS
+--------------------------------------------------------------------------------
+  arm     max/std     FP32%          INT8%         gap        NET INT8 vs ctrl
+  wclip0  8.3-10.3    83.39 +-8.15   72.17 +-10.84  11.22 +-14.85     --
+  wclip4  4.00        76.39 +-13.72  71.67 +-8.55    4.72 +-5.72    -0.50  ns
+  wclip6  6.00        83.67 +-5.06   79.42 +-2.20    4.25 +-4.70    +7.25  p=0.0002
+  wclip8  ~8.00       83.81 +-6.53   78.81 +-6.59    5.00 +-0.68    +6.64  p=0.0035
+
+  paired, 36 pairs:  wclip6 27/9 up, wclip8 24/12 up
+  FP32 cost:         wclip6 +0.28 (p=0.87), wclip8 +0.42 (p=0.64) -- free
+                     wclip4 -7.00 (p=0.019) -- the constraint bites the policy
+
+All three clipped arms cut the gap from 11.22 to 4.25-5.00, exactly as Finding
+4 predicts. k=4 closes the gap too but pays 7 FP32 points for it, so the net is
+zero: the trade turns over between k=4 and k=6.
+
+SECOND EFFECT, ARGUABLY THE MORE IMPORTANT ONE: IT REMOVES THE COLLAPSE
+Per-tensor quantisation does not degrade a policy smoothly -- it occasionally
+destroys one. Control seed 2: FP32 84.92% -> INT8 59.67%, a 25-point collapse.
+The same seed under k=6: 77.83% -> 78.58%, no loss at all. Across seeds,
+INT8 sd falls from 10.84 (control) to 2.20 (k=6); gap sd from 14.85 to 0.68
+(k=8). Clipping buys predictability as much as it buys points, which matters
+more for a deployed artifact than the mean does.
+
+HEAD-TO-HEAD vs THE DEPLOYED ARTIFACT (12 eval seeds x 100, A+C rule layer)
+  wclip8_s0   84.67%  vs  78.33%   +6.33  t=4.05 p=0.0019  10/2 seeds up
+  wclip6_s0   81.92%  vs  78.33%   +3.58  t=2.13 p=0.0570   8/3
+  wclip8_s2   80.08%  vs  78.33%   +1.75  ns
+  wclip6_s1   77.75%  vs  78.33%   -0.58  ns
+SELECTION CAVEAT: wclip8_s0 is the best of 12 cells, so +6.33 is a selected
+maximum, not an unbiased estimate. The unbiased causal effect of clipping is
+the arm-level +7.25 / +6.64 against the matched control. Not every cell beats
+the deployed model. Confirming wclip8_s0 needs fresh eval seeds or more
+training seeds; until then treat it as a candidate, not a result.
+
+TRAINING-SEED VARIANCE DOMINATES RAW PERFORMANCE
+Control FP32 across three seeds: 74.58 / 84.92 / 90.67 -- a 16-point spread.
+Any single-seed reading of this sweep would have been noise, and the control
+arm's mean (72.17% INT8) sits BELOW the deployed bi_s0 (78.33%) purely because
+two of its three seeds trained badly. Clipping improves the FP32->INT8
+TRANSFER; it does not rescue a bad FP32 policy.
+
+--------------------------------------------------------------------------------
+A METHOD ERROR WORTH RECORDING
+--------------------------------------------------------------------------------
+The first pass of this experiment (288 shards, 28800 episodes) was run with
+conversions that DEFAULTED TO PER-CHANNEL, because --skip_qat was passed
+without --per_tensor. It measured nothing: per-channel gives each output
+channel its own scale, so a single outlier weight cannot poison a tensor and
+weight clipping has nothing to do. The control gap there was 2.36 points
+against 11.22 here, and no arm separated.
+
+The tell was present and ignored: the artifacts were 10488 bytes against the
+deployed 8088, noticed and dismissed as "converter metadata" BEFORE the shards
+were launched. Byte-size mismatch against a known-good artifact is a
+first-class signal, not a footnote.
+
+The per-channel run also appeared to show +9 points for free over the deployed
+model. That is NOT deployable: qat_and_convert.py:233 records that ESP-NN's
+per-channel int8 kernels return mid-range outputs "badly wrong, even
+sign-flipped" on device. Those numbers came from TFLite host reference kernels
+the ESP32 never runs -- precisely the host-vs-artifact gap Sec 9.11 exists to
+close.
+
+--------------------------------------------------------------------------------
+STATUS AND NEXT
+--------------------------------------------------------------------------------
+Adopt-able: --actor-wclip 6 (or 8) as a default for any actor destined for
+per-tensor INT8. It is one projection after the optimiser step, costs nothing
+in FP32, and both removes ~7 points of quantisation loss and the collapse mode.
+Not yet done: confirm wclip8_s0 on held-out eval seeds; re-run the grip-jerk
+harness on a clipped model to see whether the +7 lands on lift certification,
+on retention under motion, or both; mirror nothing to the .ino yet.

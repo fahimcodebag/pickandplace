@@ -25,6 +25,14 @@ class Agent:
         self.n_actions = n_actions
         self.update_actor_iter = update_actor_interval
         self.noise = noise
+        # Per-tensor INT8 sets ONE scale per tensor from the largest weight, so
+        # a tensor's max/std IS its quantisation cost. Measured across three
+        # deployed models (Results/int8_deployment.txt, Finding 4): transport
+        # 5.7 -> quantises free, gripfix_s2 9.3 -> -7.2 pts, bi_s0 10.0 ->
+        # -14.0 pts. actor_wclip projects each actor weight tensor onto
+        # |w| <= k*std after every update, capping that ratio at k.
+        # None = off, and the update path is then byte-identical to before.
+        self.actor_wclip = None
         self.device = T.device('cuda' if T.cuda.is_available() else 'cpu')
         
         # Create checkpoint directory
@@ -169,8 +177,26 @@ class Agent:
         actor_loss = -T.mean(actor_q1_loss)
         actor_loss.backward()
         self.actor.optimizer.step()
+        self._clip_actor_weights()
         
         self.update_network_parameters()
+
+    def _clip_actor_weights(self):
+        """Project actor weight tensors onto |w| <= actor_wclip * std(w).
+
+        Applied to Linear weights only: biases are a separate quantised tensor
+        with their own scale, and clipping them does not affect the weight
+        scale that costs the resolution. Applied every actor update, this
+        reaches the fixed point exactly: measured 9.96/10.82 -> 6.00/6.00 at
+        k=6, with tensors already below k left untouched.
+        """
+        if not self.actor_wclip:
+            return
+        with T.no_grad():
+            for m in self.actor.modules():
+                if isinstance(m, T.nn.Linear):
+                    lim = self.actor_wclip * m.weight.std()
+                    m.weight.clamp_(-lim, lim)
 
     def update_network_parameters(self, tau=None):
         if tau is None:

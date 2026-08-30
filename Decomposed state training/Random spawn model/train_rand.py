@@ -272,6 +272,15 @@ def train(args):
                             dense_align=args.dense_align,
                             builtin_reward=args.builtin_reward)
     agent = build_agent(args.algo, vec_env, chkpt_dir, args)
+    # Weight-range regularisation for per-tensor INT8. See td3.Agent.
+    # _clip_actor_weights: max/std IS the quantisation cost under one scale per
+    # tensor. 0.0 leaves the update path byte-identical to the bi_s0 baseline.
+    if getattr(args, "actor_wclip", 0.0):
+        if not hasattr(agent, "actor_wclip"):
+            raise SystemExit(f"--actor-wclip unsupported by algo={args.algo}")
+        agent.actor_wclip = args.actor_wclip
+        print(f"  Actor weight clip   : |w| <= {args.actor_wclip} * std(w) "
+              f"per Linear tensor (bi_s0 baseline fc1 9.96 / fc2 10.82)")
 
     status = warm_start(agent, args.algo, chkpt_dir, source_dir)
     print(f"Init: {status} (source: {source_dir})")
@@ -584,6 +593,11 @@ def parse_args(argv=None):
                         "applies at handoff. Without it the metric accepts "
                         "momentary contact: 86%% of grasps passed the old "
                         "criterion but only 43%% survived handoff.")
+    p.add_argument("--actor-wclip", type=float, default=0.0,
+                   help="Clamp each actor Linear weight tensor to |w| <= k*std(w) "
+                        "after every actor update, capping max/std -- the per-tensor "
+                        "INT8 quantisation cost (Results/int8_deployment.txt Finding "
+                        "4). 0 = off. Transport quantises free at 5.7; bi_s0 is 10.0.")
     p.add_argument("--best-window", type=int, default=200,
                    help="Episodes in the rolling window used to select best/. "
                         "Was 50, whose SE (~6.5 points) made checkpoint "
