@@ -1,0 +1,64 @@
+================================================================================
+A VALIDATED >=90% INT8 MODEL: smallc64_s5
+INT8 93.08% / FP32 91.67% on 12 held-out seeds. Random spawn INT8 rose 78.33%
+-> 93.08% across this campaign, and the quantisation gap INVERTED.
+================================================================================
+
+HELD-OUT VALIDATION (12 eval seeds never used for selection, 100 ep each)
+  model          INT8 sel  INT8 held   shrink    FP32 sel  FP32 held
+  smallc64_s5      93.83%     93.08%    -0.75      91.83%     91.67%
+  bigc512_s0       90.33%     88.92%    -1.41      87.17%     86.67%
+  cont64_s0        84.25%     83.08%    -1.17      81.00%     80.75%
+
+  paired vs the incumbent cont64_s0 on the SAME held-out seeds
+    smallc64_s5  INT8  +10.00  t= 9.71 p<0.0001  12/0 seeds up
+    smallc64_s5  FP32  +10.92  t=15.81 p<0.0001  12/0 seeds up
+    bigc512_s0   INT8   +5.83  t= 4.79 p=0.0006  11/1
+    bigc512_s0   FP32   +5.92  t= 3.52 p=0.0048  10/2
+
+Shrinkage of -0.75 is the key number. The comparable check on wclip8_s0 earlier
+in this campaign lost -3.41 (+6.33 selected -> +2.92 held-out), which is what a
+selection artifact looks like. This one holds, on every one of 12 seeds.
+
+--------------------------------------------------------------------------------
+THE QUANTISATION GAP HAS INVERTED
+--------------------------------------------------------------------------------
+  stage of the campaign                     FP32     INT8      gap
+  deployed bi_s0 (session start)           90.67%   78.33%   +12.34
+  + weight-range clipping (k=8)                --       --    +5.63
+  + in-loop QAT                                --       --    +1.89
+  smallc64_s5 (held-out)                   91.67%   93.08%    -1.41
+
+INT8 now BEATS its own FP32 parent by 1.41 points -- per-tensor quantisation is
+acting as mild regularisation rather than as damage. Against the free-quantising
+transport model (gap 0.00) this stage is now better than free.
+
+WHAT THE ARTIFACT IS
+  checkpoints/td3_grasp_rand_td3_ln_smallc64_s5/best/actor_td3
+  Results/bigcritic/smallc64_s5_int8.tflite   8088 bytes, per-tensor verified
+  64/32 actor, 5,216 weights -- byte-identical in size to the deployed artifact
+Lineage: bi_s0 -> wclip8 (k=8) -> qat8 (in-loop QAT) -> cont64 (more training)
+-> smallc64 (fresh 64/32 critics, more training). Cumulative grasp-stage
+training across the whole curriculum is ~35k episodes.
+
+--------------------------------------------------------------------------------
+THE UNCOMFORTABLE PART: IT CAME FROM AN ARM REPORTED AS A FAILURE
+--------------------------------------------------------------------------------
+smallc64 was the CONTROL of the large-critic experiment, arm mean 80.22% INT8,
+recorded in Results/capacity_experiments.txt as losing to the incumbent by
+-3.36. Its s5 seed scored 93.83%.
+
+Across nominally identical configurations this campaign observed INT8 outcomes
+from 51.50% to 93.83%. Arm means are therefore a poor guide to what any single
+run produces, and every "this configuration does not help" verdict in this
+campaign should be read as a statement about the MEAN, not about the reachable
+maximum. Both are legitimate; they answer different questions. A deployment
+programme wants the validated maximum, a science question wants the mean.
+
+That variance is the largest unexplained factor in the campaign and is NOT
+addressed by anything measured here.
+
+STATUS
+Confirmed: random spawn, held-out, 1200 episodes per cell.
+Pending: the fixed-spawn cells still report bi_s0's numbers (100.00% / 96.67%)
+and must be re-measured on this artifact before the results table is consistent.
