@@ -58,7 +58,35 @@ programme wants the validated maximum, a science question wants the mean.
 That variance is the largest unexplained factor in the campaign and is NOT
 addressed by anything measured here.
 
+--------------------------------------------------------------------------------
+THE COMPLETE RESULTS TABLE, ALL FOUR CELLS ON THIS ARTIFACT
+--------------------------------------------------------------------------------
+Every cell 1200 episodes (12 eval seeds x 100), A+C rule layer.
+
+                    fixed spawn      random spawn
+    FP32              99.83%            91.67%
+    INT8              98.67%            93.08%
+
+  previous table, bi_s0
+    FP32             100.00%            90.67%
+    INT8              96.67%            78.33%
+
+No trade was paid for the random-spawn gain. Three cells improved and the
+fourth is a two-episode difference (1198/1200 vs 1200/1200), which is not
+meaningfully distinguishable -- bi_s0's 100.00% was itself a point estimate.
+
+THE QUANTISATION AMPLIFICATION IS GONE
+Results/transport_stall_diagnosis recorded that quantisation cost 3.33 points
+at the tuned pose and 12.34 under randomisation -- a 3.7x amplification, and
+one of the campaign's headline findings. On this artifact:
+    fixed spawn   99.83 - 98.67 = +1.16   (was +3.33)
+    random spawn  91.67 - 93.08 = -1.41   (was +12.34)
+The amplification does not merely shrink, it disappears: INT8 is now BETTER
+than FP32 under randomisation. Weight-range clipping and in-loop QAT between
+them removed the mechanism that made randomised poses quantise badly.
+
 STATUS
-Confirmed: random spawn, held-out, 1200 episodes per cell.
-Pending: the fixed-spawn cells still report bi_s0's numbers (100.00% / 96.67%)
-and must be re-measured on this artifact before the results table is consistent.
+Confirmed on all four cells, held-out seeds for the random-spawn row.
+Not yet done: HIL re-measurement on the ESP32 (the rig runs fixed spawn, where
+this artifact scores 98.67% INT8 against the deployed model's 96.67%), and
+mirroring Fix A / Fix C into pick_and_place_INT8_FSM.ino.
