@@ -24,7 +24,8 @@ class Agent:
     def __init__(self, alpha, beta, input_dims, tau, env, gamma=0.99,
                  update_actor_interval=2, warmup=1000, n_actions=2,
                  max_size=1000000, layer1_size=512, layer2_size=256,
-                 batch_size=100, noise=0.1, chkpt_dir='./checkpoints/td3'):
+                 batch_size=100, noise=0.1, chkpt_dir='./checkpoints/td3',
+                 actor_layer1=None, actor_layer2=None):
         
         self.gamma = gamma
         self.tau = tau
@@ -61,8 +62,19 @@ class Agent:
         # Create checkpoint directory
         os.makedirs(chkpt_dir, exist_ok=True)
         
+        # The actor may be WIDER than the critics. Critics never leave the
+        # host (Sec 7), so their capacity is a training-time choice and there
+        # is no reason to widen them alongside a deployed actor -- Q(s,a) has
+        # the same 7-d action input at any actor width. Keeping them fixed also
+        # preserves their warm start exactly, and avoids Net2WiderNet through
+        # the td3_ln critics' LayerNorm, which does NOT preserve the function
+        # (LN renormalises over a feature count that duplication changes).
+        a1 = actor_layer1 or layer1_size
+        a2 = actor_layer2 or layer2_size
+        self.actor_layer1, self.actor_layer2 = a1, a2
+
         # Create networks
-        self.actor = ActorNetwork(input_dims, layer1_size, layer2_size, 
+        self.actor = ActorNetwork(input_dims, a1, a2,
                                  n_actions, 'actor', chkpt_dir=chkpt_dir, learning_rate=alpha)
         self.critic_1 = CriticNetwork(input_dims, n_actions, layer1_size, 
                                      layer2_size, 'critic_1', chkpt_dir=chkpt_dir, learning_rate=beta)
@@ -70,7 +82,7 @@ class Agent:
                                      layer2_size, 'critic_2', chkpt_dir=chkpt_dir, learning_rate=beta)
         
         # Target networks
-        self.target_actor = ActorNetwork(input_dims, layer1_size, layer2_size, 
+        self.target_actor = ActorNetwork(input_dims, a1, a2,
                                         n_actions, 'target_actor', chkpt_dir=chkpt_dir, learning_rate=alpha)
         self.target_critic_1 = CriticNetwork(input_dims, n_actions, layer1_size, 
                                             layer2_size, 'target_critic_1', chkpt_dir=chkpt_dir, learning_rate=beta)

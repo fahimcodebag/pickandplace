@@ -76,8 +76,12 @@ NAMES = ["GRASP", "TEST_LIFT", "TRANSPORT", "RECENTER", "DESCEND",
          "OPEN", "RETRACT", "DONE_OK", "DONE_FAIL"]
 
 
-def load_actor(d):
-    a = ActorNetwork(46, 64, 32, 7, chkpt_dir=d)
+def load_actor(d, fc1=64, fc2=32):
+    """fc1/fc2 default to the deployed 64/32. A Net2WiderNet actor
+    (Results/widen) is 128/64 while its critics stay 64/32, so the width has
+    to be passed in -- inferring it from the file would silently accept a
+    mismatched checkpoint."""
+    a = ActorNetwork(46, fc1, fc2, 7, chkpt_dir=d)
     sd = T.load(os.path.join(d, "actor_td3"), map_location="cpu")
     a.load_state_dict({k: v for k, v in sd.items() if not k.startswith("log_std")})
     a.to(T.device("cpu")); a.device = T.device("cpu"); a.eval()
@@ -305,6 +309,9 @@ def main():
                         "deployed artifacts. Output diff is NOT the test: a "
                         "full-scale sign flip on one action dim was seen at "
                         "corr 0.94 while behaviour survived.")
+    p.add_argument("--grasp-fc1", type=int, default=64,
+                   help="Grasp actor width (64 = deployed; 128 for a widened one)")
+    p.add_argument("--grasp-fc2", type=int, default=32)
     p.add_argument("--grasp-tflite", default=None)
     p.add_argument("--place-tflite", default=None)
     p.add_argument("--dump-transport-states", default=None,
@@ -378,11 +385,12 @@ def main():
         # isolates which model loses the points. FP32 first-try handoff is 98%
         # and INT8 is 46%, so the handoff (grasp + test-lift) is the suspect.
         g_actor = (TFLiteActor(a.grasp_tflite) if a.grasp_tflite
-                   else load_actor(a.grasp_ckpt))
+                   else load_actor(a.grasp_ckpt, a.grasp_fc1, a.grasp_fc2))
         p_actor = (TFLiteActor(a.place_tflite) if a.place_tflite
                    else load_actor(a.place_ckpt))
     else:
-        g_actor, p_actor = load_actor(a.grasp_ckpt), load_actor(a.place_ckpt)
+        g_actor = load_actor(a.grasp_ckpt, a.grasp_fc1, a.grasp_fc2)
+        p_actor = load_actor(a.place_ckpt)
 
     def flags():
         gr = pl = False

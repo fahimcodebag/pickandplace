@@ -1,0 +1,95 @@
+================================================================================
+CAPACITY: WIDER ACTOR AND LARGER CRITIC BOTH FAIL TO HELP
+Neither is a clean negative. Seed variance dwarfs both effects.
+================================================================================
+
+MOTIVATION
+v7 (2.2M params) certifies 98.7% of random-spawn grasps against the decomposed
+stage's 79.2%, so capacity plainly CAN solve this sub-task. Two ways to add it
+were tested on top of the best configuration (wclip 8 + in-loop QAT).
+
+--------------------------------------------------------------------------------
+EXPERIMENT 1: NET2WIDER 128/64 ACTOR  --  FAILED (-5.93 INT8), CONFOUNDED
+--------------------------------------------------------------------------------
+net2wider.py transfers the trained 64/32 policy into 128/64 exactly (function
+preserved to 1e-13 in double; 3e-5..1e-4 in float32 storage). Arms:
+  wide128_sN  widen qat8_sN, train 6000
+  cont64_sN   continue qat8_sN at 64/32, train 6000   <- isolates WIDTH
+
+  INT8  77.65% vs 83.58%  -5.93  t=-5.32 p<0.0001  5/6 seeds down
+  FP32  80.46% vs 84.71%  -4.25  t=-4.69 p<0.0001  4/6 seeds down
+
+CONFOUND, AND IT IS MINE. Critics were left at 64/32, so actor/critic capacity
+went 0.96 -> 2.64 while v7 sits at 1.00. TD3's actor ascends the CRITIC's Q
+estimate, so a bigger actor mainly gets better at exploiting a fixed critic's
+errors. The experiment tested "wider actor against an unchanged critic", not
+"more capacity". The wider net also needed ~2.3x more episodes to reach the
+same 95% target (median 3900 vs 1700), the expected sample-efficiency cost of
+2.8x parameters on an unchanged data budget.
+
+IMPLEMENTATION NOTE THAT MATTERS. Textbook Net2Wider divides outgoing weights
+equally by the replication count. Measured: duplicated units then have
+identical activations AND identical outgoing weights, so they receive identical
+gradients and stay bit-for-bit tied -- divergence after 400 updates was
+0.000000, i.e. the added width is unusable. The paper's remedy (weight noise)
+destroys the transfer: 0.5% noise moved the output by 0.46 against a 0.1
+exploration scale. Splitting the outgoing weights UNEQUALLY instead preserves
+the function exactly (shares sum to 1) while giving duplicates different
+gradients: divergence 0.000121. Exact transfer and usable capacity.
+
+--------------------------------------------------------------------------------
+EXPERIMENT 2: 512/256 CRITICS, ACTOR UNCHANGED  --  NO RELIABLE EFFECT
+--------------------------------------------------------------------------------
+Inverts the confound: actor stays at the deployed 64/32 (8088 B INT8,
+unchanged), critics get 28.6x capacity (5,569 -> 159,233 params). Critics never
+leave the host (Sec 7), so this is free at deployment. BOTH arms initialise
+critics fresh so that SIZE is the only variable.
+
+  tseed   big INT8  small INT8       d
+  s0        90.33%      82.75%   +7.58
+  s1        83.08%      85.25%   -2.17
+  s2        79.58%      74.33%   +5.25
+  s3        85.08%      70.17%  +14.92
+  s4        51.50%      75.00%  -23.50
+  s5        63.50%      93.83%  -30.33
+  mean      75.51%      80.22%   -4.71
+
+  INT8  t=-2.27 p=0.0265  BUT wilcoxon p=0.0989 (ns)  pairs 36/35
+  FP32  t=-3.52 p=0.0008      wilcoxon p=0.0065       pairs 27/41
+
+READ THE DISAGREEMENT. The t-test and Wilcoxon diverge because the mean is
+carried by two collapsed cells (big s4 51.50%, s5 63.50%), not by a consistent
+shift -- the pair split is 36/35, a coin flip. With outliers this severe the
+t-test is not trustworthy. The honest verdict is NO RELIABLE EFFECT from critic
+capacity, not a negative one.
+
+BOTH ARMS LOST TO THE INCUMBENT
+  cont64   INT8 83.58%   (critics warm-started)
+  smallc64 INT8 80.22%   -3.36  (critics fresh, same size)
+  bigc512  INT8 75.51%   -8.07  (critics fresh, 28.6x)
+Re-initialising critics cost more than critic capacity could buy. Mid-run both
+arms collapsed from ~90% grasp to 14-73% once a random critic began driving
+actor updates, and spent thousands of episodes recovering. The comparison is
+therefore "recovery from a fresh critic", not "improvement over the best
+policy". A rerun should Net2Wider the critics from the existing 64/32 ones
+rather than starting them from scratch.
+
+UNDERPOWERED FOR THE BIG CRITIC SPECIFICALLY. A 159k-parameter critic was given
+the same ~4000-episode budget as a 5.5k one. Bigger function approximators need
+more data; at this budget it is very likely underfit, so "no benefit at 4000
+episodes" is the correct scope of this result.
+
+--------------------------------------------------------------------------------
+THE CAMPAIGN'S BEST CELLS NOW CLEAR 90% INT8
+--------------------------------------------------------------------------------
+  smallc64_s5   INT8 93.83%   FP32 91.83%
+  bigc512_s0    INT8 90.33%   FP32 87.17%
+Both are best-of-6 selections. The wclip8_s0 precedent (+6.33 selected ->
++2.92 held-out) says such maxima roughly halve. Held-out validation pending;
+until it lands these are candidates, not results.
+
+CONCLUSION
+Neither capacity route helped, and neither test was clean. What dominates both
+experiments is seed-level instability: INT8 outcomes span 51.50% to 93.83%
+across nominally identical configurations. Until that variance is understood or
+reduced, capacity ablations at n=6 cannot resolve effects of this size.

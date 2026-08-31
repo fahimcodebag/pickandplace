@@ -1,0 +1,4 @@
+  64/32 -> 128/64  params 5,319 -> 14,727
+  function preservation over 4096 random states: max|d|=5.315e-05  mean|d|=1.038e-07
+  copied 4 critic checkpoints unchanged (critics are not widened)
+  wrote checkpoints/wide128_from_qat8_s5

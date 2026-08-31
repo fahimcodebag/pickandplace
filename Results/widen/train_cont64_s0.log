@@ -1,0 +1,132 @@
+========================================================================
+RANDOM-SPAWN GRASP RETRAINING  |  algo=td3_ln  run=td3_ln_cont64_s0
+========================================================================
+  Envs                : 5 (subprocess-parallel, fork)
+  Spawn level         : 2.0 (1.0 = full position box, 2.0 = + z-rotation)
+  Updates/vec-step    : 2 (0.400 per env-step; historical baseline 0.5)
+  Buffer              : 200,000
+  Actor               : 64 -> 32  (5,216 weights)
+  Warm start          : checkpoints/td3_grasp_rand_td3_ln_qat8_s0/best
+  Checkpoints         : /home/fahim/Thesis_fahim/pickandplace/checkpoints/td3_grasp_rand_td3_ln_cont64_s0
+========================================================================
+
+Spawning 5 subprocess environments (fork)...
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+5 environments ready.
+
+  Actor QAT           : per-tensor INT8 fake-quant, STE grads
+  Actor weight clip   : |w| <= 8.0 * std(w) per Linear tensor (bi_s0 baseline fc1 9.96 / fc2 10.82)
+Init: warm-started (source: /home/fahim/Thesis_fahim/pickandplace/checkpoints/td3_grasp_rand_td3_ln_qat8_s0/best)
+Fresh replay buffer.
+
+Training...
+
+Ep    50 | score  203.51 | avg100  173.36 | grasp100  76.0% | best 0.000 |     66 st/s
+    done(50): success=38 t_flicker=9 t_touched=3
+Ep   100 | score  207.21 | avg100  188.14 | grasp100  85.0% | best 0.000 |     59 st/s
+    done(50): success=47 t_flicker=2 t_touched=1
+Ep   150 | score  236.20 | avg100  182.36 | grasp100  81.0% | best 0.000 |     53 st/s
+    done(50): success=34 t_flicker=7 t_touched=9
+Ep   200 | * BEST  level200=2.00 grasp200= 80.0% metric=0.800 | score  204.48
+Ep   232 | * BEST  level200=2.00 grasp200= 81.5% metric=0.815 | score  207.26
+Ep   250 | score  206.93 | avg100  183.57 | grasp100  80.0% | best 0.815 |     44 st/s
+    done(50): success=39 t_flicker=8 t_touched=3
+Ep   300 | score   87.79 | avg100  186.74 | grasp100  80.0% | best 0.815 |     43 st/s
+    done(50): success=41 t_flicker=6 t_touched=3
+Ep   350 | score   90.13 | avg100  186.49 | grasp100  79.0% | best 0.815 |     41 st/s
+    done(50): success=38 t_flicker=8 t_touched=4
+Ep   400 | score  205.27 | avg100  189.17 | grasp100  81.0% | best 0.815 |     40 st/s
+    done(50): success=43 t_flicker=7
+Ep   428 | * BEST  level200=2.00 grasp200= 83.0% metric=0.830 | score  207.63
+Ep   447 | * BEST  level200=2.00 grasp200= 84.5% metric=0.845 | score  192.21
+Ep   450 | score  206.77 | avg100  199.10 | grasp100  90.0% | best 0.845 |     39 st/s
+    done(50): success=47 t_flicker=3
+Ep   481 | * BEST  level200=2.00 grasp200= 86.0% metric=0.860 | score  207.21
+Ep   500 | score  216.08 | avg100  199.63 | grasp100  91.0% | best 0.860 |     38 st/s
+    done(50): success=44 t_flicker=5 t_touched=1
+Ep   539 | * BEST  level200=2.00 grasp200= 87.5% metric=0.875 | score  206.13
+Ep   550 | score  206.23 | avg100  192.51 | grasp100  86.0% | best 0.875 |     38 st/s
+    done(50): success=42 t_flicker=8
+Ep   600 | score  201.53 | avg100  190.24 | grasp100  85.0% | best 0.875 |     37 st/s
+    done(50): success=43 t_flicker=7
+Ep   650 | score  207.04 | avg100  179.06 | grasp100  78.0% | best 0.875 |     37 st/s
+    done(50): success=35 t_flicker=11 t_touched=3 t_no_reach=1
+Ep   700 | score  204.23 | avg100  178.17 | grasp100  78.0% | best 0.875 |     37 st/s
+    done(50): success=43 t_flicker=7
+Ep   750 | score  206.17 | avg100  190.56 | grasp100  86.0% | best 0.875 |     37 st/s
+    done(50): success=43 t_flicker=7
+Ep   800 | score  207.35 | avg100  191.38 | grasp100  88.0% | best 0.875 |     36 st/s
+    done(50): success=45 t_flicker=4 t_touched=1
+Ep   850 | score  206.96 | avg100  190.61 | grasp100  87.0% | best 0.875 |     36 st/s
+    done(50): success=42 t_flicker=7 t_no_reach=1
+Ep   900 | score  130.11 | avg100  187.40 | grasp100  84.0% | best 0.875 |     36 st/s
+    done(50): success=42 t_flicker=7 t_touched=1
+Ep   950 | score  207.77 | avg100  184.19 | grasp100  81.0% | best 0.875 |     36 st/s
+    done(50): success=39 t_flicker=10 t_touched=1
+Ep  1000 | score  208.83 | avg100  187.82 | grasp100  84.0% | best 0.875 |     36 st/s
+    done(50): success=45 t_flicker=5
+Ep  1050 | score  210.24 | avg100  191.93 | grasp100  87.0% | best 0.875 |     36 st/s
+    done(50): success=42 t_flicker=6 t_touched=2
+Ep  1100 | score  -46.96 | avg100  189.43 | grasp100  86.0% | best 0.875 |     36 st/s
+    done(50): success=44 t_flicker=3 t_touched=3
+Ep  1149 | * BEST  level200=2.00 grasp200= 89.0% metric=0.890 | score  207.81
+Ep  1150 | score  211.05 | avg100  194.92 | grasp100  91.0% | best 0.890 |     35 st/s
+    done(50): success=47 t_flicker=3
+Ep  1200 | score  204.11 | avg100  198.99 | grasp100  94.0% | best 0.890 |     35 st/s
+    done(50): success=47 t_flicker=2 t_touched=1
+
+Target reached: 95.0% over 100 episodes at spawn level 2.0.
+
+========================================================================
+DONE  td3_ln_cont64_s0
+  Episodes     : 1205
+  Env steps    : 50,645  (1439s)
+  Best metric  : 0.890  (policy in /home/fahim/Thesis_fahim/pickandplace/checkpoints/td3_grasp_rand_td3_ln_cont64_s0/best)
+  Final grasp% : 95.0
+  CSV          : /home/fahim/Thesis_fahim/pickandplace/logs/grasp_rand_td3_ln_cont64_s0/episodes.csv
+  Probe CSV    : /home/fahim/Thesis_fahim/pickandplace/logs/grasp_rand_td3_ln_cont64_s0/probe.csv
+  Manifest     : /home/fahim/Thesis_fahim/pickandplace/logs/grasp_rand_td3_ln_cont64_s0/manifest.json
+========================================================================
+

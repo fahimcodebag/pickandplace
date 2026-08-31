@@ -1,0 +1,76 @@
+✓ Loaded actor from: checkpoints/td3_grasp_rand_td3_ln_smallc64_s5/best/actor_td3
+✓ Loading replay buffer: checkpoints/td3_grasp_rand_td3_ln_smallc64_s5/replay_buffer.npz
+  calibration states: (200000, 46)
+
+Skipping QAT (--skip_qat flag set)
+  Saved QAT-refined FP32 weights → /home/fahim/Thesis_fahim/pickandplace/Results/bigcritic/smallc64_s5_int8_refined_fp32.pt
+
+Converting to TFLite INT8...
+(00:00) [START] LiteRT-Torch Convert
+(00:00) [START] LiteRT-Torch Convert > Torch Export: serving_default
+(00:00) [START] LiteRT-Torch Convert > Torch Export: serving_default > 
+ExportedProgram Run Decompositions
+/usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+  return cls.__new__(cls, *args)
+(00:00) [ DONE] LiteRT-Torch Convert > Torch Export: serving_default > 
+ExportedProgram Run Decompositions (+00:00)
+(00:00) [ DONE] LiteRT-Torch Convert > Torch Export: serving_default (+00:00)
+(00:00) [START] LiteRT-Torch Convert > Run FX Passes
+(00:00) [START] LiteRT-Torch Convert > Run FX Passes > ExportedProgram Run 
+Decompositions
+(00:00) [ DONE] LiteRT-Torch Convert > Run FX Passes > ExportedProgram Run 
+Decompositions (+00:00)
+(00:00) [ DONE] LiteRT-Torch Convert > Run FX Passes (+00:00)
+(00:00) [START] LiteRT-Torch Convert > Lower to MLIR: serving_default
+(00:00) [START] LiteRT-Torch Convert > Lower to MLIR: serving_default > 
+ExportedProgram Run Decompositions
+/usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+  return cls.__new__(cls, *args)
+(00:00) [ DONE] LiteRT-Torch Convert > Lower to MLIR: serving_default > 
+ExportedProgram Run Decompositions (+00:00)
+(00:00) [START] LiteRT-Torch Convert > Lower to MLIR: serving_default > 
+ExportedProgram Run Decompositions
+(00:00) [ DONE] LiteRT-Torch Convert > Lower to MLIR: serving_default > 
+ExportedProgram Run Decompositions (+00:00)
+(00:00) [START] LiteRT-Torch Convert > Lower to MLIR: serving_default > Create 
+MLIR Module
+WARNING:jax._src.xla_bridge:An NVIDIA GPU may be present on this machine, but a CUDA-enabled jaxlib is not installed. Falling back to cpu.
+(00:00) [ DONE] LiteRT-Torch Convert > Lower to MLIR: serving_default > Create 
+MLIR Module (+00:00)
+(00:00) [ DONE] LiteRT-Torch Convert > Lower to MLIR: serving_default (+00:00)
+(00:00) [START] LiteRT-Torch Convert > Merge MLIR Modules
+(00:00) [ DONE] LiteRT-Torch Convert > Merge MLIR Modules (+00:00)
+(00:00) [START] LiteRT-Torch Convert > Run LiteRT Converter Passes
+(00:00) [ DONE] LiteRT-Torch Convert > Run LiteRT Converter Passes (+00:00)
+(00:00) [ DONE] LiteRT-Torch Convert (+00:00)
+(00:00) [START] Write Model to 
+/home/fahim/Thesis_fahim/pickandplace/Results/bigcritic/smallc64_s5_int8_float32
+.tflite
+(00:00) [ DONE] Write Model to 
+/home/fahim/Thesis_fahim/pickandplace/Results/bigcritic/smallc64_s5_int8_float32
+.tflite (+00:00)
+/home/fahim/Thesis_fahim/convert_venv/lib/python3.12/site-packages/tensorflow/lite/python/interpreter.py:457: UserWarning:     Warning: tf.lite.Interpreter is deprecated and is scheduled for deletion in
+    TF 2.20. Please use the LiteRT interpreter from the ai_edge_litert package.
+    See the [migration guide](https://ai.google.dev/edge/litert/migration)
+    for details.
+    
+  warnings.warn(_INTERPRETER_DELETION_WARNING)
+/home/fahim/Thesis_fahim/convert_venv/lib/python3.12/site-packages/ai_edge_litert/interpreter.py:480: UserWarning: Warning: Enabling `experimental_preserve_all_tensors` with the BUILTIN or AUTO op resolver is intended for debugging purposes only. Be aware that this can significantly increase memory usage by storing all intermediate tensors. If you encounter memory problems or are not actively debugging, consider disabling this option.
+  warnings.warn(
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+  float32 stage: 22.8 KB
+  Using PER-TENSOR weight quantization (ESP32 kernel workaround)
+  Calibrating on 4096 real states...
+Running Calibration::   0%|          | 0/24576 [00:00<?, ?it/s]Running Calibration::   4%|▍         | 1025/24576 [00:00<00:02, 10248.98it/s]Running Calibration::   8%|▊         | 2066/24576 [00:00<00:02, 10340.57it/s]Running Calibration::  13%|█▎        | 3101/24576 [00:00<00:02, 10293.63it/s]Running Calibration::  17%|█▋        | 4136/24576 [00:00<00:01, 10315.31it/s]Running Calibration::  21%|██        | 5172/24576 [00:00<00:01, 10330.95it/s]Running Calibration::  25%|██▌       | 6208/24576 [00:00<00:01, 10338.67it/s]Running Calibration::  29%|██▉       | 7247/24576 [00:00<00:01, 10354.45it/s]Running Calibration::  34%|███▎      | 8288/24576 [00:00<00:01, 10369.80it/s]Running Calibration::  38%|███▊      | 9325/24576 [00:00<00:01, 10365.65it/s]Running Calibration::  42%|████▏     | 10362/24576 [00:01<00:01, 10364.23it/s]Running Calibration::  46%|████▋     | 11401/24576 [00:01<00:01, 10370.85it/s]Running Calibration::  51%|█████     | 12439/24576 [00:01<00:01, 10353.83it/s]Running Calibration::  55%|█████▍    | 13475/24576 [00:01<00:01, 10336.35it/s]Running Calibration::  59%|█████▉    | 14510/24576 [00:01<00:00, 10338.51it/s]Running Calibration::  63%|██████▎   | 15544/24576 [00:01<00:00, 10338.35it/s]Running Calibration::  67%|██████▋   | 16580/24576 [00:01<00:00, 10342.26it/s]Running Calibration::  72%|███████▏  | 17618/24576 [00:01<00:00, 10353.59it/s]Running Calibration::  76%|███████▌  | 18654/24576 [00:01<00:00, 10353.86it/s]Running Calibration::  80%|████████  | 19691/24576 [00:01<00:00, 10357.27it/s]Running Calibration::  84%|████████▍ | 20728/24576 [00:02<00:00, 10359.19it/s]Running Calibration::  89%|████████▊ | 21764/24576 [00:02<00:00, 10351.65it/s]Running Calibration::  93%|█████████▎| 22800/24576 [00:02<00:00, 10332.10it/s]Running Calibration::  97%|█████████▋| 23834/24576 [00:02<00:00, 10320.92it/s]                                                                              INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+Model name: /home/fahim/Thesis_fahim/pickandplace/Results/bigcritic/smallc64_s5_int8_float32.tflite
+Original model size: 22.84 KiB
+Quantized model size: 7.90 KiB
+Quantization Ratio: 0.35 (2.9x smaller)
+Total time: 3.16 ms
+  tensor dtypes: {'int8': 8, 'int32': 3}
+  vs FP32 on 512 real states: max 2.0000  mean 0.1227  corr 0.93035
+
+=======================================================
+  Saved: Results/bigcritic/smallc64_s5_int8.tflite
+  Size:  7.9 KB
+=======================================================

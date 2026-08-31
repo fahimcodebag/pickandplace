@@ -1,0 +1,3 @@
+  64/32 -> 128/64  params 5,319 -> 14,727
+  function preservation over 4096 random states: max|d|=1.040e-04  mean|d|=1.082e-07
+FAILED: exact widening did not preserve the function

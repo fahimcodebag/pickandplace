@@ -170,13 +170,20 @@ def build_agent(algo, vec_env, chkpt_dir, args):
                   layer1_size=args.fc1, layer2_size=args.fc2,
                   batch_size=args.batch_size,
                   chkpt_dir=chkpt_dir)
+    # The actor may be wider than the critics (see td3.Agent). Critics never
+    # deploy, so widening them buys nothing and would break Net2WiderNet
+    # through the td3_ln LayerNorm.
+    wide = {}
+    if getattr(args, "actor_fc1", None):
+        wide = dict(actor_layer1=args.actor_fc1, actor_layer2=args.actor_fc2)
     if algo == "td3":
         import td3
-        return td3.Agent(max_size=args.buffer_size, warmup=args.warmup, **common)
+        return td3.Agent(max_size=args.buffer_size, warmup=args.warmup,
+                         **wide, **common)
     if algo == "td3_ln":
         import td3_ln
         return td3_ln.Agent(max_size=args.buffer_size, warmup=args.warmup,
-                            layer_norm=True, **common)
+                            layer_norm=True, **wide, **common)
     if algo == "sac":
         import sac
         return sac.Agent(max_size=args.buffer_size, warmup=args.warmup,
@@ -189,7 +196,7 @@ def build_agent(algo, vec_env, chkpt_dir, args):
     raise ValueError(f"unknown algo {algo}")
 
 
-def warm_start(agent, algo, chkpt_dir, source_dir):
+def warm_start(agent, algo, chkpt_dir, source_dir, actor_only=False):
     """Seed the actor trunk from the proven fixed-spawn grasp model.
 
     TD3 variants load the full checkpoint set. SAC/PPO load the fixed-spawn
@@ -207,6 +214,15 @@ def warm_start(agent, algo, chkpt_dir, source_dir):
     if not os.path.exists(src):
         return "scratch"
     state = T.load(src, map_location=agent.actor.device)
+    if actor_only:
+        # Critics are a different width from the source, so their checkpoints
+        # cannot be loaded. Take the actor (and its target) only and let the
+        # critics initialise fresh. Legitimate because critics never deploy
+        # (Sec 7) and are rebuilt from an empty replay buffer every run anyway
+        # -- no run in this project inherits a buffer.
+        agent.actor.load_state_dict(state, strict=False)
+        agent.target_actor.load_state_dict(state, strict=False)
+        return "warm-started (actor only, critics fresh)"
     if algo in ("td3", "td3_ln"):
         os.makedirs(chkpt_dir, exist_ok=True)
         for f in glob.glob(os.path.join(source_dir, "*_td3")):
@@ -260,8 +276,11 @@ def train(args):
               f"({updates_per_step / args.n_envs:.3f} per env-step; "
               f"historical baseline 0.5)")
         print(f"  Buffer              : {args.buffer_size:,}")
-    print(f"  Network             : {args.fc1} -> {args.fc2}"
-          f"  ({46*args.fc1 + args.fc1*args.fc2 + args.fc2*7:,} weights)")
+    _a1 = args.actor_fc1 or args.fc1
+    _a2 = args.actor_fc2 or args.fc2
+    print(f"  Actor               : {_a1} -> {_a2}"
+          f"  ({46*_a1 + _a1*_a2 + _a2*7:,} weights)"
+          f"{'  [critics %d->%d]' % (args.fc1, args.fc2) if (_a1, _a2) != (args.fc1, args.fc2) else ''}")
     print(f"  Warm start          : {args.warm_start_from or '(scratch)'}")
     print(f"  Checkpoints         : {chkpt_dir}")
     print("=" * 72 + "\n")
@@ -289,7 +308,8 @@ def train(args):
         print(f"  Actor weight clip   : |w| <= {args.actor_wclip} * std(w) "
               f"per Linear tensor (bi_s0 baseline fc1 9.96 / fc2 10.82)")
 
-    status = warm_start(agent, args.algo, chkpt_dir, source_dir)
+    status = warm_start(agent, args.algo, chkpt_dir, source_dir,
+                        actor_only=args.warm_start_actor_only)
     print(f"Init: {status} (source: {source_dir})")
     if status != "scratch" and args.algo in ("td3", "td3_ln", "sac"):
         # A competent actor exists: skip random-action warmup, which would
@@ -605,7 +625,18 @@ def parse_args(argv=None):
                         "8KB INT8). ESP32 headroom is large: 4MB flash, 320KB "
                         "SRAM, 40KB arena, 9.5ms of a 50ms budget -- 256/128 "
                         "(~45k params) fits comfortably.")
-    p.add_argument("--fc2", type=int, default=32, help="Actor hidden 2.")
+    p.add_argument("--fc2", type=int, default=32, help="Hidden 2 (critics).")
+    p.add_argument("--actor-fc1", type=int, default=None,
+                   help="Actor hidden 1, if the actor is WIDER than the critics. "
+                        "Pair with a Net2WiderNet checkpoint from net2wider.py: a "
+                        "wider actor cannot inherit the 5-stage warm-start "
+                        "curriculum by shape, and cold starts fail at every width.")
+    p.add_argument("--actor-fc2", type=int, default=None, help="Actor hidden 2.")
+    p.add_argument("--warm-start-actor-only", action="store_true",
+                   help="Load only the actor from --warm-start-from and leave the "
+                        "critics freshly initialised. Needed when the critics are a "
+                        "different width from the source, e.g. a small deployable "
+                        "actor paired with large host-side critics.")
     p.add_argument("--actor-fakequant", action="store_true",
                    help="QAT inside the RL loop: per-tensor symmetric INT8 "
                         "fake-quant on actor weights with a straight-through "
