@@ -1,0 +1,796 @@
+========================================================================
+RANDOM-SPAWN GRASP RETRAINING  |  algo=td3_ln  run=td3_ln_bigc60k_s0
+========================================================================
+  Envs                : 5 (subprocess-parallel, fork)
+  Spawn level         : 2.0 (1.0 = full position box, 2.0 = + z-rotation)
+  Updates/vec-step    : 2 (0.400 per env-step; historical baseline 0.5)
+  Buffer              : 200,000
+  Actor               : 64 -> 32  (5,216 weights)  [critics 512->256]
+  Warm start          : checkpoints/td3_grasp_rand_td3_ln_bigc512_s0/best
+  Checkpoints         : /home/fahim/Thesis_fahim/pickandplace/checkpoints/td3_grasp_rand_td3_ln_bigc60k_s0
+========================================================================
+
+Spawning 5 subprocess environments (fork)...
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+5 environments ready.
+
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+  Actor QAT           : per-tensor INT8 fake-quant, STE grads
+  Actor weight clip   : |w| <= 8.0 * std(w) per Linear tensor (bi_s0 baseline fc1 9.96 / fc2 10.82)
+Init: warm-started (source: /home/fahim/Thesis_fahim/pickandplace/checkpoints/td3_grasp_rand_td3_ln_bigc512_s0/best)
+Fresh replay buffer.
+
+Training...
+
+Ep    50 | score  206.89 | avg100  201.57 | grasp100  94.0% | best 0.000 |     52 st/s
+    done(50): success=47 t_flicker=3
+Ep   100 | score  210.07 | avg100  195.51 | grasp100  91.0% | best 0.000 |     54 st/s
+    done(50): success=44 t_flicker=5 t_touched=1
+Ep   150 | score  209.56 | avg100  191.11 | grasp100  88.0% | best 0.000 |     54 st/s
+    done(50): success=44 t_flicker=5 t_touched=1
+Ep   200 | * BEST  level200=2.00 grasp200= 88.5% metric=0.885 | score  208.42
+Ep   250 | score  208.40 | avg100  170.84 | grasp100  78.0% | best 0.885 |     51 st/s
+    done(50): success=36 t_flicker=7 t_touched=7
+Ep   300 | score  209.23 | avg100  168.82 | grasp100  75.0% | best 0.885 |     50 st/s
+    done(50): success=39 t_flicker=10 t_touched=1
+Ep   350 | score  210.05 | avg100  178.56 | grasp100  77.0% | best 0.885 |     48 st/s
+    done(50): success=38 t_flicker=11 t_touched=1
+Ep   400 | score  210.50 | avg100  178.31 | grasp100  77.0% | best 0.885 |     47 st/s
+    done(50): success=39 t_flicker=10 t_touched=1
+Ep   450 | score  207.22 | avg100  189.43 | grasp100  85.0% | best 0.885 |     46 st/s
+    done(50): success=46 t_flicker=4
+Ep   500 | score  205.85 | avg100  183.04 | grasp100  82.0% | best 0.885 |     46 st/s
+    done(50): success=36 t_flicker=11 t_touched=3
+Ep   550 | score  204.70 | avg100  171.25 | grasp100  72.0% | best 0.885 |     46 st/s
+    done(50): success=36 t_flicker=11 t_touched=3
+Ep   600 | score  207.96 | avg100  180.23 | grasp100  78.0% | best 0.885 |     45 st/s
+    done(50): success=42 t_flicker=8
+Ep   650 | score  206.72 | avg100  185.24 | grasp100  84.0% | best 0.885 |     45 st/s
+    done(50): success=42 t_flicker=8
+Ep   700 | score  207.36 | avg100  185.92 | grasp100  85.0% | best 0.885 |     44 st/s
+    done(50): success=43 t_flicker=7
+Ep   750 | score  207.51 | avg100  187.93 | grasp100  84.0% | best 0.885 |     43 st/s
+    done(50): success=41 t_flicker=9
+Ep   800 | score  208.92 | avg100  192.98 | grasp100  88.0% | best 0.885 |     43 st/s
+    done(50): success=47 t_flicker=1 t_touched=2
+Ep   850 | score  199.94 | avg100  195.19 | grasp100  90.0% | best 0.885 |     42 st/s
+    done(50): success=43 t_flicker=7
+Ep   900 | score  211.61 | avg100  187.34 | grasp100  84.0% | best 0.885 |     42 st/s
+    done(50): success=41 t_flicker=6 t_touched=3
+Ep   950 | score  205.87 | avg100  186.48 | grasp100  83.0% | best 0.885 |     42 st/s
+    done(50): success=42 t_flicker=8
+Ep  1000 | score  210.35 | avg100  186.71 | grasp100  83.0% | best 0.885 |     42 st/s
+    done(50): success=41 t_flicker=8 t_touched=1
+Ep  1050 | score  205.52 | avg100  186.83 | grasp100  85.0% | best 0.885 |     42 st/s
+    done(50): success=44 t_flicker=6
+Ep  1100 | score  209.06 | avg100  192.70 | grasp100  89.0% | best 0.885 |     42 st/s
+    done(50): success=45 t_flicker=5
+Ep  1150 | score  208.22 | avg100  189.29 | grasp100  86.0% | best 0.885 |     42 st/s
+    done(50): success=41 t_flicker=6 t_touched=3
+Ep  1200 | score  208.36 | avg100  193.07 | grasp100  89.0% | best 0.885 |     42 st/s
+    done(50): success=48 t_flicker=1 t_touched=1
+Ep  1204 | * BEST  level200=2.00 grasp200= 90.0% metric=0.900 | score  206.30
+Ep  1250 | score  204.52 | avg100  199.10 | grasp100  94.0% | best 0.900 |     42 st/s
+    done(50): success=46 t_flicker=2 t_touched=2
+Ep  1300 | score  213.57 | avg100  196.72 | grasp100  91.0% | best 0.900 |     42 st/s
+    done(50): success=45 t_flicker=4 t_touched=1
+Ep  1350 | score  206.17 | avg100  193.36 | grasp100  86.0% | best 0.900 |     42 st/s
+    done(50): success=41 t_flicker=8 t_touched=1
+Ep  1400 | score  209.14 | avg100  188.51 | grasp100  83.0% | best 0.900 |     42 st/s
+    done(50): success=42 t_flicker=7 t_touched=1
+Ep  1450 | score  209.54 | avg100  189.52 | grasp100  86.0% | best 0.900 |     42 st/s
+    done(50): success=44 t_flicker=5 t_touched=1
+Ep  1500 | score  203.36 | avg100  195.59 | grasp100  89.0% | best 0.900 |     41 st/s
+    done(50): success=45 t_flicker=5
+Ep  1550 | score  211.12 | avg100  202.45 | grasp100  93.0% | best 0.900 |     41 st/s
+    done(50): success=48 t_flicker=2
+Ep  1600 | score  206.75 | avg100  196.46 | grasp100  89.0% | best 0.900 |     41 st/s
+    done(50): success=41 t_flicker=9
+Ep  1650 | score  205.93 | avg100  191.90 | grasp100  86.0% | best 0.900 |     41 st/s
+    done(50): success=45 t_flicker=5
+Ep  1700 | score  209.79 | avg100  198.16 | grasp100  92.0% | best 0.900 |     41 st/s
+    done(50): success=47 t_flicker=1 t_touched=2
+  [primacy-bias reset of critic heads @ 25000 updates]
+Ep  1750 | score   50.88 | avg100  144.45 | grasp100  63.0% | best 0.900 |     42 st/s
+    done(50): success=16 t_flicker=18 t_touched=9 t_no_reach=7
+Ep  1800 | score  205.81 | avg100   97.33 | grasp100  37.0% | best 0.900 |     43 st/s
+    done(50): success=21 t_flicker=12 t_touched=11 t_no_reach=6
+Ep  1850 | score  208.30 | avg100  137.83 | grasp100  56.0% | best 0.900 |     43 st/s
+    done(50): success=35 t_flicker=11 t_touched=4
+Ep  1900 | score  208.28 | avg100  173.84 | grasp100  74.0% | best 0.900 |     43 st/s
+    done(50): success=39 t_flicker=8 t_touched=3
+Ep  1950 | score  207.29 | avg100  178.62 | grasp100  78.0% | best 0.900 |     43 st/s
+    done(50): success=39 t_flicker=10 t_touched=1
+Ep  2000 | score  208.31 | avg100  177.00 | grasp100  76.0% | best 0.900 |     43 st/s
+    done(50): success=37 t_flicker=11 t_touched=2
+Ep  2050 | score   62.10 | avg100  181.51 | grasp100  79.0% | best 0.900 |     43 st/s
+    done(50): success=42 t_flicker=6 t_touched=2
+Ep  2100 | score  207.10 | avg100  183.88 | grasp100  82.0% | best 0.900 |     43 st/s
+    done(50): success=40 t_flicker=8 t_touched=2
+Ep  2150 | score  213.81 | avg100  187.77 | grasp100  86.0% | best 0.900 |     42 st/s
+    done(50): success=46 t_flicker=3 t_touched=1
+Ep  2200 | score  207.32 | avg100  192.25 | grasp100  88.0% | best 0.900 |     42 st/s
+    done(50): success=42 t_flicker=8
+Ep  2250 | score  207.31 | avg100  193.59 | grasp100  88.0% | best 0.900 |     42 st/s
+    done(50): success=46 t_flicker=4
+Ep  2300 | score  207.72 | avg100  200.82 | grasp100  93.0% | best 0.900 |     42 st/s
+    done(50): success=47 t_flicker=3
+Ep  2303 | * BEST  level200=2.00 grasp200= 91.5% metric=0.915 | score  211.44
+Ep  2350 | score  214.37 | avg100  201.19 | grasp100  93.0% | best 0.915 |     42 st/s
+    done(50): success=46 t_flicker=4
+Ep  2400 | score  206.56 | avg100  199.74 | grasp100  92.0% | best 0.915 |     42 st/s
+    done(50): success=46 t_flicker=4
+Ep  2403 | * BEST  level200=2.00 grasp200= 93.0% metric=0.930 | score  211.94
+Ep  2450 | score  209.12 | avg100  196.01 | grasp100  89.0% | best 0.930 |     42 st/s
+    done(50): success=43 t_flicker=7
+Ep  2500 | score  207.78 | avg100  190.19 | grasp100  87.0% | best 0.930 |     42 st/s
+    done(50): success=44 t_flicker=3 t_touched=3
+Ep  2550 | score  205.52 | avg100  194.68 | grasp100  90.0% | best 0.930 |     42 st/s
+    done(50): success=46 t_flicker=4
+Ep  2600 | score  195.93 | avg100  197.01 | grasp100  90.0% | best 0.930 |     41 st/s
+    done(50): success=44 t_flicker=6
+Ep  2650 | score  205.48 | avg100  196.82 | grasp100  91.0% | best 0.930 |     41 st/s
+    done(50): success=47 t_flicker=3
+Ep  2700 | score  208.32 | avg100  196.68 | grasp100  91.0% | best 0.930 |     41 st/s
+    done(50): success=44 t_flicker=6
+Ep  2750 | score  207.66 | avg100  186.74 | grasp100  83.0% | best 0.930 |     41 st/s
+    done(50): success=39 t_flicker=11
+Ep  2800 | score  196.60 | avg100  180.04 | grasp100  77.0% | best 0.930 |     41 st/s
+    done(50): success=38 t_flicker=12
+Ep  2850 | score  206.81 | avg100  191.23 | grasp100  85.0% | best 0.930 |     41 st/s
+    done(50): success=47 t_flicker=3
+Ep  2900 | score  209.34 | avg100  203.67 | grasp100  95.0% | best 0.930 |     41 st/s
+    done(50): success=48 t_flicker=2
+Ep  2950 | score  207.59 | avg100  201.08 | grasp100  93.0% | best 0.930 |     41 st/s
+    done(50): success=45 t_flicker=5
+Ep  3000 | score  208.26 | avg100  194.05 | grasp100  88.0% | best 0.930 |     41 st/s
+    done(50): success=43 t_flicker=7
+Ep  3050 | score  211.00 | avg100  195.06 | grasp100  89.0% | best 0.930 |     41 st/s
+    done(50): success=46 t_flicker=4
+Ep  3100 | score  208.17 | avg100  199.00 | grasp100  92.0% | best 0.930 |     41 st/s
+    done(50): success=46 t_flicker=4
+Ep  3150 | score  207.49 | avg100  202.67 | grasp100  95.0% | best 0.930 |     41 st/s
+    done(50): success=49 t_flicker=1
+Ep  3193 | * BEST  level200=2.00 grasp200= 94.5% metric=0.945 | score  210.72
+Ep  3200 | score  207.20 | avg100  206.50 | grasp100  98.0% | best 0.945 |     40 st/s
+    done(50): success=49 t_flicker=1
+Ep  3214 | * BEST  level200=2.00 grasp200= 96.0% metric=0.960 | score  209.33
+Ep  3250 | score  208.48 | avg100  206.17 | grasp100  98.0% | best 0.960 |     40 st/s
+    done(50): success=49 t_flicker=1
+Ep  3255 | * BEST  level200=2.00 grasp200= 97.5% metric=0.975 | score  207.86
+Ep  3300 | score  207.65 | avg100  202.27 | grasp100  95.0% | best 0.975 |     40 st/s
+    done(50): success=46 t_flicker=4
+  [primacy-bias reset of critic heads @ 50000 updates]
+Ep  3350 | score   66.91 | avg100  155.50 | grasp100  69.0% | best 0.975 |     41 st/s
+    done(50): success=23 t_flicker=8 t_touched=15 t_no_reach=4
+Ep  3400 | score  -24.57 | avg100   91.28 | grasp100  35.0% | best 0.975 |     41 st/s
+    done(50): success=12 t_flicker=27 t_touched=9 t_no_reach=2
+Ep  3450 | score  213.54 | avg100  120.68 | grasp100  51.0% | best 0.975 |     42 st/s
+    done(50): success=39 t_flicker=7 t_touched=4
+Ep  3500 | score  246.52 | avg100  172.44 | grasp100  77.0% | best 0.975 |     42 st/s
+    done(50): success=38 t_flicker=7 t_touched=5
+Ep  3550 | score  207.23 | avg100  182.95 | grasp100  82.0% | best 0.975 |     41 st/s
+    done(50): success=44 t_flicker=6
+Ep  3600 | score  210.76 | avg100  197.64 | grasp100  91.0% | best 0.975 |     41 st/s
+    done(50): success=47 t_flicker=3
+Ep  3650 | score  208.39 | avg100  199.82 | grasp100  92.0% | best 0.975 |     41 st/s
+    done(50): success=45 t_flicker=5
+Ep  3700 | score  232.76 | avg100  197.57 | grasp100  91.0% | best 0.975 |     41 st/s
+    done(50): success=46 t_flicker=3 t_touched=1
+Ep  3750 | score  208.37 | avg100  202.63 | grasp100  95.0% | best 0.975 |     41 st/s
+    done(50): success=49 t_flicker=1
+Ep  3800 | score  209.49 | avg100  202.93 | grasp100  94.0% | best 0.975 |     41 st/s
+    done(50): success=45 t_flicker=5
+Ep  3850 | score  208.64 | avg100  200.09 | grasp100  91.0% | best 0.975 |     41 st/s
+    done(50): success=46 t_flicker=4
+Ep  3900 | score  212.26 | avg100  202.91 | grasp100  94.0% | best 0.975 |     41 st/s
+    done(50): success=48 t_flicker=2
+Ep  3950 | score  207.55 | avg100  205.49 | grasp100  97.0% | best 0.975 |     41 st/s
+    done(50): success=49 t_flicker=1
+Ep  4000 | score  207.15 | avg100  201.01 | grasp100  95.0% | best 0.975 |     41 st/s
+    done(50): success=46 t_flicker=4
+Ep  4050 | score  209.37 | avg100  201.39 | grasp100  95.0% | best 0.975 |     41 st/s
+    done(50): success=49 t_flicker=1
+Ep  4100 | score  211.67 | avg100  203.13 | grasp100  95.0% | best 0.975 |     41 st/s
+    done(50): success=46 t_flicker=3 t_touched=1
+Ep  4150 | score  210.33 | avg100  203.90 | grasp100  95.0% | best 0.975 |     41 st/s
+    done(50): success=49 t_flicker=1
+Ep  4200 | score  211.44 | avg100  205.68 | grasp100  97.0% | best 0.975 |     40 st/s
+    done(50): success=48 t_flicker=2
+Ep  4250 | score  239.05 | avg100  202.68 | grasp100  95.0% | best 0.975 |     40 st/s
+    done(50): success=47 t_flicker=3
+Ep  4300 | score  206.01 | avg100  206.64 | grasp100  97.0% | best 0.975 |     40 st/s
+    done(50): success=50
+Ep  4350 | score  206.22 | avg100  207.90 | grasp100  98.0% | best 0.975 |     40 st/s
+    done(50): success=48 t_flicker=2
+Ep  4400 | score  210.79 | avg100  202.26 | grasp100  95.0% | best 0.975 |     40 st/s
+    done(50): success=47 t_flicker=3
+Ep  4450 | score   55.18 | avg100  200.09 | grasp100  93.0% | best 0.975 |     40 st/s
+    done(50): success=46 t_flicker=4
+Ep  4500 | score  206.24 | avg100  205.86 | grasp100  96.0% | best 0.975 |     40 st/s
+    done(50): success=50
+Ep  4550 | score  205.67 | avg100  205.71 | grasp100  97.0% | best 0.975 |     40 st/s
+    done(50): success=47 t_flicker=3
+Ep  4600 | score  212.25 | avg100  199.69 | grasp100  94.0% | best 0.975 |     40 st/s
+    done(50): success=47 t_flicker=1 t_touched=2
+Ep  4650 | score  210.98 | avg100  200.67 | grasp100  94.0% | best 0.975 |     40 st/s
+    done(50): success=47 t_flicker=3
+Ep  4700 | score  207.25 | avg100  202.41 | grasp100  95.0% | best 0.975 |     40 st/s
+    done(50): success=48 t_flicker=2
+Ep  4750 | score  208.38 | avg100  203.25 | grasp100  95.0% | best 0.975 |     40 st/s
+    done(50): success=47 t_flicker=3
+Ep  4800 | score  205.41 | avg100  202.34 | grasp100  94.0% | best 0.975 |     40 st/s
+    done(50): success=47 t_flicker=3
+Ep  4850 | score  210.48 | avg100  201.71 | grasp100  95.0% | best 0.975 |     40 st/s
+    done(50): success=48 t_flicker=2
+Ep  4900 | score  210.21 | avg100  204.75 | grasp100  97.0% | best 0.975 |     40 st/s
+    done(50): success=49 t_flicker=1
+Ep  4950 | score  207.90 | avg100  206.43 | grasp100  98.0% | best 0.975 |     40 st/s
+    done(50): success=49 t_flicker=1
+Ep  5000 | score  223.82 | avg100  203.95 | grasp100  96.0% | best 0.975 |     39 st/s
+    done(50): success=47 t_flicker=2 t_touched=1
+  [primacy-bias reset of critic heads @ 75000 updates]
+Ep  5050 | score  -11.95 | avg100  164.13 | grasp100  78.0% | best 0.975 |     40 st/s
+    done(50): success=31 t_flicker=3 t_touched=9 t_no_reach=7
+Ep  5100 | score  206.07 | avg100  103.81 | grasp100  52.0% | best 0.975 |     40 st/s
+    done(50): success=21 t_flicker=7 t_touched=16 t_no_reach=6
+Ep  5150 | score  215.94 | avg100  134.86 | grasp100  62.0% | best 0.975 |     40 st/s
+    done(50): success=41 t_flicker=7 t_touched=2
+Ep  5200 | score  207.70 | avg100  190.79 | grasp100  83.0% | best 0.975 |     40 st/s
+    done(50): success=42 t_flicker=8
+Ep  5250 | score  210.39 | avg100  197.27 | grasp100  88.0% | best 0.975 |     40 st/s
+    done(50): success=46 t_flicker=4
+Ep  5300 | score  206.89 | avg100  197.02 | grasp100  89.0% | best 0.975 |     40 st/s
+    done(50): success=43 t_flicker=7
+Ep  5350 | score  206.45 | avg100  194.81 | grasp100  88.0% | best 0.975 |     40 st/s
+    done(50): success=45 t_flicker=5
+Ep  5400 | score  211.10 | avg100  197.89 | grasp100  91.0% | best 0.975 |     40 st/s
+    done(50): success=46 t_flicker=4
+Ep  5450 | score  209.65 | avg100  202.98 | grasp100  95.0% | best 0.975 |     40 st/s
+    done(50): success=49 t_flicker=1
+Ep  5500 | score  208.23 | avg100  206.36 | grasp100  96.0% | best 0.975 |     40 st/s
+    done(50): success=47 t_flicker=3
+Ep  5550 | score  207.29 | avg100  205.52 | grasp100  95.0% | best 0.975 |     40 st/s
+    done(50): success=48 t_flicker=2
+Ep  5600 | score  206.56 | avg100  201.77 | grasp100  93.0% | best 0.975 |     40 st/s
+    done(50): success=45 t_flicker=5
+Ep  5650 | score  207.75 | avg100  202.67 | grasp100  94.0% | best 0.975 |     40 st/s
+    done(50): success=49 t_flicker=1
+Ep  5700 | score  209.02 | avg100  203.43 | grasp100  96.0% | best 0.975 |     40 st/s
+    done(50): success=47 t_flicker=2 t_touched=1
+Ep  5750 | score  213.16 | avg100  198.39 | grasp100  92.0% | best 0.975 |     40 st/s
+    done(50): success=45 t_flicker=5
+Ep  5800 | score  211.60 | avg100  199.34 | grasp100  92.0% | best 0.975 |     40 st/s
+    done(50): success=47 t_flicker=2 t_touched=1
+Ep  5850 | score  208.34 | avg100  205.54 | grasp100  97.0% | best 0.975 |     40 st/s
+    done(50): success=50
+Ep  5900 | score  208.79 | avg100  207.71 | grasp100  99.0% | best 0.975 |     40 st/s
+    done(50): success=49 t_flicker=1
+Ep  5950 | score  207.74 | avg100  204.38 | grasp100  96.0% | best 0.975 |     40 st/s
+    done(50): success=47 t_flicker=3
+Ep  6000 | score  207.56 | avg100  203.43 | grasp100  95.0% | best 0.975 |     39 st/s
+    done(50): success=48 t_flicker=2
+Ep  6050 | score  208.58 | avg100  204.79 | grasp100  97.0% | best 0.975 |     39 st/s
+    done(50): success=49 t_flicker=1
+Ep  6100 | score  206.15 | avg100  199.65 | grasp100  94.0% | best 0.975 |     39 st/s
+    done(50): success=45 t_flicker=4 t_touched=1
+Ep  6150 | score  198.25 | avg100  198.30 | grasp100  93.0% | best 0.975 |     39 st/s
+    done(50): success=48 t_flicker=2
+Ep  6200 | score  208.12 | avg100  200.49 | grasp100  94.0% | best 0.975 |     39 st/s
+    done(50): success=46 t_flicker=4
+Ep  6250 | score  206.95 | avg100  199.30 | grasp100  93.0% | best 0.975 |     39 st/s
+    done(50): success=47 t_flicker=3
+Ep  6300 | score  208.65 | avg100  203.42 | grasp100  96.0% | best 0.975 |     39 st/s
+    done(50): success=49 t_flicker=1
+Ep  6350 | score  208.41 | avg100  206.07 | grasp100  97.0% | best 0.975 |     39 st/s
+    done(50): success=48 t_flicker=2
+Ep  6400 | score  213.01 | avg100  203.76 | grasp100  96.0% | best 0.975 |     39 st/s
+    done(50): success=48 t_flicker=1 t_touched=1
+Ep  6450 | score  215.90 | avg100  199.34 | grasp100  93.0% | best 0.975 |     39 st/s
+    done(50): success=45 t_flicker=4 t_touched=1
+Ep  6500 | score  208.91 | avg100  201.99 | grasp100  94.0% | best 0.975 |     39 st/s
+    done(50): success=49 t_flicker=1
+Ep  6550 | score  206.18 | avg100  207.97 | grasp100  99.0% | best 0.975 |     39 st/s
+    done(50): success=50
+Ep  6600 | score  209.01 | avg100  206.98 | grasp100  98.0% | best 0.975 |     39 st/s
+    done(50): success=48 t_flicker=2
+Ep  6650 | score  207.72 | avg100  205.62 | grasp100  97.0% | best 0.975 |     39 st/s
+    done(50): success=49 t_flicker=1
+Ep  6700 | score  208.35 | avg100  206.46 | grasp100  98.0% | best 0.975 |     39 st/s
+    done(50): success=49 t_flicker=1
+Ep  6750 | score  207.92 | avg100  203.46 | grasp100  96.0% | best 0.975 |     39 st/s
+    done(50): success=47 t_flicker=2 t_touched=1
+Ep  6800 | score  209.24 | avg100  196.52 | grasp100  92.0% | best 0.975 |     39 st/s
+    done(50): success=45 t_flicker=4 t_touched=1
+Ep  6850 | score  203.94 | avg100  193.40 | grasp100  89.0% | best 0.975 |     39 st/s
+    done(50): success=44 t_flicker=5 t_touched=1
+Ep  6900 | score  209.23 | avg100  199.30 | grasp100  92.0% | best 0.975 |     39 st/s
+    done(50): success=48 t_flicker=2
+  [primacy-bias reset of critic heads @ 100000 updates]
+Ep  6950 | score  -60.27 | avg100  166.18 | grasp100  77.0% | best 0.975 |     39 st/s
+    done(50): success=29 t_flicker=12 t_touched=4 t_no_reach=5
+Ep  7000 | score   56.11 | avg100  109.04 | grasp100  47.0% | best 0.975 |     39 st/s
+    done(50): success=18 t_flicker=17 t_touched=8 t_no_reach=7
+Ep  7050 | score  210.52 | avg100  137.64 | grasp100  59.0% | best 0.975 |     39 st/s
+    done(50): success=41 t_flicker=8 t_touched=1
+Ep  7100 | score  208.27 | avg100  190.19 | grasp100  86.0% | best 0.975 |     39 st/s
+    done(50): success=45 t_flicker=4 t_touched=1
+Ep  7150 | score  207.51 | avg100  198.52 | grasp100  92.0% | best 0.975 |     39 st/s
+    done(50): success=47 t_flicker=1 t_touched=2
+Ep  7200 | score  207.76 | avg100  200.28 | grasp100  92.0% | best 0.975 |     39 st/s
+    done(50): success=45 t_flicker=5
+Ep  7250 | score  219.72 | avg100  198.59 | grasp100  90.0% | best 0.975 |     39 st/s
+    done(50): success=45 t_flicker=5
+Ep  7300 | score  212.00 | avg100  201.30 | grasp100  92.0% | best 0.975 |     39 st/s
+    done(50): success=47 t_flicker=3
+Ep  7350 | score  248.71 | avg100  203.74 | grasp100  94.0% | best 0.975 |     39 st/s
+    done(50): success=47 t_flicker=3
+Ep  7400 | score  209.20 | avg100  201.51 | grasp100  93.0% | best 0.975 |     39 st/s
+    done(50): success=46 t_flicker=3 t_touched=1
+Ep  7450 | score  209.40 | avg100  194.75 | grasp100  88.0% | best 0.975 |     39 st/s
+    done(50): success=42 t_flicker=8
+Ep  7500 | score  238.93 | avg100  197.50 | grasp100  89.0% | best 0.975 |     39 st/s
+    done(50): success=47 t_flicker=3
+Ep  7550 | score  209.87 | avg100  204.49 | grasp100  94.0% | best 0.975 |     39 st/s
+    done(50): success=47 t_flicker=3
+Ep  7600 | score  209.09 | avg100  202.10 | grasp100  93.0% | best 0.975 |     39 st/s
+    done(50): success=46 t_flicker=4
+Ep  7650 | score   98.46 | avg100  200.93 | grasp100  93.0% | best 0.975 |     39 st/s
+    done(50): success=47 t_flicker=3
+Ep  7700 | score  210.18 | avg100  200.53 | grasp100  92.0% | best 0.975 |     39 st/s
+    done(50): success=45 t_flicker=5
+Ep  7750 | score  207.72 | avg100  194.20 | grasp100  87.0% | best 0.975 |     39 st/s
+    done(50): success=42 t_flicker=8
+Ep  7800 | score  207.29 | avg100  196.96 | grasp100  90.0% | best 0.975 |     39 st/s
+    done(50): success=48 t_flicker=2
+Ep  7850 | score  206.27 | avg100  201.98 | grasp100  93.0% | best 0.975 |     39 st/s
+    done(50): success=45 t_flicker=3 t_touched=2
+Ep  7900 | score  208.02 | avg100  198.14 | grasp100  90.0% | best 0.975 |     39 st/s
+    done(50): success=45 t_flicker=5
+Ep  7950 | score  209.67 | avg100  197.75 | grasp100  91.0% | best 0.975 |     39 st/s
+    done(50): success=46 t_flicker=3 t_touched=1
+Ep  8000 | score  202.96 | avg100  196.17 | grasp100  89.0% | best 0.975 |     39 st/s
+    done(50): success=43 t_flicker=6 t_touched=1
+Ep  8050 | score  209.44 | avg100  201.22 | grasp100  92.0% | best 0.975 |     39 st/s
+    done(50): success=49 t_flicker=1
+Ep  8100 | score  206.97 | avg100  203.50 | grasp100  95.0% | best 0.975 |     39 st/s
+    done(50): success=46 t_flicker=4
+Ep  8150 | score  207.17 | avg100  199.98 | grasp100  93.0% | best 0.975 |     39 st/s
+    done(50): success=47 t_flicker=3
+Ep  8200 | score  209.83 | avg100  198.05 | grasp100  91.0% | best 0.975 |     39 st/s
+    done(50): success=44 t_flicker=6
+Ep  8250 | score  205.91 | avg100  199.57 | grasp100  92.0% | best 0.975 |     39 st/s
+    done(50): success=48 t_flicker=2
+Ep  8300 | score  113.90 | avg100  203.12 | grasp100  95.0% | best 0.975 |     39 st/s
+    done(50): success=47 t_flicker=3
+Ep  8350 | score  207.99 | avg100  202.34 | grasp100  95.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep  8400 | score  208.40 | avg100  199.57 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=46 t_flicker=3 t_touched=1
+Ep  8450 | score  207.41 | avg100  192.30 | grasp100  88.0% | best 0.975 |     38 st/s
+    done(50): success=42 t_flicker=8
+Ep  8500 | score  206.27 | avg100  194.97 | grasp100  89.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=3
+Ep  8550 | score  208.08 | avg100  205.31 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=50
+Ep  8600 | score  212.00 | avg100  207.70 | grasp100  99.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep  8650 | score  210.97 | avg100  203.07 | grasp100  95.0% | best 0.975 |     38 st/s
+    done(50): success=46 t_flicker=4
+Ep  8700 | score  209.20 | avg100  203.88 | grasp100  95.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep  8750 | score  207.25 | avg100  203.46 | grasp100  95.0% | best 0.975 |     38 st/s
+    done(50): success=46 t_flicker=4
+Ep  8800 | score  208.18 | avg100  200.79 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+  [primacy-bias reset of critic heads @ 125000 updates]
+Ep  8850 | score  -40.05 | avg100  130.42 | grasp100  60.0% | best 0.975 |     39 st/s
+    done(50): success=12 t_flicker=9 t_touched=15 t_no_reach=14
+Ep  8900 | score  206.38 | avg100   98.68 | grasp100  38.0% | best 0.975 |     39 st/s
+    done(50): success=26 t_flicker=17 t_touched=7
+Ep  8950 | score  207.94 | avg100  163.89 | grasp100  69.0% | best 0.975 |     39 st/s
+    done(50): success=43 t_flicker=5 t_touched=2
+Ep  9000 | score  209.62 | avg100  183.99 | grasp100  83.0% | best 0.975 |     39 st/s
+    done(50): success=40 t_flicker=8 t_touched=1 t_no_reach=1
+Ep  9050 | score  208.93 | avg100  187.52 | grasp100  85.0% | best 0.975 |     39 st/s
+    done(50): success=45 t_flicker=2 t_touched=3
+Ep  9100 | score  209.47 | avg100  196.11 | grasp100  90.0% | best 0.975 |     39 st/s
+    done(50): success=45 t_flicker=5
+Ep  9150 | score   67.26 | avg100  193.78 | grasp100  88.0% | best 0.975 |     39 st/s
+    done(50): success=43 t_flicker=7
+Ep  9200 | score  210.16 | avg100  197.30 | grasp100  91.0% | best 0.975 |     39 st/s
+    done(50): success=48 t_flicker=2
+Ep  9250 | score  207.80 | avg100  204.54 | grasp100  96.0% | best 0.975 |     39 st/s
+    done(50): success=48 t_flicker=2
+Ep  9300 | score  209.15 | avg100  202.76 | grasp100  94.0% | best 0.975 |     39 st/s
+    done(50): success=46 t_flicker=4
+Ep  9350 | score  210.81 | avg100  201.75 | grasp100  93.0% | best 0.975 |     39 st/s
+    done(50): success=47 t_flicker=3
+Ep  9400 | score  209.12 | avg100  204.31 | grasp100  95.0% | best 0.975 |     39 st/s
+    done(50): success=48 t_flicker=2
+Ep  9450 | score  208.42 | avg100  203.31 | grasp100  95.0% | best 0.975 |     39 st/s
+    done(50): success=47 t_flicker=3
+Ep  9500 | score  209.70 | avg100  198.71 | grasp100  92.0% | best 0.975 |     39 st/s
+    done(50): success=45 t_flicker=5
+Ep  9550 | score  218.79 | avg100  203.15 | grasp100  95.0% | best 0.975 |     39 st/s
+    done(50): success=50
+Ep  9600 | score  207.63 | avg100  206.92 | grasp100  98.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep  9650 | score  207.36 | avg100  201.91 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=46 t_flicker=4
+Ep  9700 | score   85.36 | avg100  199.48 | grasp100  92.0% | best 0.975 |     38 st/s
+    done(50): success=46 t_flicker=4
+Ep  9750 | score  209.79 | avg100  200.16 | grasp100  93.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=3
+Ep  9800 | score  208.55 | avg100  203.93 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep  9850 | score   63.96 | avg100  203.76 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=3
+Ep  9900 | score  207.68 | avg100  201.32 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=3
+Ep  9950 | score  208.67 | avg100  202.97 | grasp100  95.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 10000 | score  209.14 | avg100  205.55 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 10050 | score  209.44 | avg100  205.30 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 10100 | score  210.77 | avg100  203.60 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 10150 | score  210.41 | avg100  200.30 | grasp100  93.0% | best 0.975 |     38 st/s
+    done(50): success=45 t_flicker=5
+Ep 10200 | score  207.05 | avg100  195.49 | grasp100  89.0% | best 0.975 |     38 st/s
+    done(50): success=44 t_flicker=6
+Ep 10250 | score  207.20 | avg100  197.97 | grasp100  92.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 10300 | score  207.26 | avg100  200.22 | grasp100  95.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=2 t_touched=1
+Ep 10350 | score  200.85 | avg100  202.42 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 10400 | score  209.08 | avg100  205.10 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 10450 | score  209.43 | avg100  206.77 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 10500 | score  208.64 | avg100  205.52 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=3
+Ep 10550 | score   89.76 | avg100  201.41 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=3
+Ep 10600 | score  207.01 | avg100  205.12 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=50
+Ep 10650 | score  219.77 | avg100  206.46 | grasp100  98.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 10700 | score  208.08 | avg100  200.80 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=46 t_flicker=3 t_touched=1
+  [primacy-bias reset of critic heads @ 150000 updates]
+Ep 10750 | score   60.69 | avg100  123.47 | grasp100  61.0% | best 0.975 |     38 st/s
+    done(50): success=15 t_flicker=5 t_touched=14 t_no_reach=16
+Ep 10800 | score  211.06 | avg100   66.02 | grasp100  33.0% | best 0.975 |     38 st/s
+    done(50): success=18 t_flicker=14 t_touched=17 t_no_reach=1
+Ep 10850 | score  211.11 | avg100  130.27 | grasp100  58.0% | best 0.975 |     38 st/s
+    done(50): success=40 t_flicker=7 t_touched=3
+Ep 10900 | score  208.76 | avg100  182.67 | grasp100  82.0% | best 0.975 |     38 st/s
+    done(50): success=42 t_flicker=6 t_touched=2
+Ep 10950 | score  208.51 | avg100  191.14 | grasp100  87.0% | best 0.975 |     38 st/s
+    done(50): success=45 t_flicker=4 t_touched=1
+Ep 11000 | score  207.33 | avg100  197.80 | grasp100  92.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=2 t_touched=1
+Ep 11050 | score  130.65 | avg100  200.42 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=2 t_touched=1
+Ep 11100 | score  209.22 | avg100  200.82 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=3
+Ep 11150 | score  209.00 | avg100  195.89 | grasp100  91.0% | best 0.975 |     38 st/s
+    done(50): success=44 t_flicker=5 t_touched=1
+Ep 11200 | score  206.32 | avg100  192.94 | grasp100  89.0% | best 0.975 |     38 st/s
+    done(50): success=45 t_flicker=4 t_touched=1
+Ep 11250 | score  209.96 | avg100  195.75 | grasp100  90.0% | best 0.975 |     38 st/s
+    done(50): success=45 t_flicker=5
+Ep 11300 | score  206.64 | avg100  201.09 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 11350 | score  207.72 | avg100  206.60 | grasp100  98.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 11400 | score  212.94 | avg100  206.63 | grasp100  98.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 11450 | score  207.49 | avg100  205.96 | grasp100  98.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 11500 | score  209.44 | avg100  204.57 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 11550 | score  208.12 | avg100  200.21 | grasp100  93.0% | best 0.975 |     38 st/s
+    done(50): success=45 t_flicker=5
+Ep 11600 | score  211.05 | avg100  201.62 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 11650 | score  221.97 | avg100  205.96 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 11700 | score  207.26 | avg100  204.75 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 11750 | score  211.81 | avg100  203.71 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=1 t_touched=1
+Ep 11800 | score  208.80 | avg100  203.66 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 11850 | score   80.83 | avg100  204.98 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 11900 | score   96.08 | avg100  205.49 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 11950 | score  205.26 | avg100  207.03 | grasp100  98.0% | best 0.975 |     38 st/s
+    done(50): success=50
+Ep 12000 | score  206.79 | avg100  209.12 | grasp100 100.0% | best 0.975 |     38 st/s
+    done(50): success=50
+Ep 12050 | score   97.56 | avg100  202.83 | grasp100  95.0% | best 0.975 |     38 st/s
+    done(50): success=45 t_flicker=5
+Ep 12100 | score  206.62 | avg100  200.82 | grasp100  93.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 12150 | score  211.66 | avg100  205.02 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 12200 | score  211.72 | avg100  203.05 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=3
+Ep 12250 | score  208.50 | avg100  203.88 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 12300 | score  206.50 | avg100  206.93 | grasp100  98.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 12350 | score  207.57 | avg100  204.57 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 12400 | score  233.96 | avg100  199.95 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=46 t_flicker=4
+Ep 12450 | score  208.03 | avg100  197.50 | grasp100  92.0% | best 0.975 |     38 st/s
+    done(50): success=46 t_flicker=4
+Ep 12500 | score  209.07 | avg100  200.38 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 12550 | score  206.44 | avg100  200.92 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=46 t_flicker=4
+  [primacy-bias reset of critic heads @ 175000 updates]
+Ep 12600 | score  -76.55 | avg100  151.08 | grasp100  75.0% | best 0.975 |     38 st/s
+    done(50): success=29 t_flicker=3 t_touched=6 t_no_reach=12
+Ep 12650 | score  207.45 | avg100   98.52 | grasp100  51.0% | best 0.975 |     38 st/s
+    done(50): success=22 t_flicker=12 t_touched=8 t_no_reach=8
+Ep 12700 | score  212.27 | avg100  127.91 | grasp100  56.0% | best 0.975 |     38 st/s
+    done(50): success=34 t_flicker=12 t_touched=4
+Ep 12750 | score  210.00 | avg100  178.52 | grasp100  80.0% | best 0.975 |     38 st/s
+    done(50): success=46 t_flicker=4
+Ep 12800 | score  206.80 | avg100  196.84 | grasp100  93.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=2 t_touched=1
+Ep 12850 | score  209.19 | avg100  199.41 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=2 t_no_reach=1
+Ep 12900 | score  211.58 | avg100  202.11 | grasp100  95.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 12950 | score  207.92 | avg100  203.45 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 13000 | score  208.47 | avg100  205.46 | grasp100  98.0% | best 0.975 |     38 st/s
+    done(50): success=50
+Ep 13050 | score  210.76 | avg100  204.26 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=46 t_flicker=4
+Ep 13100 | score  208.17 | avg100  202.52 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 13150 | score   89.27 | avg100  204.70 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 13200 | score  206.41 | avg100  204.40 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 13250 | score  208.56 | avg100  202.10 | grasp100  93.0% | best 0.975 |     38 st/s
+    done(50): success=45 t_flicker=4 t_touched=1
+Ep 13300 | score  208.49 | avg100  203.01 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 13350 | score  208.73 | avg100  207.70 | grasp100  99.0% | best 0.975 |     38 st/s
+    done(50): success=50
+Ep 13400 | score  208.59 | avg100  204.20 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=46 t_flicker=4
+Ep 13450 | score  206.84 | avg100  201.91 | grasp100  95.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 13500 | score  205.91 | avg100  200.28 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=45 t_flicker=5
+Ep 13550 | score  207.38 | avg100  197.98 | grasp100  92.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=2 t_touched=1
+Ep 13600 | score  212.02 | avg100  202.92 | grasp100  95.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 13650 | score  208.33 | avg100  204.23 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 13700 | score  208.28 | avg100  201.18 | grasp100  95.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=3
+Ep 13750 | score  204.34 | avg100  201.86 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 13800 | score  205.40 | avg100  202.33 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 13850 | score  204.99 | avg100  204.50 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 13900 | score  209.44 | avg100  203.92 | grasp100  95.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=3
+Ep 13950 | score  210.48 | avg100  202.51 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 14000 | score  207.58 | avg100  204.56 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 14050 | score   57.21 | avg100  200.25 | grasp100  93.0% | best 0.975 |     38 st/s
+    done(50): success=45 t_flicker=5
+Ep 14100 | score  206.37 | avg100  202.57 | grasp100  95.0% | best 0.975 |     38 st/s
+    done(50): success=50
+Ep 14150 | score  208.81 | avg100  205.34 | grasp100  98.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 14200 | score  208.96 | avg100  202.15 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 14250 | score  207.54 | avg100  198.90 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=46 t_flicker=4
+Ep 14300 | score  206.38 | avg100  197.38 | grasp100  92.0% | best 0.975 |     37 st/s
+    done(50): success=46 t_flicker=4
+Ep 14350 | score  206.28 | avg100  199.23 | grasp100  93.0% | best 0.975 |     37 st/s
+    done(50): success=47 t_flicker=3
+Ep 14400 | score  206.23 | avg100  201.31 | grasp100  95.0% | best 0.975 |     37 st/s
+    done(50): success=48 t_flicker=2
+Ep 14450 | score  209.08 | avg100  205.52 | grasp100  98.0% | best 0.975 |     37 st/s
+    done(50): success=50
+Ep 14500 | score  209.60 | avg100  202.83 | grasp100  96.0% | best 0.975 |     37 st/s
+    done(50): success=46 t_flicker=4
+Ep 14550 | score  211.14 | avg100  199.36 | grasp100  93.0% | best 0.975 |     37 st/s
+    done(50): success=47 t_flicker=3
+  [primacy-bias reset of critic heads @ 200000 updates]
+Ep 14600 | score  -79.32 | avg100  142.56 | grasp100  73.0% | best 0.975 |     38 st/s
+    done(50): success=26 t_flicker=3 t_touched=3 t_no_reach=18
+Ep 14650 | score  208.80 | avg100  103.31 | grasp100  55.0% | best 0.975 |     38 st/s
+    done(50): success=29 t_flicker=7 t_touched=11 t_no_reach=3
+Ep 14700 | score   66.25 | avg100  150.32 | grasp100  69.0% | best 0.975 |     38 st/s
+    done(50): success=40 t_flicker=5 t_touched=4 t_no_reach=1
+Ep 14750 | score  207.13 | avg100  184.44 | grasp100  85.0% | best 0.975 |     38 st/s
+    done(50): success=45 t_flicker=4 t_no_reach=1
+Ep 14800 | score  207.09 | avg100  194.25 | grasp100  92.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=2 t_touched=1
+Ep 14850 | score  209.76 | avg100  200.77 | grasp100  95.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 14900 | score  209.19 | avg100  203.29 | grasp100  96.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 14950 | score  208.96 | avg100  201.12 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=46 t_flicker=3 t_touched=1
+Ep 15000 | score  211.12 | avg100  201.58 | grasp100  94.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 15050 | score  208.22 | avg100  205.03 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 15100 | score  209.88 | avg100  205.24 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 15150 | score  209.32 | avg100  202.76 | grasp100  95.0% | best 0.975 |     38 st/s
+    done(50): success=47 t_flicker=3
+Ep 15200 | score  208.31 | avg100  205.25 | grasp100  97.0% | best 0.975 |     38 st/s
+    done(50): success=50
+Ep 15250 | score  207.60 | avg100  207.49 | grasp100  99.0% | best 0.975 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 15300 | score  207.84 | avg100  207.03 | grasp100  99.0% | best 0.975 |     38 st/s
+    done(50): success=50
+Ep 15339 | * BEST  level200=2.00 grasp200= 99.0% metric=0.990 | score  211.41
+Ep 15350 | score  209.85 | avg100  206.80 | grasp100  99.0% | best 0.990 |     38 st/s
+    done(50): success=49 t_flicker=1
+Ep 15400 | score  205.19 | avg100  207.03 | grasp100  99.0% | best 0.990 |     38 st/s
+    done(50): success=50
+Ep 15450 | score  208.55 | avg100  206.25 | grasp100  98.0% | best 0.990 |     38 st/s
+    done(50): success=48 t_flicker=2
+Ep 15500 | score  212.26 | avg100  206.87 | grasp100  98.0% | best 0.990 |     37 st/s
+    done(50): success=50
+Ep 15550 | score  208.61 | avg100  206.78 | grasp100  98.0% | best 0.990 |     37 st/s
+    done(50): success=48 t_flicker=1 t_touched=1
+Ep 15600 | score  207.87 | avg100  205.96 | grasp100  98.0% | best 0.990 |     37 st/s
+    done(50): success=50
+Ep 15650 | score  207.77 | avg100  207.04 | grasp100  99.0% | best 0.990 |     37 st/s
+    done(50): success=49 t_flicker=1
+Ep 15700 | score  208.06 | avg100  204.62 | grasp100  97.0% | best 0.990 |     37 st/s
+    done(50): success=48 t_flicker=2
+Ep 15750 | score  209.51 | avg100  203.29 | grasp100  96.0% | best 0.990 |     37 st/s
+    done(50): success=48 t_flicker=2
+Ep 15800 | score  206.73 | avg100  201.44 | grasp100  94.0% | best 0.990 |     37 st/s
+    done(50): success=46 t_flicker=4
+Ep 15850 | score  207.53 | avg100  199.02 | grasp100  92.0% | best 0.990 |     37 st/s
+    done(50): success=46 t_flicker=2 t_touched=2
+Ep 15900 | score  208.13 | avg100  202.20 | grasp100  94.0% | best 0.990 |     37 st/s
+    done(50): success=48 t_flicker=2
+Ep 15950 | score  208.86 | avg100  207.43 | grasp100  98.0% | best 0.990 |     37 st/s
+    done(50): success=50
+Ep 16000 | score  208.08 | avg100  209.02 | grasp100 100.0% | best 0.990 |     37 st/s
+    done(50): success=50
+Ep 16050 | score  205.71 | avg100  209.60 | grasp100 100.0% | best 0.990 |     37 st/s
+    done(50): success=50
+Ep 16100 | score  206.32 | avg100  207.70 | grasp100  99.0% | best 0.990 |     37 st/s
+    done(50): success=49 t_flicker=1
+Ep 16150 | score  -14.15 | avg100  204.60 | grasp100  98.0% | best 0.990 |     37 st/s
+    done(50): success=49 t_flicker=1
+Ep 16200 | score  206.08 | avg100  204.98 | grasp100  98.0% | best 0.990 |     37 st/s
+    done(50): success=49 t_flicker=1
+Ep 16250 | score  206.96 | avg100  201.27 | grasp100  94.0% | best 0.990 |     37 st/s
+    done(50): success=45 t_flicker=5
+Ep 16300 | score  208.40 | avg100  201.88 | grasp100  95.0% | best 0.990 |     37 st/s
+    done(50): success=50
+Ep 16350 | score  209.07 | avg100  205.74 | grasp100  98.0% | best 0.990 |     37 st/s
+    done(50): success=48 t_flicker=2
+Ep 16400 | score  208.02 | avg100  203.71 | grasp100  96.0% | best 0.990 |     37 st/s
+    done(50): success=48 t_flicker=2
+Ep 16450 | score  208.26 | avg100  203.97 | grasp100  97.0% | best 0.990 |     37 st/s
+    done(50): success=49 t_flicker=1
+Ep 16500 | score  206.75 | avg100  201.45 | grasp100  96.0% | best 0.990 |     37 st/s
+    done(50): success=47 t_flicker=3
+Ep 16550 | score  206.74 | avg100  203.16 | grasp100  97.0% | best 0.990 |     37 st/s
+    done(50): success=50
+Ep 16600 | score  203.77 | avg100  206.97 | grasp100  99.0% | best 0.990 |     37 st/s
+    done(50): success=49 t_flicker=1
+Ep 16650 | score  206.65 | avg100  206.04 | grasp100  98.0% | best 0.990 |     37 st/s
+    done(50): success=49 t_flicker=1
+  [primacy-bias reset of critic heads @ 225000 updates]
+Ep 16700 | score  -79.66 | avg100  152.70 | grasp100  79.0% | best 0.990 |     37 st/s
+    done(50): success=30 t_flicker=1 t_touched=2 t_no_reach=17
+Ep 16750 | score    1.75 | avg100   69.61 | grasp100  47.0% | best 0.990 |     37 st/s
+    done(50): success=17 t_flicker=7 t_touched=7 t_no_reach=19
+Ep 16800 | score   46.58 | avg100   91.42 | grasp100  50.0% | best 0.990 |     38 st/s
+    done(50): success=33 t_flicker=6 t_touched=9 t_no_reach=2
+Ep 16850 | score  207.73 | avg100  165.11 | grasp100  77.0% | best 0.990 |     38 st/s
+    done(50): success=44 t_flicker=3 t_touched=3
+Ep 16900 | score   89.96 | avg100  192.15 | grasp100  91.0% | best 0.990 |     38 st/s
+    done(50): success=47 t_flicker=2 t_touched=1
+Ep 16950 | score  208.03 | avg100  199.57 | grasp100  95.0% | best 0.990 |     37 st/s
+    done(50): success=48 t_flicker=1 t_touched=1
+Ep 17000 | score  210.28 | avg100  200.69 | grasp100  95.0% | best 0.990 |     37 st/s
+    done(50): success=47 t_flicker=3
+Ep 17050 | score   59.77 | avg100  197.16 | grasp100  92.0% | best 0.990 |     37 st/s
+    done(50): success=45 t_flicker=5
+Ep 17100 | score  205.35 | avg100  200.68 | grasp100  94.0% | best 0.990 |     37 st/s
+    done(50): success=49 t_flicker=1
+Ep 17150 | score  206.43 | avg100  205.04 | grasp100  97.0% | best 0.990 |     37 st/s
+    done(50): success=48 t_flicker=2
+Ep 17200 | score   81.42 | avg100  203.67 | grasp100  96.0% | best 0.990 |     37 st/s
+    done(50): success=48 t_flicker=2
+Ep 17250 | score  207.53 | avg100  204.90 | grasp100  97.0% | best 0.990 |     37 st/s
+    done(50): success=49 t_flicker=1
+Ep 17300 | score  230.25 | avg100  207.83 | grasp100  99.0% | best 0.990 |     37 st/s
+    done(50): success=50
+Ep 17350 | score  208.89 | avg100  203.58 | grasp100  96.0% | best 0.990 |     37 st/s
+    done(50): success=46 t_flicker=4
+Ep 17400 | score  206.29 | avg100  200.01 | grasp100  93.0% | best 0.990 |     37 st/s
+    done(50): success=47 t_flicker=3
+Ep 17450 | score  206.13 | avg100  203.11 | grasp100  95.0% | best 0.990 |     37 st/s
+    done(50): success=48 t_flicker=2
+Ep 17500 | score  207.11 | avg100  200.27 | grasp100  93.0% | best 0.990 |     37 st/s
+    done(50): success=45 t_flicker=4 t_touched=1
+Ep 17550 | score  206.94 | avg100  199.27 | grasp100  92.0% | best 0.990 |     37 st/s
+    done(50): success=47 t_flicker=3
+Ep 17600 | score  214.41 | avg100  198.54 | grasp100  93.0% | best 0.990 |     37 st/s
+    done(50): success=46 t_flicker=3 t_touched=1
+Ep 17650 | score  207.65 | avg100  197.33 | grasp100  93.0% | best 0.990 |     37 st/s
+    done(50): success=47 t_flicker=3
+Ep 17700 | score  207.90 | avg100  200.12 | grasp100  94.0% | best 0.990 |     37 st/s
+    done(50): success=47 t_flicker=3
+Ep 17750 | score  207.34 | avg100  196.48 | grasp100  90.0% | best 0.990 |     37 st/s
+    done(50): success=43 t_flicker=7
+Ep 17800 | score  209.52 | avg100  200.36 | grasp100  93.0% | best 0.990 |     37 st/s
+    done(50): success=50
+Ep 17850 | score  207.28 | avg100  205.95 | grasp100  98.0% | best 0.990 |     37 st/s
+    done(50): success=48 t_flicker=2
+Ep 17900 | score  207.75 | avg100  205.25 | grasp100  98.0% | best 0.990 |     37 st/s
+    done(50): success=50

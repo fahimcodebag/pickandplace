@@ -1,0 +1,66 @@
+================================================================================
+REPLAY BUFFER SIZE: THE LARGEST SINGLE LEVER IN THIS CAMPAIGN
++15.17 INT8 points, and the seed variance that limited every other conclusion
+collapses 6x.
+================================================================================
+
+DESIGN
+Three buffer sizes x 3 seeds, all resuming from the validated smallc64_s5,
+early stopping disabled, 25,000 episodes. At ~40 steps/episode a run collects
+~1.0M transitions, so the arms span the full meaningful range:
+    200k -> retains  20%   (the setting used for this entire project)
+    500k -> retains  50%
+      1M -> retains 100%   (no eviction at all)
+Anything above 1M is bit-identical to 1M at this run length. The arms are
+identical until episode 5,041, when the 200k buffer begins evicting -- and
+that is exactly where the curves separate.
+
+TRAINING (grasp success, final 5000 episodes)
+    200k   90.4 89.3 88.8   mean 89.50
+    500k   92.5 92.2 91.2   mean 91.94   +2.44  t=9.58 p=0.011  3/3 up
+      1M   92.8 93.3 92.9   mean 92.97   +3.47  t=6.14 p=0.026  3/3 up
+The 200k arm STOPS IMPROVING after block 3 (88.9 -> 88.9 across 18,000
+episodes) while 1M is still climbing at the end (92.7 -> 94.4).
+
+END-TO-END (12 eval seeds x 100, A+C rule layer)
+  buffer   INT8 per-seed              mean     sd
+    200k   91.50  57.33  77.58       75.47   17.18
+    500k   86.33  95.17  90.42       90.64    4.42
+      1M   92.42  86.75  89.25       89.47    2.84
+
+  paired on (training seed, eval seed), 36 pairs
+    500k INT8  +15.17  t=4.94 p<0.0001  wilcoxon 0.0001  24/12
+    1M   INT8  +14.00  t=6.67 p<0.0001  wilcoxon 0.0000  32/3
+    500k FP32   +5.17  t=2.28 p=0.0286  wilcoxon 0.3659  15/21  <- not real
+    1M   FP32   +2.36  t=1.46 p=0.1541  wilcoxon 0.4940  14/18  <- not real
+
+THE VARIANCE RESULT IS THE IMPORTANT ONE
+INT8 sd falls 17.18 -> 4.42 -> 2.84, monotonically in buffer size. The 200k arm
+contains a catastrophic seed (57.33% INT8, 70.42% FP32); neither larger arm
+produces one. Every "configuration X does not help" verdict in this campaign
+was limited by exactly this spread -- INT8 outcomes from 51.50% to 93.83%
+across nominally identical runs. Buffer size is the first variable measured
+that reduces it. 1M has the lower mean but the better pair split (32/3 vs
+24/12) and the lowest variance; 500k vs 1M is within noise on the mean.
+
+A CONFOUND THAT MUST BE TESTED BEFORE ATTRIBUTING THIS TO TRAINING
+The gain is INT8-specific: FP32 does not move (both Wilcoxon ns, and 500k is
+15/21 DOWN on pairs). qat_and_convert.py calibrates the INT8 model on the run's
+own replay_buffer.npz, so a 1M buffer supplies 5x more diverse calibration
+states than a 200k one. Part of this may be better CALIBRATION rather than a
+better policy. Directly testable by converting a 200k-trained actor using a
+1M run's calibration set; that test is queued.
+
+A CORRECTION TO EARLIER REASONING IN THIS CAMPAIGN
+Before launching, this hypothesis was downgraded on the argument that the
+project already retains a larger FRACTION than v7 did (200k/702k = 28.5%
+against v7's 4M/28M = 14.3%). That reasoning was wrong. Retention fraction is
+not the operative quantity; what matters is the absolute diversity held in the
+buffer and how fast old experience is evicted relative to policy drift. The
+200k arm stopped learning entirely while 1M kept improving.
+
+STATUS
+Best cell: buf500k_s1, INT8 95.17% / FP32 93.25% on the selection seeds.
+Held-out validation queued. Arm means (90.64, 89.47) are not comparable to the
+incumbent's 93.08%, which is a held-out best-of-6 cell rather than a 3-seed
+mean.
