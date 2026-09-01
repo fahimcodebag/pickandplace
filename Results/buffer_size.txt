@@ -101,3 +101,25 @@ better.
 
 The thesis claim is therefore not "buffer size gives +15 points" but "buffer
 size makes >=90% INT8 reproducible instead of a one-in-three outcome".
+
+--------------------------------------------------------------------------------
+COMPLETE RESULTS TABLE ON buf500k_s1 (all cells 1200 episodes, A+C rule layer)
+--------------------------------------------------------------------------------
+  model                fixed FP32  fixed INT8  random FP32  random INT8
+  bi_s0 (start)          100.00%      96.67%      90.67%       78.33%
+  smallc64_s5             99.83%      98.67%      91.67%       93.08%
+  buf500k_s1              98.67%      98.50%      93.67%       94.17%
+  (random-spawn cells for smallc64_s5 and buf500k_s1 are HELD-OUT seeds)
+
+Net change from the starting artifact: +15.84 random INT8, +3.00 random FP32,
++1.83 fixed INT8, and ONE REAL REGRESSION: fixed FP32 -1.33, i.e. 1184/1200
+against 1200/1200, so 16 genuine failures where there were none. Random spawn
+is the realistic deployment condition, so the trade is worth taking -- but it
+is a trade, and reporting the best cell from each row separately would
+misrepresent it.
+
+The quantisation gap has effectively vanished on this artifact:
+    fixed   98.67 FP32 vs 98.50 INT8   (+0.17)
+    random  93.67 FP32 vs 94.17 INT8   (-0.50)
+INT8 is within noise of FP32 in both conditions and slightly ahead under
+randomisation, against +12.34 for the artifact this campaign started from.
