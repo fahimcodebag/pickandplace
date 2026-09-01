@@ -43,7 +43,25 @@ across nominally identical runs. Buffer size is the first variable measured
 that reduces it. 1M has the lower mean but the better pair split (32/3 vs
 24/12) and the lowest variance; 500k vs 1M is within noise on the mean.
 
-A CONFOUND THAT MUST BE TESTED BEFORE ATTRIBUTING THIS TO TRAINING
+CONFOUND TESTED AND REFUTED -- THE GAIN IS THE POLICY, NOT CALIBRATION
+A 2x2 crossover: convert each actor using the OTHER arm's replay buffer as
+calibration data. 12 eval seeds x 100 per cell.
+
+                        calib 200k   calib 1M
+      actor 200k          75.47%      76.00%
+      actor 1M            89.06%      89.47%
+
+    total 200/200 -> 1M/1M            +14.00
+      calibration alone (200 actor)    +0.53   t=0.67 p=0.5092  ns
+      policy alone      (1M actor)    +13.58   t=6.12 p<0.0001  28/5
+
+97% of the effect is the policy and the calibration component is not
+distinguishable from zero. Two details reinforce it: the catastrophic 200k seed
+stays catastrophic under rich calibration (57.33% -> 58.50%), and the 1M actor
+stays strong under impoverished calibration (s1 87.25%). Better calibration
+cannot rescue a bad policy, and poor calibration barely dents a good one.
+
+ORIGINAL STATEMENT OF THE CONFOUND (now closed)
 The gain is INT8-specific: FP32 does not move (both Wilcoxon ns, and 500k is
 15/21 DOWN on pairs). qat_and_convert.py calibrates the INT8 model on the run's
 own replay_buffer.npz, so a 1M buffer supplies 5x more diverse calibration
@@ -59,8 +77,27 @@ not the operative quantity; what matters is the absolute diversity held in the
 buffer and how fast old experience is evicted relative to policy drift. The
 200k arm stopped learning entirely while 1M kept improving.
 
-STATUS
-Best cell: buf500k_s1, INT8 95.17% / FP32 93.25% on the selection seeds.
-Held-out validation queued. Arm means (90.64, 89.47) are not comparable to the
-incumbent's 93.08%, which is a held-out best-of-6 cell rather than a 3-seed
-mean.
+HELD-OUT VALIDATION OF THE BEST CELLS (12 seeds never used for selection)
+  model          INT8 sel  INT8 held   shrink   FP32 held
+  buf500k_s1       95.17%     94.17%    -1.00      93.67%
+  smallc64_s5      93.83%     93.08%    -0.75      91.67%
+  buf1000k_s0      92.42%     91.67%    -0.75      91.58%
+
+  paired vs the incumbent smallc64_s5 on the same seeds
+    buf500k_s1   INT8  +1.08  t= 1.07 p=0.3069  6/4   NOT significant
+    buf1000k_s0  INT8  -1.42  t=-1.20 p=0.2541  4/6
+
+buf500k_s1 is a new best point estimate (INT8 94.17% / FP32 93.67%) but is NOT
+significantly better than the incumbent on 12 held-out seeds.
+
+WHAT THE BUFFER RESULT ACTUALLY IS
+Buffer size as an INTERVENTION is solid (+15.17 arm-level, p<0.0001, sd 17.18
+-> 2.84). buf500k_s1 as an ARTIFACT is only marginally ahead of what already
+existed. Both are true, and the reconciliation is the useful finding: the large
+buffer works mainly by REMOVING CATASTROPHIC SEEDS (the 200k arm's 57.33% cell)
+rather than by raising the ceiling. The incumbent was already a lucky draw from
+a high-variance process; a large buffer makes that draw reliable rather than
+better.
+
+The thesis claim is therefore not "buffer size gives +15 points" but "buffer
+size makes >=90% INT8 reproducible instead of a one-in-three outcome".
