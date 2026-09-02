@@ -49,6 +49,11 @@ def main():
     p.add_argument("--width", type=int, default=1280)
     p.add_argument("--height", type=int, default=960)
     p.add_argument("--period", type=int, default=5, help="control steps between detections")
+    p.add_argument("--latch-median", type=int, default=1,
+                   help="latch the MEDIAN of the last K detected world poses "
+                        "instead of the single current one. The object is "
+                        "stationary before the grasp, so averaging is free and "
+                        "each detection carries ~11 mm of independent error.")
     p.add_argument("--episodes", type=int, default=25)
     p.add_argument("--seed", type=int, default=7)
     p.add_argument("--out", required=True)
@@ -66,7 +71,7 @@ def main():
     for ep in range(a.episodes):
         od = env.reset()
         fsm = F.FSM(); fsm.regrasp_enabled = True
-        held = None; latched = None
+        held = None; latched = None; hist = []
         n_det = n_tick = n_truthfall = 0
         placed = False
         for t in range(700):
@@ -85,12 +90,27 @@ def main():
                     if r is not None:
                         n_det += 1
                         held = (np.asarray(r[0]), np.asarray(r[1]))
+                        if not grasped:      # only average while it is static
+                            hist.append(held)
+                            if len(hist) > a.latch_median:
+                                hist.pop(0)
                 if held is None:
                     n_truthfall += 1            # running on ground truth
                 else:
                     if a.mode == "latch":
                         if latched is None and grasped:
-                            latched = relative_block(held[0], held[1],
+                            if a.latch_median > 1 and len(hist) > 1:
+                                # component-wise median of the recent static
+                                # observations; quaternion sign-aligned first
+                                P = np.array([h[0] for h in hist])
+                                Q = np.array([h[1] for h in hist])
+                                Q = Q * np.sign(Q @ Q[-1])[:, None]
+                                lp = np.median(P, axis=0)
+                                lq = np.median(Q, axis=0)
+                                lq = lq / max(np.linalg.norm(lq), 1e-9)
+                            else:
+                                lp, lq = held
+                            latched = relative_block(lp, lq,
                                                      s[EEF_POS], s[EEF_QUAT])
                         if latched is not None:
                             s[REL_POS], s[REL_QUAT] = latched

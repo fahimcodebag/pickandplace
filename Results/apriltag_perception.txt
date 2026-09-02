@@ -90,3 +90,59 @@ agentview) held over 5-step periods; and the latch being taken from whatever
 pose was current at the grasp instant, which may be stale or noisy.
 The truth baseline is only 8 episodes and needs matching at 25+.
 Nothing here is at the 1200-episode protocol used elsewhere in this campaign.
+
+--------------------------------------------------------------------------------
+MATCHED MEASUREMENT: REAL APRILTAG COSTS 15 POINTS END-TO-END
+--------------------------------------------------------------------------------
+Paired on seed (same spawn sequences under both conditions), 50 episodes per
+cell, c2m512_s1, period 5, agentview 1280x960.
+
+  seed    truth    latch     gap
+     7    90.0%    72.0%   -18.0
+    31    98.0%    88.0%   -10.0
+    47    92.0%    76.0%   -16.0
+    89    96.0%    80.0%   -16.0
+  mean    94.0%    79.0%   -15.0   paired t=-8.66 p=0.0032, 4/4 seeds down
+
+HARNESS VALIDATION: truth reads 94.0% against c2m512_s1's independently
+measured 94.92% FP32 held-out. tag_e2e.py builds the 46-D observation by hand,
+so this agreement says the harness is sound and the 15 points are perception,
+not integration error.
+
+CORRECTIONS TO EARLIER FIGURES IN THIS FILE
+The "100% truth ceiling" was 8 episodes and is wrong; at 25-50 episodes it is
+88-94%. The perception gap is therefore 15 points, not the 32 first reported.
+Pairing matters here: an unpaired comparison is hopeless, because latch alone
+spans 72-88% across seeds -- as large as the effect being measured.
+
+--------------------------------------------------------------------------------
+TWO THINGS THAT DO NOT EXPLAIN THE REMAINING GAP
+--------------------------------------------------------------------------------
+UPDATE RATE IS NOT THE BOTTLENECK. period 1 and period 5 both give 68% on
+seed 7 -- detecting 5x more often buys nothing. Useful for the hardware spec:
+an ESP32-CAM at a few frames per second is not the limiting factor, so effort
+belongs on pose ACCURACY, not frame rate.
+
+MEDIAN-LATCH DOES NOT HELP (NEGATIVE RESULT). Latching the median of the last
+5 detections instead of the single current one: 76.5% vs 79.0%, -2.5 points,
+paired t=-1.99 p=0.1411, 0/3 seeds up. The rationale was that the object is
+static before the grasp so detections are independent samples of a fixed
+quantity. The measurement says otherwise, and the reason is visible in the
+per-phase data:
+
+  detection position error at reset (arm parked)   11.2 mm median
+  detection position error during episodes         ~21 mm median
+
+Pose error nearly DOUBLES once the arm is moving. The approaching gripper
+progressively occludes the tag and corrupts the corner estimates, so the recent
+history is not a set of clean independent samples but a sequence of
+increasingly occluded views -- averaging them mixes in worse data.
+(Error does NOT correlate with gripper-object distance, corr +0.10, as expected
+for a FIXED camera whose view does not change with the arm.)
+
+WHERE THE 15 POINTS ACTUALLY LIVE -- STILL OPEN
+Not update rate, not the latch instant. The leading remaining candidate is
+per-detection accuracy during the approach (~21 mm under partial occlusion),
+which is a camera placement/resolution question rather than a filtering one.
+Untested: a second camera for redundancy, a larger tag, or tag placement that
+the gripper does not cover on approach.
