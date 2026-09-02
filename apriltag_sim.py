@@ -163,6 +163,17 @@ class TagDetector:
         self.obj_pts = np.array([[-h, h, 0], [h, h, 0],
                                  [h, -h, 0], [-h, -h, 0]], dtype=np.float32)
 
+    min_up = 0.30     # tag normal must point broadly upward (object rests flat)
+    # Extrinsic calibration, measured over 30 detections at agentview 1280x960
+    # against MuJoCo truth. The residual is fixed in the WORLD frame (sd
+    # [11.0, 3.4, 10.8] mm) rather than the tag frame (sd [12.2, 13.5, 10.8]),
+    # which identifies it as a camera-extrinsics/scale artifact and not a tag
+    # mounting offset -- so it is corrected in world coordinates. On hardware
+    # this is the same one-off calibration any fixed camera needs.
+    # NOTE the z term also shows the true tag height is ~13 mm above the object
+    # centre, not the 26 mm the z_offset default assumes.
+    calib_world_m = np.array([-0.0147, -0.0047, 0.0133])
+
     def frame(self, obs_dict):
         """Extract the camera image, undoing robosuite's vertical flip."""
         return obs_dict[f"{self.camera}_image"][::-1]
@@ -176,22 +187,46 @@ class TagDetector:
             return None
         idx = int(np.where(ids.flatten() == self.tag_id)[0][0])
 
-        ok, rvec, tvec = cv2.solvePnP(
-            self.obj_pts, corners[idx].reshape(4, 2).astype(np.float32),
-            self.K, self.dist, flags=cv2.SOLVEPNP_IPPE_SQUARE)
-        if not ok:
+        # IPPE_SQUARE on a planar marker is TWO-fold ambiguous: two poses
+        # project to nearly the same image. Taking solvePnP's single answer
+        # gave a ~90 deg orientation error on 3 of 15 detections (measured:
+        # median 3.8 deg but p95 91.3 deg), and one such pose held for a whole
+        # perception period is enough to ruin the grasp -- end-to-end success
+        # was 28% against 100% on ground truth.
+        #
+        # solvePnPGeneric returns BOTH solutions plus reprojection errors.
+        # Disambiguate with physics rather than reprojection alone: before the
+        # grasp the object rests on the table, so the tag's normal points UP.
+        # The flipped solution points it away from world +z and is rejected.
+        img_pts = corners[idx].reshape(4, 2).astype(np.float32)
+        n, rvecs, tvecs, err = cv2.solvePnPGeneric(
+            self.obj_pts, img_pts, self.K, self.dist,
+            flags=cv2.SOLVEPNP_IPPE_SQUARE)
+        if not n:
             return None
 
-        T_cam_tag = np.eye(4)
-        T_cam_tag[:3, :3] = cv2.Rodrigues(rvec)[0]
-        T_cam_tag[:3, 3] = tvec.flatten()
-
-        # Already OpenCV-convention camera-to-world (see module docstring).
         T_world_cam = self._camera_utils.get_camera_extrinsic_matrix(
             self.env.sim, self.camera)
-        T_world_tag = T_world_cam @ T_cam_tag
 
-        return T_world_tag[:3, 3].copy(), _mat_to_quat(T_world_tag[:3, :3])
+        # Two-stage: the upright prior REJECTS the flipped solution, then
+        # reprojection error CHOOSES among what survives. Scoring the two
+        # together (up - k*err) picks upright poses that fit badly -- measured:
+        # it fixed orientation (p95 91.3 -> 4.3 deg) but pushed position the
+        # wrong way (median 9.3 -> 23.0 mm).
+        errs = np.asarray(err).flatten()
+        cand = []
+        for i in range(n):
+            T_cam_tag = np.eye(4)
+            T_cam_tag[:3, :3] = cv2.Rodrigues(rvecs[i])[0]
+            T_cam_tag[:3, 3] = np.asarray(tvecs[i]).flatten()
+            T_wt = T_world_cam @ T_cam_tag
+            up = float(T_wt[:3, 2] @ np.array([0.0, 0.0, 1.0]))
+            cand.append((up, float(errs[i]) if i < len(errs) else np.inf, T_wt))
+        upright = [c for c in cand if c[0] >= self.min_up]
+        if not upright:
+            return None
+        best = min(upright, key=lambda c: c[1])[2]
+        return (best[:3, 3] - self.calib_world_m).copy(), _mat_to_quat(best[:3, :3])
 
 
 def _mat_to_quat(R):

@@ -26,6 +26,16 @@ motionless object is very nearly free.
     "recompute" — ZOH world pose + per-step relative recompute (the proposal)
     "frozen"    — naive: freeze all of [0:14] between ticks (the ablation that
                   isolates how much the recompute is actually worth)
+    "latch"     — recompute until the object is GRASPED, then latch the
+                  object->gripper transform and PROPAGATE the world pose from
+                  proprioception. Measured (Results/tag_inflight): once the
+                  object is held, tag detection is 0% at BOTH the wrist and
+                  fixed cameras -- the gripper occludes it. But a held object's
+                  pose relative to the gripper is constant, so it does not need
+                  to be seen: world = eef (*) latched_relative, and eef is
+                  exact from joint encoders. "recompute" is actively wrong here
+                  (it holds a stale WORLD pose while the arm carries the object
+                  away from it, so the relative block diverges).
 
 Perception can be driven either by a fitted noise model (fast, no rendering —
 use this for parameter sweeps) or by a real `TagDetector` on rendered frames
@@ -41,6 +51,16 @@ REL_POS = slice(7, 10)
 REL_QUAT = slice(10, 14)
 EEF_POS = slice(35, 38)
 EEF_QUAT = slice(38, 42)
+
+
+def _compose_world(rel_pos, rel_quat, eef_pos, eef_quat):
+    """Inverse of relative_block: object pose in WORLD from its pose in the
+    gripper frame plus the (exact) gripper pose. Used by mode="latch" to
+    propagate a held object without seeing it."""
+    T_we = TU.pose2mat((np.asarray(eef_pos), np.asarray(eef_quat)))
+    T_eo = TU.pose2mat((np.asarray(rel_pos), np.asarray(rel_quat)))
+    T_wo = TU.pose_in_A_to_pose_in_B(T_eo, T_we)
+    return TU.mat2pose(T_wo)
 
 
 def relative_block(obj_pos, obj_quat, eef_pos, eef_quat):
@@ -82,7 +102,7 @@ class PeriodicPerceptionWrapper:
 
     def __init__(self, env, period=5, latency=0, noise_pos=0.0, noise_yaw=0.0,
                  dropout=0.0, mode="recompute", detector=None, seed=None):
-        if mode not in ("truth", "recompute", "frozen"):
+        if mode not in ("truth", "recompute", "frozen", "latch"):
             raise ValueError(f"unknown mode {mode!r}")
         self.env = env
         self.period = max(1, int(period))
@@ -98,8 +118,23 @@ class PeriodicPerceptionWrapper:
 
         self._step = 0
         self._held = None        # (pos, quat) currently believed
+        self._latched = None     # object->gripper transform, once grasped
         self._pending = []       # [(ready_step, pos, quat)] in-flight measurements
-        self.stats = dict(ticks=0, detections=0, dropouts=0, stale_steps=0)
+        self.stats = dict(ticks=0, detections=0, dropouts=0, stale_steps=0,
+                          latched_at=-1)
+
+    def _is_grasped(self):
+        """True contact check from the simulator. On hardware this is the same
+        signal the FSM already uses (gripper width plus a lift test), so the
+        latch does not require anything the deployed system lacks."""
+        e = self.env
+        raw = getattr(e, "env", e)
+        raw = getattr(raw, "env", raw)
+        try:
+            return bool(raw._check_grasp(gripper=raw.robots[0].gripper,
+                                         object_geoms=raw.objects[raw.object_id]))
+        except Exception:
+            return False
 
     # --- perception ---------------------------------------------------------
 
@@ -151,6 +186,27 @@ class PeriodicPerceptionWrapper:
             self.stats["stale_steps"] += 1
 
         pos, quat, rel_pos0, rel_quat0 = self._held
+
+        if self.mode == "latch":
+            if self._latched is None and self._is_grasped():
+                # Latch the CURRENT relative transform, from the last good
+                # measurement propagated to now.
+                self._latched = relative_block(pos, quat,
+                                               obs[EEF_POS], obs[EEF_QUAT])
+                self.stats["latched_at"] = self._step
+            if self._latched is not None:
+                rp, rq = self._latched
+                obs[REL_POS], obs[REL_QUAT] = rp, rq
+                wp, wq = _compose_world(rp, rq, obs[EEF_POS], obs[EEF_QUAT])
+                obs[OBJ_POS], obs[OBJ_QUAT] = wp, wq
+                return obs
+            # not yet grasped -> behave exactly like recompute
+            obs[OBJ_POS], obs[OBJ_QUAT] = pos, quat
+            rel_pos, rel_quat = relative_block(pos, quat,
+                                               obs[EEF_POS], obs[EEF_QUAT])
+            obs[REL_POS], obs[REL_QUAT] = rel_pos, rel_quat
+            return obs
+
         obs[OBJ_POS], obs[OBJ_QUAT] = pos, quat
         if self.mode == "recompute":
             # Fresh proprioception, stale world pose — the proposal.
@@ -166,6 +222,7 @@ class PeriodicPerceptionWrapper:
     def reset(self):
         self._step = 0
         self._held = None
+        self._latched = None
         self._pending = []
         obs = self.env.reset()
         return self._apply(obs, self._obs_dict())

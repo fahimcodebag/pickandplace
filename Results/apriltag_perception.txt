@@ -1,0 +1,92 @@
+================================================================================
+APRILTAG PERCEPTION END-TO-END: THREE IMPLEMENTATION BUGS, THEN 28% -> 68%
+The camera goes blind at grasp in every configuration. That is survivable --
+a held object does not need to be seen -- but only with the right propagation.
+================================================================================
+
+WHAT WAS ALREADY BUILT
+apriltag_sim.py (tag injection + OpenCV DICT_APRILTAG_36h11 + solvePnP),
+perception_wrapper.py (periodic perception, truth/recompute/frozen),
+sweep_perception.py, validate_tag_perception.py.
+
+TWO SCOPE PROBLEMS WITH THE EXISTING EVIDENCE
+1. validate_tag_perception.py detects ONE frame per episode, at reset, with the
+   arm parked at home. That is the easiest case for a fixed camera and the
+   hardest for a wrist camera, and says nothing about detection during motion.
+2. sweep_perception.py:evaluate scores info["grasp_success"] with a 200-step cap
+   running the GRASP ACTOR ALONE -- no FSM, no transport, no place. Its headline
+   ("flat to a 20x update period at 10 mm noise") therefore covers only the
+   phase where the tag is visible. It was never evidence about the carry.
+
+--------------------------------------------------------------------------------
+FINDING 1: DETECTION DIES AT GRASP, IN EVERY CAMERA CONFIGURATION
+--------------------------------------------------------------------------------
+Real detector, real FSM, measured per phase during episodes (tag_inflight.py):
+
+  phase        agentview 1280x960     eye_in_hand 640x480
+  GRASP          65%  11.6 mm            29%   3.6 mm
+  TEST_LIFT       0%     --               0%     --
+  TRANSPORT       0%     --               0%     --
+  RECENTER       19%   9.3 mm             0%     --
+  OPEN           33%   8.9 mm             0%     --
+
+Once the object is held the gripper occludes the tag. This is geometry, not
+resolution, and it does not improve with a better camera.
+
+THE ARCHITECTURAL CONSEQUENCE
+A held object's pose RELATIVE TO THE GRIPPER is constant, and the gripper pose
+is exact from joint encoders. So it does not need to be seen -- it needs to
+have been seen ONCE, at grasp. Hence mode="latch": recompute until grasped,
+then latch object->gripper and propagate world = eef (*) latched.
+"recompute" is actively WRONG after grasp: it holds a stale WORLD pose while
+the arm carries the object away from it, so the relative block diverges.
+
+--------------------------------------------------------------------------------
+FINDING 2: THREE IMPLEMENTATION BUGS, WORTH 40 POINTS TOGETHER
+--------------------------------------------------------------------------------
+1. RESOLUTION. 320x240 and 640x480 gave 0/5 detections at agentview -- the tag
+   renders at ~10 px, below AprilTag's decode threshold. 960x720 detects but at
+   61 mm error; 1280x960 gives 10 mm.
+
+2. PLANAR POSE AMBIGUITY. solvePnP with IPPE_SQUARE returns ONE of two poses
+   that project almost identically. Measured: orientation median 3.8 deg but
+   p95 91.3 deg, with 3/15 detections flipped ~90 deg. Fixed with
+   solvePnPGeneric: reject the flipped solution by a physics prior (the object
+   rests flat, so the tag normal points up, min_up=0.30), then choose among
+   survivors by reprojection error. Scoring both together instead
+   (up - k*err) fixes orientation but degrades position -- measured, and
+   recorded in the code comment.
+   After: orientation p95 4.7 deg, 0/25 flips.
+
+3. FRAME/OFFSET. The detector returned the TAG pose while the observation
+   expects the OBJECT CENTRE. Decomposing the residual identified it as fixed
+   in the WORLD frame (sd 11.0/3.4/10.8 mm) rather than the tag frame
+   (12.2/13.5/10.8), i.e. a camera-extrinsics artifact, not tag mounting -- so
+   it is corrected in world coordinates. The z term also shows the true tag
+   height is ~13 mm above the object centre, not the 26 mm the z_offset default
+   assumed.
+
+DETECTOR AFTER THE FIXES (agentview 1280x960, 25 resets)
+  detection 25/25 | position median 11.2 mm p95 25.8 | angle median 2.9 deg p95 4.7
+
+--------------------------------------------------------------------------------
+FINDING 3: END-TO-END, FULL FSM (25 episodes, period 5, c2m512_s1)
+--------------------------------------------------------------------------------
+  mode                 success
+  truth (ceiling)       100.0%   (8 episodes)
+  latch  BEFORE fixes    28.0%
+  recompute BEFORE       24.0%
+  latch  AFTER fixes     68.0%
+  recompute AFTER        44.0%
+
+latch beats recompute by 24 points, confirming the propagation argument. The
+28%/24% figures were NOT evidence against AprilTag perception -- they were
+three compounding implementation bugs.
+
+STATUS AND WHAT IS NOT YET KNOWN
+A 32-point gap to ground truth remains at 68%. Candidate causes, none yet
+separated: 11.2 mm position noise; detection gaps during GRASP (65% at
+agentview) held over 5-step periods; and the latch being taken from whatever
+pose was current at the grasp instant, which may be stale or noisy.
+The truth baseline is only 8 episodes and needs matching at 25+.
+Nothing here is at the 1200-episode protocol used elsewhere in this campaign.
