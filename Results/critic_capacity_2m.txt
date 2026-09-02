@@ -1,0 +1,70 @@
+================================================================================
+LARGE CRITICS WORK -- GIVEN ENOUGH DATA. THE EARLIER NULL WAS A BUDGET ARTIFACT.
+Best artifact to date: c2m512_s1, INT8 95.33% / FP32 94.92% held-out.
+================================================================================
+
+WHY THIS WAS RE-RUN
+Results/capacity_experiments.txt reported 512/256 critics as showing NO
+RELIABLE EFFECT (t=-2.27 p=0.0265 but wilcoxon p=0.0989, pairs 36/35). That
+test gave a 159,233-parameter critic the same ~4000-episode budget on a 200k
+buffer as a 5,569-parameter one -- almost certainly underfit, and flagged as
+such at the time. This re-runs it where that objection does not apply.
+
+DESIGN
+Fixed in BOTH arms (well supported, not worth spending arms on):
+  buffer 2,000,000   fills at ~50k episodes, so 55k is the shortest run where
+                     2M is not simply identical to 1M
+  batch 1024         a larger buffer only pays if you sample its diversity
+  55,000 episodes, early stopping disabled, --actor-wclip 8 --actor-fakequant
+Varied: critic width 512/256 vs 64/32, 4 seeds each. Actor stays 64/32 in both.
+Both arms use --warm-start-actor-only so critics start FRESH in both -- a
+warm-started control against a necessarily-fresh treatment would confound size
+with initialisation, the error that made the first critic test unreadable.
+
+RESULT (12 eval seeds x 100 per cell, A+C rule layer)
+  arm       FP32     INT8    INT8 sd
+  c2m64    85.12%   87.54%    5.24
+  c2m512   91.17%   90.67%    4.26
+
+  paired on (training seed, eval seed), 48 pairs
+    INT8  +3.12  t=2.53 p=0.0147  wilcoxon 0.0152  29/17
+    FP32  +6.04  t=6.61 p<0.0001  wilcoxon 0.0000  37/10
+
+Both tests agree on both precisions. The first critic test had them
+contradicting each other with a 36/35 pair split; this one does not. Training
+side was equally clean: 512/256 beat 64/32 on all four seeds with NO OVERLAP
+(worst 95.2 vs best 93.0 grasp success over the last 2000 episodes).
+
+CRITIC CAPACITY IS FREE AT DEPLOYMENT
+The actor stays 64/32, the INT8 artifact stays 8088 bytes, the ESP32 firmware
+is unchanged. All 159k extra parameters live on the host and are discarded at
+conversion. This is the only capacity result in the campaign that costs nothing
+on the target.
+
+HELD-OUT VALIDATION (12 seeds never used for selection)
+  model         INT8 sel  INT8 held   shrink   FP32 held
+  c2m512_s1       96.25%     95.33%    -0.92      94.92%
+  buf500k_s1      95.17%     94.17%    -1.00      93.67%
+  c2m64_s3        93.25%     92.50%    -0.75      85.58%
+
+  c2m512_s1 vs buf500k_s1: INT8 +1.17  t=1.38 p=0.1935  8/3  NOT significant
+
+A PATTERN WORTH STATING HONESTLY
+This is the third consecutive "new best" that improves ~1.2 points without
+individually clearing significance: 93.08 -> 94.17 -> 95.33 held-out. At n=12
+eval seeds a ~1 point difference is not resolvable, so no single step is
+demonstrated; the cumulative +2.25 is more credible than any one increment.
+The ARM-level critic effect (+3.12/+6.04) is the significant finding here, not
+the artifact ranking.
+
+WHAT THE 2M BUFFER DID NOT DO
+It did not tighten variance further: INT8 sd 4.26 and 5.24 here against
+buf1000k's 2.84 at 25k episodes. Since 1M already retains everything at 25k,
+the variance benefit appears to saturate near 1M and 4M would likely buy
+nothing. Note both arms here also paid a fresh-critic collapse, which the
+buffer sweep arms did not.
+
+STATUS
+Best artifact: c2m512_s1 (INT8 95.33% / FP32 94.92%, random spawn, held-out).
+Fixed-spawn cells are stale again -- last measured on buf500k_s1 -- and need
+re-measuring on this artifact before the results table is consistent.
