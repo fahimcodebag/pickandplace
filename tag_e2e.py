@@ -78,8 +78,25 @@ def main():
     if a.residual_model:
         import json as _json
         _m = _json.load(open(a.residual_model))
-        RM = (_m["features"], np.array(_m["mu"]), np.array(_m["sd"]),
-              np.array(_m["W"]))
+        # Two model forms. The linear one is a single (F+1)x3 matrix; the MLP
+        # form carries per-layer weights. The MLP roughly doubles what linear
+        # recovers (11.56 -> 2.30 mm vs 7.08, leave-one-seed-out), so the
+        # residual is NOT linear -- an earlier claim in this file that it was
+        # is retracted.
+        if "b" in _m:
+            _Ws = [np.array(w) for w in _m["W"]]
+            _bs = [np.array(b) for b in _m["b"]]
+            def _fwd(z):
+                for i, (W, b) in enumerate(zip(_Ws, _bs)):
+                    z = z @ W.T + b
+                    if i < len(_Ws) - 1:
+                        z = np.maximum(z, 0.0)
+                return z
+        else:
+            _W = np.array(_m["W"])
+            def _fwd(z):
+                return np.r_[1.0, z] @ _W
+        RM = (_m["features"], np.array(_m["mu"]), np.array(_m["sd"]), _fwd)
         import robosuite.utils.camera_utils as _CU
         _campos = _CU.get_camera_extrinsic_matrix(env.sim, cams[0])[:3, 3]
 
@@ -87,7 +104,7 @@ def main():
         """Add the learned residual. Every feature is derived from the DETECTED
         pose, never ground truth -- deriving them from truth inflated the fit
         from +39% to a spurious +60%."""
-        F_, mu, sd, W = RM
+        F_, mu, sd, fwd = RM
         d = np.asarray(pos)
         ray = d - _campos; rng = float(np.linalg.norm(ray)); ray = ray / max(rng, 1e-9)
         v = np.asarray(eef) - _campos
@@ -103,8 +120,7 @@ def main():
                     cy=float(dets[0].last_corners[:, 1].mean()),
                     obj_yaw=yaw, det_x=d[0], det_y=d[1], det_z=d[2])
         x = np.array([vals[k] for k in F_])
-        z = np.r_[1.0, (x - mu) / sd]
-        return d + z @ W
+        return d + fwd((x - mu) / sd)
 
     def detect_best(od):
         """Fuse detections across cameras by AVERAGING, not selecting.

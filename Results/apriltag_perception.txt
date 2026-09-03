@@ -302,3 +302,60 @@ have to be refitted, against real ground truth from motion capture or
 fixturing, before it means anything on hardware. What the sim result
 establishes is that the structure EXISTS and is linear -- not a set of
 deployable coefficients.
+
+--------------------------------------------------------------------------------
+THE RESIDUAL IS NONLINEAR: AN MLP CLOSES 62% OF THE PERCEPTION GAP
+--------------------------------------------------------------------------------
+RETRACTION. This file previously said the residual structure "is linear" and
+that no MLP was needed. Both claims were wrong. They rested on never having
+fitted a nonlinear model -- sklearn is not installed, so the first fit was a
+hand-rolled ridge and nothing else was tried. Fitting a small MLP in torch,
+same leave-one-SEED-out protocol, same runtime-available features:
+
+  model            median pose error   reduction   R2 (x/y/z)
+  baseline              11.56 mm           --          --
+  ridge (linear)         7.08 mm         +39%     0.42/0.57/0.46
+  MLP 64-64              2.30 mm         +80%     0.79/0.77/0.79
+
+The ~50% of residual variance the linear fit left behind was mostly NONLINEAR
+STRUCTURE, not irreducible detector noise.
+
+END-TO-END, 12 seeds x 50 episodes per arm (600 episodes each)
+  seed    plain   linear     MLP
+     7    72.0%    86.0%   78.0%
+    31    88.0%    96.0%   92.0%
+    47    76.0%    76.0%   84.0%
+    89    80.0%    82.0%   94.0%
+   101    72.0%    84.0%   88.0%
+   123    74.0%    88.0%   90.0%
+   211    68.0%    78.0%   86.0%
+   307    76.0%    86.0%   88.0%
+   401    66.0%    78.0%   86.0%
+   503    76.0%    76.0%   90.0%
+   555    78.0%    80.0%   84.0%
+  2024    76.0%    72.0%   82.0%
+  mean    75.2%    81.8%   86.8%
+
+  MLP vs plain    +11.7  t=7.42 p=0.00001  wilcoxon 0.00049  12/0/0
+  MLP vs linear    +5.0  t=2.70 p=0.02058  wilcoxon 0.02930  10/2/0
+  linear vs plain  +6.7  t=3.67 p=0.00367  wilcoxon 0.00781   9/1/2
+
+  gap to truth (94.0%):  18.8 -> 12.2 -> 7.2 points; the MLP closes 62%.
+
+TWELVE OF TWELVE SEEDS IMPROVE, none regress. The pose-level measurement
+predicted the ordering correctly: the MLP cut pose error 80% against linear's
+39%, and end-to-end it closes 62% of the gap against linear's 35%.
+
+COST ON THE TARGET
+The corrector is 5,187 parameters -- essentially the same size as the deployed
+policy actor (5,216). So running it doubles the MCU's model budget from ~8 KB
+to ~16 KB INT8, which the ESP32 accommodates easily (4 MB flash, 40 KB arena,
+9.5 ms of a 50 ms cycle). It is not free, but it is affordable, and it buys
+more than any policy-side intervention measured in this campaign.
+
+THE CAVEAT IS UNCHANGED AND IS THE IMPORTANT ONE
+This remains a PER-SETUP calibration: it encodes this camera in this scene.
+Deploying it means refitting against real ground truth from motion capture or
+fixturing. What the simulation establishes is that the AprilTag residual is
+strongly structured and nonlinearly predictable from runtime-available
+features -- not a set of coefficients anyone can ship.
