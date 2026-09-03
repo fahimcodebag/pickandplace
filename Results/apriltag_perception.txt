@@ -257,6 +257,31 @@ END-TO-END (paired, 4 seeds x 50 episodes)
   +6.0 points, 3/0 seeds up, t=1.90 p=0.1540 (NOT significant at n=4)
   gap to truth: 15.0 -> 9.0 points
 
+CONFIRMED AT 12 SEEDS (600 episodes per arm, the campaign's standard eval seeds)
+  seed    1 cam   +residual   delta
+     7    72.0%     86.0%     +14.0
+    31    88.0%     96.0%      +8.0
+    47    76.0%     76.0%       0.0
+    89    80.0%     82.0%      +2.0
+   101    72.0%     84.0%     +12.0
+   123    74.0%     88.0%     +14.0
+   211    68.0%     78.0%     +10.0
+   307    76.0%     86.0%     +10.0
+   401    66.0%     78.0%     +12.0
+   503    76.0%     76.0%       0.0
+   555    78.0%     80.0%      +2.0
+  2024    76.0%     72.0%      -4.0
+  mean    75.2%     81.8%      +6.7   sd of delta 6.3
+
+  paired t=3.67 p=0.00367   wilcoxon p=0.00781   up/down/tie 9/1/2
+
+Both tests agree, which is worth stating: the earlier critic experiment in this
+campaign had t-test and Wilcoxon contradicting each other on a 36/35 pair split,
+and that disagreement was itself the finding. There is no such tension here.
+The n=4 estimate also held honestly: +6.0 predicted, +6.7 measured. Not
+universal -- seed 2024 regressed 4 points and two seeds were flat -- but 9 of
+12 improved.
+
 The magnitudes agree: pose error fell 39%, the gap closed 40%. That
 correspondence is evidence the mechanism is real rather than coincidental. But
 p=0.154 is not significance, seed 47 did not move, and this needs more seeds
