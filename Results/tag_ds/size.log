@@ -1,0 +1,10 @@
+held-out baseline 12.54 mm
+config              params   held-out    cut  R2 x/y/z
+h32 d2 bs64           1,571      1.04mm    92%  +0.93/+0.86/+0.94
+h64 d2 bs64           5,187      0.96mm    92%  +0.91/+0.83/+0.90
+h64 d3 bs64           9,347      0.73mm    94%  +0.88/+0.83/+0.86
+h128 d2 bs64          18,563      1.00mm    92%  +0.90/+0.80/+0.87
+h128 d3 bs64          35,075      0.71mm    94%  +0.88/+0.83/+0.87
+h256 d3 bs64         135,683      0.69mm    94%  +0.91/+0.82/+0.89
+
+saved assets/tag_residual_small.json (h64 d2, 5,187 params)

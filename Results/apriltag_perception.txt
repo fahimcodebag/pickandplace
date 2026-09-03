@@ -359,3 +359,75 @@ Deploying it means refitting against real ground truth from motion capture or
 fixturing. What the simulation establishes is that the AprilTag residual is
 strongly structured and nonlinearly predictable from runtime-available
 features -- not a set of coefficients anyone can ship.
+
+--------------------------------------------------------------------------------
+TUNED CORRECTOR: 89.7% vs a 94.0% CEILING -- 77% OF THE GAP CLOSED
+--------------------------------------------------------------------------------
+PROTOCOL. 2181 samples over 6 seeds is small enough that tuning against the
+folds you report on would overfit the search itself, so seeds were split:
+  TUNE   7, 31, 47, 89   leave-one-seed-out CV inside this set only
+  HOLD 101, 123          never seen by the search, evaluated once
+18 configs: hidden 64/128/256 x depth 2/3 x batch 64/256/full x wd 1e-4/1e-3,
+1500 epochs, cosine LR.
+
+BATCH SIZE DOMINATES ARCHITECTURE.
+  h128 d3:  bs64 0.88  bs256 1.11  full 1.29 mm
+  h256 d3:  bs64 0.84  bs256 0.90  full 1.19 mm
+Minibatching was the whole story: the first untuned fit ran 400 FULL-BATCH
+updates; bs64 x 1500 epochs is ~50,000. Two orders of magnitude more
+optimisation on identical data.
+
+POSE ERROR, HELD-OUT SEEDS: 12.54 mm -> 0.69 mm (+94%), R2 0.91/0.82/0.89.
+
+SIZE IS NEARLY FREE -- THE CORRECTOR CAN BE SMALLER THAN THE POLICY
+  config      params   held-out   cut   R2 x/y/z
+  h32 d2       1,571     1.04mm   92%   +0.93/+0.86/+0.94
+  h64 d2       5,187     0.96mm   92%   +0.91/+0.83/+0.90
+  h64 d3       9,347     0.73mm   94%   +0.88/+0.83/+0.86
+  h128 d3     35,075     0.71mm   94%   +0.88/+0.83/+0.87
+  h256 d3    135,683     0.69mm   94%   +0.91/+0.82/+0.89
+A 1,571-parameter net reaches 92% -- within 0.35 mm of one 86x larger, and with
+the BEST R2 of the set. The deployed policy actor is 5,216 params, so the
+corrector need not exceed it.
+
+CAVEAT ON THAT TABLE: every size was trained at the SAME lr (1e-3), epochs
+(1500), batch (64) and weight decay (1e-3). Hyperparameters were NOT rescaled
+with capacity, and larger models generally want a lower LR and stronger
+regularisation. So the honest claim is "the size curve is flat AT THESE
+HYPERPARAMETERS", not "capacity does not help". For deployment it does not
+matter -- the small model already achieves 92% -- but the scientific version of
+the claim needs a per-size LR sweep.
+
+END-TO-END, 12 seeds x 50 episodes (h64 d2, 5,187 params)
+  seed    plain  untuned   tuned
+     7    72.0%    78.0%   80.0%
+    31    88.0%    92.0%   94.0%
+    47    76.0%    84.0%   78.0%
+    89    80.0%    94.0%   94.0%
+   101    72.0%    88.0%   98.0%
+   123    74.0%    90.0%   88.0%
+   211    68.0%    86.0%   88.0%
+   307    76.0%    88.0%   88.0%
+   401    66.0%    86.0%   94.0%
+   503    76.0%    90.0%   94.0%
+   555    78.0%    84.0%   92.0%
+  2024    76.0%    82.0%   88.0%
+  mean    75.2%    86.8%   89.7%
+
+  tuned vs plain    +14.5  t=6.58 p=0.00004  wilcoxon 0.00049  12/0/0
+  tuned vs untuned   +2.8  t=2.12 p=0.05752  wilcoxon 0.05664   8/2/2  marginal
+  gap to truth: 18.8 -> 7.2 -> 4.3 points; the tuned corrector closes 77%.
+
+Tuning's own contribution is marginal (p=0.058). The bulk of the win was
+using an MLP at all rather than a linear fit.
+
+A UNIT BUG WORTH RECORDING
+The first tuned run scored 0.0% on ALL 12 seeds. tune_residual.load() scales
+targets by 1000 so the sweep prints readable millimetres, and size_tradeoff.py
+reuses that loader -- so the exported model emitted MILLIMETRES while tag_e2e
+adds the correction to a position in METRES. Every detection was displaced
+~11.5 m. Verified by comparing predicted magnitude against truth (996x), fixed
+by rescaling the final layer, re-verified at 1.00x. The in-process size-tradeoff
+numbers were never affected; only the exported artifact was. A 1000x error
+fails loudly -- a 100x one would have degraded results plausibly and might have
+been written up as "tuning did not transfer".

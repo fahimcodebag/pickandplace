@@ -1,0 +1,41 @@
+tune 1483 samples / 4 seeds | hold 698 / 2 seeds | device cuda
+  h64   d2 bs64    wd0.0001 CV median   1.06 mm  R2 +0.87/+0.61/+0.87
+  h64   d2 bs64    wd0.001  CV median   1.06 mm  R2 +0.85/+0.64/+0.85
+  h64   d2 bs256   wd0.0001 CV median   1.17 mm  R2 +0.81/+0.65/+0.80
+  h64   d2 bs256   wd0.001  CV median   1.13 mm  R2 +0.83/+0.68/+0.82
+  h64   d2 bsfull  wd0.0001 CV median   1.52 mm  R2 +0.79/+0.74/+0.78
+  h64   d2 bsfull  wd0.001  CV median   1.49 mm  R2 +0.78/+0.75/+0.77
+  h64   d3 bs64    wd0.0001 CV median   0.94 mm  R2 +0.82/+0.52/+0.80
+  h64   d3 bs64    wd0.001  CV median   0.94 mm  R2 +0.79/+0.60/+0.77
+  h64   d3 bs256   wd0.0001 CV median   1.16 mm  R2 +0.77/+0.69/+0.74
+  h64   d3 bs256   wd0.001  CV median   1.13 mm  R2 +0.77/+0.68/+0.74
+  h64   d3 bsfull  wd0.0001 CV median   1.33 mm  R2 +0.72/+0.69/+0.70
+  h64   d3 bsfull  wd0.001  CV median   1.31 mm  R2 +0.74/+0.69/+0.71
+  h128  d2 bs64    wd0.0001 CV median   1.03 mm  R2 +0.81/+0.60/+0.79
+  h128  d2 bs64    wd0.001  CV median   1.05 mm  R2 +0.81/+0.58/+0.79
+  h128  d2 bs256   wd0.0001 CV median   1.20 mm  R2 +0.76/+0.61/+0.75
+  h128  d2 bs256   wd0.001  CV median   1.24 mm  R2 +0.77/+0.63/+0.76
+  h128  d2 bsfull  wd0.0001 CV median   1.33 mm  R2 +0.74/+0.67/+0.73
+  h128  d2 bsfull  wd0.001  CV median   1.32 mm  R2 +0.74/+0.69/+0.73
+  h128  d3 bs64    wd0.0001 CV median   0.90 mm  R2 +0.81/+0.60/+0.79
+  h128  d3 bs64    wd0.001  CV median   0.88 mm  R2 +0.81/+0.61/+0.80
+  h128  d3 bs256   wd0.0001 CV median   1.11 mm  R2 +0.76/+0.67/+0.73
+  h128  d3 bs256   wd0.001  CV median   1.11 mm  R2 +0.77/+0.68/+0.73
+  h128  d3 bsfull  wd0.0001 CV median   1.26 mm  R2 +0.74/+0.66/+0.69
+  h128  d3 bsfull  wd0.001  CV median   1.29 mm  R2 +0.73/+0.63/+0.69
+  h256  d2 bs64    wd0.0001 CV median   0.96 mm  R2 +0.79/+0.64/+0.76
+  h256  d2 bs64    wd0.001  CV median   0.89 mm  R2 +0.80/+0.65/+0.78
+  h256  d2 bs256   wd0.0001 CV median   1.16 mm  R2 +0.74/+0.58/+0.70
+  h256  d2 bs256   wd0.001  CV median   1.12 mm  R2 +0.76/+0.58/+0.73
+  h256  d2 bsfull  wd0.0001 CV median   1.23 mm  R2 +0.71/+0.66/+0.68
+  h256  d2 bsfull  wd0.001  CV median   1.19 mm  R2 +0.72/+0.66/+0.68
+  h256  d3 bs64    wd0.0001 CV median   0.87 mm  R2 +0.80/+0.65/+0.79
+  h256  d3 bs64    wd0.001  CV median   0.84 mm  R2 +0.81/+0.69/+0.80
+  h256  d3 bs256   wd0.0001 CV median   0.90 mm  R2 +0.74/+0.63/+0.70
+  h256  d3 bs256   wd0.001  CV median   0.92 mm  R2 +0.75/+0.60/+0.71
+  h256  d3 bsfull  wd0.0001 CV median   1.27 mm  R2 +0.70/+0.64/+0.66
+  h256  d3 bsfull  wd0.001  CV median   1.19 mm  R2 +0.70/+0.64/+0.65
+
+best by CV: h256 d3 bs64 wd0.001  (CV 0.84 mm)
+HELD-OUT seeds (never tuned on): baseline 12.54 mm -> 0.69 mm (+94%)  R2 +0.91/+0.82/+0.89
+saved assets/tag_residual_mlp_tuned.json  (135,683 params)
