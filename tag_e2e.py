@@ -45,7 +45,9 @@ def main():
     p.add_argument("--grasp-ckpt", required=True)
     p.add_argument("--place-ckpt", default="checkpoints/td3_place/best")
     p.add_argument("--mode", choices=["truth", "recompute", "latch"], required=True)
-    p.add_argument("--camera", default="agentview")
+    p.add_argument("--camera", default="agentview",
+                   help="comma-separated for multi-camera fusion, e.g. "
+                        "agentview,robot0_robotview")
     p.add_argument("--width", type=int, default=1280)
     p.add_argument("--height", type=int, default=960)
     p.add_argument("--period", type=int, default=5, help="control steps between detections")
@@ -59,11 +61,43 @@ def main():
     p.add_argument("--out", required=True)
     a = p.parse_args()
 
-    env, meta = make_tagged_env(camera=a.camera, width=a.width, height=a.height,
-                                horizon=700)
-    det = None if a.mode == "truth" else TagDetector(
-        env, camera=a.camera, width=a.width, height=a.height,
-        marker_size_m=meta["marker_size_m"])
+    cams = [c.strip() for c in a.camera.split(",") if c.strip()]
+    env, meta = make_tagged_env(camera=cams[0], width=a.width, height=a.height,
+                                horizon=700, camera_names=cams)
+    dets = ([] if a.mode == "truth" else
+            [TagDetector(env, camera=c, width=a.width, height=a.height,
+                         marker_size_m=meta["marker_size_m"]) for c in cams])
+
+    def detect_best(od):
+        """Fuse detections across cameras by AVERAGING, not selecting.
+
+        Both cameras are STATIC (measured 0.00 mm drift over 30 steps of arm
+        motion), so extrinsics are exact constants -- no pose estimation, no
+        IMU. The second view is purely geometric: the gripper rarely occludes
+        the tag from two angles at once.
+
+        Selecting the lower-reprojection-error view was tried and is WRONG.
+        Reprojection error is a pixel-space fit measured inside each camera's
+        own image, and is not comparable across views with different geometry:
+        it chose robot0_robotview 60% of the time and landed at 15.0 mm median,
+        worse than agentview alone at 10.4 mm. Averaging the two poses gives
+        8.0 mm -- better than either camera by itself, since the two error
+        sources are largely independent.
+        """
+        got = []
+        for d in dets:
+            r = d.detect(od)
+            if r is not None:
+                got.append(r)
+        if not got:
+            return None
+        if len(got) == 1:
+            return got[0]
+        P = np.array([g[0] for g in got])
+        Q = np.array([g[1] for g in got])
+        Q = Q * np.sign(Q @ Q[0])[:, None]     # q and -q are the same rotation
+        q = Q.mean(axis=0)
+        return P.mean(axis=0), q / max(np.linalg.norm(q), 1e-9)
     np.random.seed(a.seed); T.manual_seed(a.seed)
     g = F.load_actor(a.grasp_ckpt); pl = F.load_actor(a.place_ckpt)
 
@@ -86,7 +120,7 @@ def main():
             if a.mode != "truth":
                 if t % a.period == 0:
                     n_tick += 1
-                    r = det.detect(od)
+                    r = detect_best(od)
                     if r is not None:
                         n_det += 1
                         held = (np.asarray(r[0]), np.asarray(r[1]))

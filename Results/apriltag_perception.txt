@@ -146,3 +146,70 @@ per-detection accuracy during the approach (~21 mm under partial occlusion),
 which is a camera placement/resolution question rather than a filtering one.
 Untested: a second camera for redundancy, a larger tag, or tag placement that
 the gripper does not cover on approach.
+
+--------------------------------------------------------------------------------
+TWO CAMERAS MAKE IT WORSE -- AND THE REASON UNIFIES THREE NEGATIVE RESULTS
+--------------------------------------------------------------------------------
+Camera survey at 1280x960 (20-30 resets each): agentview 15/15 at 12.0 mm,
+robot0_robotview 15/15 at 15.6 mm, birdview 13/15 at 77.2 mm, frontview 0/15.
+Both usable cameras are STATIC -- measured 0.00 mm and 0.00 deg drift over 30
+steps of arm motion -- so extrinsics are exact constants. No pose estimation,
+no IMU, nothing to compensate.
+
+END-TO-END, paired on 4 seeds, 50 episodes per cell:
+  seed    truth    1 cam   2cam select   2cam average
+     7    90.0%    72.0%      68.0%         70.0%
+    31    98.0%    88.0%      82.0%         84.0%
+    47    92.0%    76.0%      62.0%         70.0%
+    89    96.0%    80.0%      74.0%         78.0%
+  mean    94.0%    79.0%      71.5%         75.5%
+
+  2cam-avg vs 1cam   -3.5 pts  t=-3.66 p=0.0354  0/4 seeds up
+  2cam-sel vs 1cam   -7.5 pts  t=-3.38 p=0.0430  0/4 seeds up
+
+FIRST ERROR: SELECTING BY REPROJECTION ERROR. Reprojection error is a
+pixel-space residual computed inside each camera's own image and is NOT
+comparable across views with different geometry. The rule picked the weaker
+camera 60% of the time and produced 15.0 mm median -- worse than agentview
+alone at 10.4 mm. Averaging instead gives 8.0 mm, better than either input.
+
+SECOND ERROR, AND THE REAL ONE: BETTER POSES, WORSE TASK. Averaging is more
+accurate both at reset (8.0 vs 10.4 mm) AND in-episode (7.8 vs 10.7 mm), yet
+loses 3.5 points end-to-end. The measurement that explains it:
+
+  in-episode, pre-grasp:  agentview 10.7 mm | robotview 17.2 mm | avg 7.8 mm
+  BOTH cameras saw the tag on only 18/35 = 51% of ticks
+
+On the other 49% there is no average -- only whichever camera survived. When
+that is robotview the policy gets a FRESH 17.2 mm pose, whereas single-camera
+operation gets NO detection and zero-order-holds its last good pose instead.
+The second camera therefore trades "hold an accurate stale pose" for "use a
+fresh worse one", and this policy prefers the stale one.
+
+THE UNIFYING PRINCIPLE
+Three independent negative results share one cause:
+  period 1 == period 5 (68% both)   staleness is nearly free
+  median-latch          -2.5 pts    mixes worse samples into a good one
+  two cameras           -3.5 pts    substitutes a worse camera when blocked
+Before the grasp the object is STATIONARY, so a stale measurement costs almost
+nothing while a noisy one costs directly. The winning strategy is to take the
+single most accurate measurement available and HOLD it -- not to fuse, refresh
+or average. Every optimisation attempted here violated that principle, which is
+why all three failed. This also predicts that a QUALITY GATE on single-camera
+detections (reject high-reprojection poses, keep the previous one) should help
+where fusion did not. Untested.
+
+WHAT IS AND IS NOT A LEVER, ALL MEASURED
+  tag size      AT THE CEILING. 4.4 cm tag on a 4.0x4.8x4.9 cm object already
+                overhangs it; 2.8 cm halves detection and quadruples error.
+  resolution    PAST RETURNS. 960->1280 is the real step (23.8 -> 10.1 mm);
+                1600x1200 is flat, and that is the OV2640/ESP32-CAM ceiling.
+  frame rate    NOT A LEVER. period 1 == period 5.
+  filtering     NOT A LEVER. median-latch is negative.
+  multi-camera  NOT A LEVER. negative under both fusion rules.
+  camera motion NOT THE PROBLEM. the camera is provably static.
+
+BEST CONFIGURATION FOUND: ONE camera (agentview 1280x960), mode=latch,
+single most recent detection, zero-order hold. 79.0% against a 94.0% ceiling.
+The 15-point gap is the measured cost of real AprilTag perception and is
+dominated by per-detection error under gripper occlusion during the approach.

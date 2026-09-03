@@ -164,6 +164,7 @@ class TagDetector:
                                  [h, -h, 0], [-h, -h, 0]], dtype=np.float32)
 
     min_up = 0.30     # tag normal must point broadly upward (object rests flat)
+    last_err = float("inf")   # reprojection error of the pose last returned
     # Extrinsic calibration, measured over 30 detections at agentview 1280x960
     # against MuJoCo truth. The residual is fixed in the WORLD frame (sd
     # [11.0, 3.4, 10.8] mm) rather than the tag frame (sd [12.2, 13.5, 10.8]),
@@ -225,7 +226,12 @@ class TagDetector:
         upright = [c for c in cand if c[0] >= self.min_up]
         if not upright:
             return None
-        best = min(upright, key=lambda c: c[1])[2]
+        chosen = min(upright, key=lambda c: c[1])
+        # Expose the reprojection error so a caller with SEVERAL cameras can
+        # pick the better view. Occlusion by the gripper shows up here: a
+        # partially covered tag still decodes but localises its corners worse.
+        self.last_err = chosen[1]
+        best = chosen[2]
         return (best[:3, 3] - self.calib_world_m).copy(), _mat_to_quat(best[:3, :3])
 
 
