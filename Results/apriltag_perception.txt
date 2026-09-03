@@ -431,3 +431,45 @@ by rescaling the final layer, re-verified at 1.00x. The in-process size-tradeoff
 numbers were never affected; only the exported artifact was. A 1000x error
 fails loudly -- a 100x one would have degraded results plausibly and might have
 been written up as "tuning did not transfer".
+
+--------------------------------------------------------------------------------
+THE FULL DEPLOYMENT STACK: INT8 POLICY + REAL APRILTAG = 89.50%
+--------------------------------------------------------------------------------
+Every previous perception number ran the FP32 policy (tag_e2e used
+F.load_actor, a PyTorch path with no TFLite). The configuration that actually
+runs on the ESP32 -- INT8 actors AND estimated poses -- had never been measured.
+Both degradations being individually small does not license assuming they
+compose: this campaign's own earlier finding was that quantisation damage
+AMPLIFIED 3.7x under randomisation (3.33 pts at the tuned pose vs 12.34 under
+random spawn) before clipping and QAT removed it.
+
+12 seeds x 50 episodes, c2m512_s1, mode=latch, tuned corrector, period 5:
+  seed    FP32+tag   INT8+tag
+     7       80.0%      92.0%
+    31       94.0%      88.0%
+    47       78.0%      88.0%
+    89       94.0%      88.0%
+   101       98.0%      90.0%
+   123       88.0%      86.0%
+   211       88.0%      90.0%
+   307       88.0%      86.0%
+   401       94.0%      88.0%
+   503       94.0%      92.0%
+   555       92.0%      94.0%
+  2024       88.0%      92.0%
+  mean       89.7%      89.5%
+
+  INT8 vs FP32: -0.2 pts  t=-0.09 p=0.9298  wilcoxon 0.7910  5/7/0
+STATISTICALLY IDENTICAL. The costs compose benignly; they do not amplify.
+
+  INT8 + ground-truth poses    95.33%   (held-out, 1200 episodes)
+  INT8 + AprilTag + corrector  89.50%   (600 episodes)
+  ------------------------------------
+  cost of real perception       -5.83   points
+  cost of quantisation           0.00   points, under real perception
+
+RANDOM-SPAWN DEPLOYMENT SUMMARY FOR c2m512_s1
+  perfect poses, FP32   94.92%
+  perfect poses, INT8   95.33%
+  AprilTag,      FP32   89.67%
+  AprilTag,      INT8   89.50%   <- what the ESP32 pipeline delivers

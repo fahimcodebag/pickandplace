@@ -45,6 +45,11 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--grasp-ckpt", required=True)
     p.add_argument("--place-ckpt", default="checkpoints/td3_place/best")
+    p.add_argument("--int8", action="store_true",
+                   help="Run the DEPLOYED INT8 tflite actors instead of FP32. "
+                        "Needs the convert_venv interpreter (TensorFlow).")
+    p.add_argument("--grasp-tflite", default=None)
+    p.add_argument("--place-tflite", default=None)
     p.add_argument("--mode", choices=["truth", "recompute", "latch"], required=True)
     p.add_argument("--camera", default="agentview",
                    help="comma-separated for multi-camera fusion, e.g. "
@@ -153,7 +158,36 @@ def main():
         q = Q.mean(axis=0)
         return P.mean(axis=0), q / max(np.linalg.norm(q), 1e-9)
     np.random.seed(a.seed); T.manual_seed(a.seed)
-    g = F.load_actor(a.grasp_ckpt); pl = F.load_actor(a.place_ckpt)
+    if a.int8:
+        # Same int8 path the ESP32 executes: quantise input, invoke, dequantise
+        # output. Mirrors fsm_sim.TFLiteActor so the two harnesses agree.
+        import tensorflow as tf
+
+        class TFLiteActor:
+            def __init__(self, path):
+                self.it = tf.lite.Interpreter(model_path=path)
+                self.it.allocate_tensors()
+                self.inp = self.it.get_input_details()[0]
+                self.out = self.it.get_output_details()[0]
+
+            def __call__(self, x):
+                v = x.detach().numpy() if hasattr(x, "detach") else np.asarray(x)
+                v = v.reshape(1, -1).astype(np.float32)
+                sc, zp = self.inp["quantization"]
+                if self.inp["dtype"] == np.int8:
+                    v = np.clip(np.round(v / sc + zp), -128, 127).astype(np.int8)
+                self.it.set_tensor(self.inp["index"], v)
+                self.it.invoke()
+                o = self.it.get_tensor(self.out["index"])
+                sc, zp = self.out["quantization"]
+                if self.out["dtype"] == np.int8:
+                    o = (o.astype(np.float32) - zp) * sc
+                return T.tensor(o.astype(np.float32))
+
+        g = TFLiteActor(a.grasp_tflite) if a.grasp_tflite else F.load_actor(a.grasp_ckpt)
+        pl = TFLiteActor(a.place_tflite) if a.place_tflite else F.load_actor(a.place_ckpt)
+    else:
+        g = F.load_actor(a.grasp_ckpt); pl = F.load_actor(a.place_ckpt)
 
     rows = []
     for ep in range(a.episodes):
