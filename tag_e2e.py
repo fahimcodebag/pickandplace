@@ -25,6 +25,7 @@ import numpy as np, torch as T
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from apriltag_sim import make_tagged_env, TagDetector
 from perception_wrapper import relative_block, _compose_world, perturb_pose
+import robosuite.utils.transform_utils as TU
 import fsm_sim as F
 
 KEYS = ("Bread_pos", "Bread_quat", "Bread_to_robot0_eef_pos",
@@ -51,6 +52,11 @@ def main():
     p.add_argument("--width", type=int, default=1280)
     p.add_argument("--height", type=int, default=960)
     p.add_argument("--period", type=int, default=5, help="control steps between detections")
+    p.add_argument("--residual-model", default=None,
+                   help="JSON from tag_dataset.py: a linear correction on the "
+                        "detected pose. Cuts median pose error 11.56 -> 7.08 mm "
+                        "(leave-one-seed-out). Per-setup calibration -- it "
+                        "encodes THIS camera in THIS scene.")
     p.add_argument("--latch-median", type=int, default=1,
                    help="latch the MEDIAN of the last K detected world poses "
                         "instead of the single current one. The object is "
@@ -67,6 +73,38 @@ def main():
     dets = ([] if a.mode == "truth" else
             [TagDetector(env, camera=c, width=a.width, height=a.height,
                          marker_size_m=meta["marker_size_m"]) for c in cams])
+
+    RM = None
+    if a.residual_model:
+        import json as _json
+        _m = _json.load(open(a.residual_model))
+        RM = (_m["features"], np.array(_m["mu"]), np.array(_m["sd"]),
+              np.array(_m["W"]))
+        import robosuite.utils.camera_utils as _CU
+        _campos = _CU.get_camera_extrinsic_matrix(env.sim, cams[0])[:3, 3]
+
+    def apply_residual(pos, quat, eef):
+        """Add the learned residual. Every feature is derived from the DETECTED
+        pose, never ground truth -- deriving them from truth inflated the fit
+        from +39% to a spurious +60%."""
+        F_, mu, sd, W = RM
+        d = np.asarray(pos)
+        ray = d - _campos; rng = float(np.linalg.norm(ray)); ray = ray / max(rng, 1e-9)
+        v = np.asarray(eef) - _campos
+        perp = float(np.linalg.norm(v - np.dot(v, ray) * ray))
+        nrm = TU.quat2mat(np.asarray(quat))[:, 2]
+        obliq = float(np.degrees(np.arccos(np.clip(abs(nrm @ ray), 0, 1))))
+        q = np.asarray(quat)
+        yaw = float(np.arctan2(2*(q[3]*q[2]+q[0]*q[1]), 1-2*(q[1]**2+q[2]**2)))
+        vals = dict(reproj=dets[0].last_err, area_px=dets[0].last_area_px,
+                    obliq_deg=obliq, cam_range=rng, gripper_perp=perp,
+                    gripper_dz=float(eef[2] - d[2]),
+                    cx=float(dets[0].last_corners[:, 0].mean()),
+                    cy=float(dets[0].last_corners[:, 1].mean()),
+                    obj_yaw=yaw, det_x=d[0], det_y=d[1], det_z=d[2])
+        x = np.array([vals[k] for k in F_])
+        z = np.r_[1.0, (x - mu) / sd]
+        return d + z @ W
 
     def detect_best(od):
         """Fuse detections across cameras by AVERAGING, not selecting.
@@ -123,7 +161,10 @@ def main():
                     r = detect_best(od)
                     if r is not None:
                         n_det += 1
-                        held = (np.asarray(r[0]), np.asarray(r[1]))
+                        p_ = np.asarray(r[0])
+                        if RM is not None:
+                            p_ = apply_residual(p_, r[1], s[EEF_POS])
+                        held = (p_, np.asarray(r[1]))
                         if not grasped:      # only average while it is static
                             hist.append(held)
                             if len(hist) > a.latch_median:

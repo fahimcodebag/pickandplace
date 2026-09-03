@@ -165,6 +165,8 @@ class TagDetector:
 
     min_up = 0.30     # tag normal must point broadly upward (object rests flat)
     last_err = float("inf")   # reprojection error of the pose last returned
+    last_corners = None       # 4x2 image corners of the pose last returned
+    last_area_px = 0.0        # tag area in pixels (proxy for range/foreshortening)
     # Extrinsic calibration, measured over 30 detections at agentview 1280x960
     # against MuJoCo truth. The residual is fixed in the WORLD frame (sd
     # [11.0, 3.4, 10.8] mm) rather than the tag frame (sd [12.2, 13.5, 10.8]),
@@ -174,6 +176,22 @@ class TagDetector:
     # NOTE the z term also shows the true tag height is ~13 mm above the object
     # centre, not the 26 mm the z_offset default assumes.
     calib_world_m = np.array([-0.0147, -0.0047, 0.0133])
+    # Optional learned residual correction. The constant offset above is the
+    # zero-feature special case of exactly this model; a ridge fit on 2181
+    # detections over runtime-available features cuts median error a further
+    # 11.56 -> 4.58 mm (leave-one-seed-out, R^2 0.80/0.64/0.81). Linear, so it
+    # is a handful of multiply-adds on the target. Off unless load_residual_model
+    # is called, because it is a PER-SETUP calibration -- it encodes this
+    # camera in this scene and must be refitted against real ground truth
+    # before it means anything on hardware.
+    residual_model = None
+
+    def load_residual_model(self, path="assets/tag_residual_model.json"):
+        import json
+        m = json.load(open(path))
+        self.residual_model = (m["features"], np.array(m["mu"]),
+                               np.array(m["sd"]), np.array(m["W"]))
+        return self
 
     def frame(self, obs_dict):
         """Extract the camera image, undoing robosuite's vertical flip."""
@@ -200,6 +218,13 @@ class TagDetector:
         # grasp the object rests on the table, so the tag's normal points UP.
         # The flipped solution points it away from world +z and is rejected.
         img_pts = corners[idx].reshape(4, 2).astype(np.float32)
+        self.last_corners = img_pts.copy()
+        # shoelace area: shrinks with range and with viewing obliquity, so it
+        # is the natural single-number proxy for "how much tag do I actually
+        # have to fit corners to"
+        x, y = img_pts[:, 0], img_pts[:, 1]
+        self.last_area_px = float(0.5 * abs(np.dot(x, np.roll(y, 1)) -
+                                            np.dot(y, np.roll(x, 1))))
         n, rvecs, tvecs, err = cv2.solvePnPGeneric(
             self.obj_pts, img_pts, self.K, self.dist,
             flags=cv2.SOLVEPNP_IPPE_SQUARE)

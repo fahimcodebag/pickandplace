@@ -213,3 +213,67 @@ BEST CONFIGURATION FOUND: ONE camera (agentview 1280x960), mode=latch,
 single most recent detection, zero-order hold. 79.0% against a 94.0% ceiling.
 The 15-point gap is the measured cost of real AprilTag perception and is
 dominated by per-detection error under gripper occlusion during the approach.
+
+--------------------------------------------------------------------------------
+A LEARNED RESIDUAL CORRECTION CLOSES 40% OF THE PERCEPTION GAP
+--------------------------------------------------------------------------------
+Framing: AprilTag pose as FEATURE, simulator pose as TARGET, predicting the
+RESIDUAL (truth - detected) rather than the absolute pose. Regressing to
+absolute truth lets a model score well by echoing its input, since the
+detection is already ~90% right; the residual is centred near zero and its
+variance is the quantity to reduce. The constant offset already in
+TagDetector.calib_world_m is the zero-feature special case of this same model.
+
+DATASET: 2181 detections, 6 seeds x 60 episodes, pre-grasp only, logged with
+the real detector under the real FSM.
+
+TWO ROUNDS OF LEAKAGE HAD TO BE REMOVED FIRST
+  obj_yaw derived from the true quaternion  -> harmless (4.58 vs 4.62 mm)
+  cam_range, gripper_perp, gripper_dz all derived from od["Bread_pos"], the
+  GROUND-TRUTH position -> NOT harmless: inflated the fit from +39% to a
+  spurious +60%.
+In simulation the answer key sits in the same observation dict as the inputs,
+so any feature touching object pose must be rebuilt from the DETECTED pose.
+
+POSE-LEVEL RESULT (ridge, leave-one-SEED-out, all features runtime-computable)
+  baseline                    median 11.56 mm
+  corrected                   median  7.08 mm   (+39%)  R2 0.42/0.57/0.46
+  compact, 7 features         median  8.08 mm   (+30%)
+The model is LINEAR -- no MLP, SVM or boosting needed -- so it is a handful of
+multiply-adds on the target.
+
+NOT THE SPAWN PRIOR. Detected position alone recovers only +7%; the effect
+needs position COMBINED with viewing geometry, which is the signature of a
+spatially varying calibration (lens distortion, extrinsic error), not
+regression toward the spawn box.
+
+END-TO-END (paired, 4 seeds x 50 episodes)
+  seed    truth    1 cam   1 cam + residual
+     7    90.0%    72.0%       86.0%
+    31    98.0%    88.0%       96.0%
+    47    92.0%    76.0%       76.0%
+    89    96.0%    80.0%       82.0%
+  mean    94.0%    79.0%       85.0%
+  +6.0 points, 3/0 seeds up, t=1.90 p=0.1540 (NOT significant at n=4)
+  gap to truth: 15.0 -> 9.0 points
+
+The magnitudes agree: pose error fell 39%, the gap closed 40%. That
+correspondence is evidence the mechanism is real rather than coincidental. But
+p=0.154 is not significance, seed 47 did not move, and this needs more seeds
+before it is a claim.
+
+WHY THIS WORKED WHERE FUSION DID NOT
+Two-camera averaging also improved pose accuracy (7.8 vs 10.7 mm in-episode)
+and still LOST 3.5 points, because it traded availability: on the 49% of ticks
+where only the weaker camera saw the tag, it substituted a fresh 17.2 mm pose
+for a held-but-accurate one. The residual correction makes no such trade --
+same camera, same detections, same availability, only shifted. It is consistent
+with the campaign's principle (take the most accurate measurement and hold it)
+rather than in tension with it.
+
+DEPLOYMENT CAVEAT
+This is a PER-SETUP calibration. It encodes this camera in this scene and would
+have to be refitted, against real ground truth from motion capture or
+fixturing, before it means anything on hardware. What the sim result
+establishes is that the structure EXISTS and is linear -- not a set of
+deployable coefficients.
