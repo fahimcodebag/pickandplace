@@ -473,3 +473,49 @@ RANDOM-SPAWN DEPLOYMENT SUMMARY FOR c2m512_s1
   perfect poses, INT8   95.33%
   AprilTag,      FP32   89.67%
   AprilTag,      INT8   89.50%   <- what the ESP32 pipeline delivers
+
+--------------------------------------------------------------------------------
+ONE DETECTION PER EPISODE IS ENOUGH -- AND IT CHANGES THE HARDWARE PROBLEM
+--------------------------------------------------------------------------------
+The object does not move until it is grasped, and after the grasp the tag is
+occluded anyway (0% detection in every camera configuration, which is why
+mode=latch exists). So perception is only needed ONCE, at the start, with the
+arm parked -- which is also when detection is most accurate (11.2 mm at reset
+against ~21 mm mid-approach, as the approaching gripper degrades the corners).
+
+Tested by setting --period larger than the horizon, so detection fires only at
+t=0. 4 seeds x 50 episodes, tuned corrector, mode=latch:
+
+  seed    truth   period 5   ONCE @ t=0
+     7    90.0%     80.0%      84.0%
+    31    98.0%     94.0%      96.0%
+    47    92.0%     78.0%      80.0%
+    89    96.0%     94.0%      92.0%
+  mean    94.0%     86.5%      88.0%
+
+  once vs period 5: +1.5 pts, t=1.19 p=0.3189, 3/1 seeds up -- indistinguishable
+  detections per episode: 7.0 -> 1.0
+
+A 7x reduction in perception work for no measurable loss, and nominally a small
+gain. It is the same principle every other perception result here converged on:
+take the single most accurate measurement and HOLD it. Detecting once, with the
+arm parked, is the purest form of that.
+
+WHY THIS MATTERS FOR AN ON-DEVICE CAMERA
+Running AprilTag on the MCU looked infeasible under continuous detection:
+
+  constraint            continuous (period 5)        once per episode
+  detection latency     must beat 0.25 s             seconds are fine
+  PSRAM throughput      likely the blocker           irrelevant
+  link bandwidth        60 KB every 250 ms           60 KB once per episode
+  decode buffer         1200 KB (needs PSRAM)        1200 KB (needs PSRAM)
+
+The memory requirement is unchanged -- a 1280x960 decode buffer is 1200 KB and
+still does not fit the 253 KB free on a plain ESP32 devkit, so PSRAM (ESP32-CAM
+or S3) remains necessary. But the TIMING requirement collapses. A detection
+that takes 1-5 s out of PSRAM is acceptable if it happens once, before the arm
+moves, rather than four times a second.
+
+SCOPE CONDITION: this holds because the object is stationary and the tag is
+visible at t=0. A moving object, a conveyor, or an initially occluded tag would
+break it, and the continuous-detection numbers would apply again.
