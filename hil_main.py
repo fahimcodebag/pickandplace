@@ -52,7 +52,7 @@ def compute_flags(raw_env):
     return flags
 
 
-def make_env(render=True):
+def make_env(render=True, random_spawn=False):
     rs_env = suite.make(
         "PickPlace",
         robots="Panda",
@@ -67,7 +67,10 @@ def make_env(render=True):
         single_object_mode=2,
         object_type="bread",
     )
-    # Fixed spawn, matching how both policies were trained.
+    # Spawn condition. Fixed pins the object at the tuned pose (x=y=0, no
+    # rotation) and is what this rig has always run. Random uses robosuite's
+    # native PickPlace box PLUS z-rotation -- the condition every headline
+    # number in Results/ is measured under, and the harder one by ~5 points.
     _orig_gpi = rs_env._get_placement_initializer
 
     def _fixed_placement():
@@ -79,7 +82,8 @@ def make_env(render=True):
         s.ensure_object_boundary_in_range = False
         s.ensure_valid_placement = False
 
-    rs_env._get_placement_initializer = _fixed_placement
+    if not random_spawn:
+        rs_env._get_placement_initializer = _fixed_placement
     return rs_env, GymWrapper(rs_env)
 
 
@@ -159,9 +163,24 @@ def run_episode(env, raw_env, bridge, obs, ep, render=True):
 
 
 def main():
+    import argparse
+    p = argparse.ArgumentParser(description="Hardware-in-the-loop with the ESP32")
+    p.add_argument("--episodes", type=int, default=10)
+    p.add_argument("--random-spawn", action="store_true",
+                   help="native PickPlace spawn box + z-rotation. This is the "
+                        "condition Results/ reports (95.33%% INT8 in sim); the "
+                        "default fixed spawn scores 99.83%%.")
+    p.add_argument("--port", default=None, help="override the serial port")
+    p.add_argument("--debug-log", default=None,
+                   help="write the ESP32's own printf output here, including "
+                        "its 'avg=X.XXms' on-device inference timing. The "
+                        "serial port is exclusive, so this is the only way to "
+                        "read it while HIL runs.")
+    p.add_argument("--render", action="store_true")
+    args = p.parse_args()
     SERIAL_PORT = '/dev/ttyUSB0'
     BAUDRATE = 921600
-    N_EPISODES = 10
+    N_EPISODES = args.episodes
     RENDER = True
 
     print("\n" + "=" * 62)
@@ -169,12 +188,15 @@ def main():
     print("=" * 62)
 
     print("\n1. Creating RoboSuite environment...")
-    raw_env, env = make_env(render=RENDER)
+    raw_env, env = make_env(render=args.render or RENDER,
+                            random_spawn=args.random_spawn)
+    print(f"   spawn: {'RANDOM (box + rotation)' if args.random_spawn else 'FIXED'}")
     print(f"✓ Environment ready: {env.observation_space.shape} → "
           f"{env.action_space.shape}")
 
     print(f"\n2. Connecting to ESP32 on {SERIAL_PORT}...")
-    bridge = ESP32Bridge(port=SERIAL_PORT, baudrate=BAUDRATE, timeout=2.0)
+    bridge = ESP32Bridge(port=args.port or SERIAL_PORT, baudrate=BAUDRATE,
+                         timeout=2.0, debug_log=args.debug_log)
     if not bridge.connect():
         print("✗ Failed to connect to ESP32. Exiting.")
         return

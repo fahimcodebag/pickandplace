@@ -82,7 +82,15 @@ class ProtocolFloat32:
         body = header + zeros.tobytes() + bytes([0])
         crc = struct.pack('H', sum(body) % 65536)
         return ProtocolFloat32.SYNC_PATTERN + body + crc
-    
+
+    # Bytes shifted out of the sync search below are not protocol -- they are
+    # the sketch's own Serial.printf output (the boot self-test, and the
+    # periodic "avg=X.XXms heap=NKB" line), which shares this one UART. Setting
+    # this to a bytearray collects them, so a caller can read on-device
+    # diagnostics WITHOUT a second serial connection -- the port is exclusive,
+    # and under usbipd Windows cannot even see it while WSL holds it.
+    debug_sink = None
+
     @staticmethod
     def decode_action(serial_port, timeout=1.0):
         """
@@ -108,6 +116,8 @@ class ProtocolFloat32:
         while (time.time() - start_time) < timeout:
             if serial_port.in_waiting > 0:
                 # Shift buffer and read new byte
+                if ProtocolFloat32.debug_sink is not None and sync_buffer[0]:
+                    ProtocolFloat32.debug_sink.append(sync_buffer[0])
                 sync_buffer[0] = sync_buffer[1]
                 sync_buffer[1] = sync_buffer[2]
                 sync_buffer[2] = sync_buffer[3]
@@ -201,6 +211,8 @@ class Protocol:
         
         while (time.time() - start_time) < timeout:
             if serial_port.in_waiting > 0:
+                if ProtocolFloat32.debug_sink is not None and sync_buffer[0]:
+                    ProtocolFloat32.debug_sink.append(sync_buffer[0])
                 sync_buffer[0] = sync_buffer[1]
                 sync_buffer[1] = sync_buffer[2]
                 sync_buffer[2] = sync_buffer[3]
