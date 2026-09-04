@@ -1,0 +1,64 @@
+================================================================================
+HARDWARE VALIDATION: 97/100 ON THE ESP32, RANDOM SPAWN
+On-device inference is 0.26 ms -- 0.5% of the 50 ms control budget.
+================================================================================
+
+CONFIGURATION
+  board        ESP32, two INT8 TFLite interpreters, 40 KB arena each
+  grasp model  c2m512_s1_int8.tflite   8,088 B   (64/32 actor, 5,216 weights)
+  place model  place_orig_int8.tflite  8,088 B
+  FSM          9-phase, ON THE BOARD, including Fix A (lost-grip regrasp) and
+               Fix C (RC_STEPS 60). check_fsm_sync: 24/24 constants agree with
+               the host replica.
+  spawn        RANDOM -- native PickPlace box plus ~340 deg yaw. Verified to
+               use the identical placement path as the simulation number
+               (measured spread x 0.169, y 0.278, yaw -159..+178 deg).
+  PC role      simulator only. It sends the 46-float observation and receives
+               7 actions; the board decides every phase transition.
+
+RESULT
+  placements             97/100 = 97.0%   95% CI [91.5, 99.4]
+  simulation, same cfg   95.33%           (held-out seeds, 1200 episodes)
+  binomial test vs sim   p = 0.633        CONSISTENT
+  average score          57.48 +- 18.27
+  mean handoff attempts  1.01
+
+Hardware matches simulation. This is the first end-to-end validation of the
+current artifact: before today the sketch carried an August-17 model and
+lacked Fix A/C, so no HIL run had ever exercised what Results/ describes.
+
+ON-DEVICE TIMING -- MEASURED, NOT ESTIMATED
+149 samples of the sketch's own micros()-timed avg=, captured over ~15k cycles
+via the protocol debug sink (the serial port is exclusive, so the Arduino
+monitor cannot be attached during a run):
+
+  inference + FSM   0.23 - 0.27 ms, median 0.26
+  control budget    50 ms at 20 Hz
+  utilisation       0.5%          headroom 192x
+  free heap         253 KB, FLAT across 100 episodes and ~15k cycles
+
+Earlier write-ups estimated ~1 ms. The measurement is 4x better. Compute was
+never close to being the constraint -- the board could sustain ~3.8 kHz.
+
+The flat heap matters independently: Fix A's regrasp branch had never executed
+on hardware before this run, and it does not leak.
+
+COMMUNICATION
+  14,996 cycles, 100% successful, 0 timeouts, 0 checksum errors
+  PC-side round trip 9.83 ms  <- serial + USB-CDC + usbipd + MuJoCo, NOT
+  inference. It disappears in a standalone deployment.
+
+THE THREE FAILURES
+  ep 29  300 steps  transport horizon exhausted (the joint-limit jam)
+  ep 33  144 steps
+  ep 68  147 steps
+  ep 12  handoff attempt 1 aborted at t=249, retried, then placed
+         ("PC asserted FLAG_GRASPED on 0 steps")
+
+AN FSM/ENVIRONMENT DISAGREEMENT WORTH RECORDING
+  ep 99  274 steps  end: DONE_FAIL | but scored PLACED
+The board's FSM declared failure while robosuite's _check_success() returned
+true -- the object was already in the bin when the phase budget ran out. Not a
+scoring error (the PC decides success), but it shows the on-board verdict and
+the environment's can disagree at the margin. On real hardware, where nothing
+external adjudicates, that episode would have been recorded as a failure.
