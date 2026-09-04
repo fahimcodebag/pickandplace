@@ -207,6 +207,18 @@ void selfTest(){
   for(int i=0;i<STATE_DIM;i++) tv[i] = (i - 23) * 0.05f;   // -1.15 .. +1.10
   float a[ACTION_DIM];
 
+  // Board capability probe. On-device AprilTag detection needs a 1280x960
+  // decode buffer (1200 KB); internal SRAM leaves ~253 KB free, so PSRAM is a
+  // hard requirement for that path. Print it once at boot so the answer is a
+  // measurement rather than an assumption.
+  Serial.printf("[board] free internal heap: %d KB\n", ESP.getFreeHeap()/1024);
+#if defined(BOARD_HAS_PSRAM) || defined(CONFIG_SPIRAM_SUPPORT)
+  Serial.printf("[board] PSRAM: %s, %d KB free\n",
+                psramFound() ? "PRESENT" : "absent", ESP.getFreePsram()/1024);
+#else
+  Serial.println("[board] PSRAM: not enabled in this build "
+                 "(Tools > PSRAM: Enabled, on a WROVER/S3/CAM board)");
+#endif
   Serial.println("\n--- INFERENCE SELF-TEST (input: s[i]=(i-23)*0.05) ---");
   runModel(grasp_interp, grasp_in, grasp_out, tv, a);
   Serial.print("grasp:");

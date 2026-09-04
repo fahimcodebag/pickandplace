@@ -1,0 +1,46 @@
+================================================================================
+THE RESIDUAL CORRECTOR MUST RUN IN FP32 ON THE MCU -- INT8 DESTROYS IT
+================================================================================
+The policy quantises for free (INT8 95.33% vs FP32 94.92% on random spawn,
+after weight clipping and in-loop QAT). The corrector does not, and the reason
+is instructive.
+
+MEASURED, per-tensor INT8, same path as the policy (--per_tensor, ESP-NN
+requires it), calibrated on the real 2181-detection dataset:
+
+  variant                          INT8 vs FP32 output   note
+  standardisation FOLDED IN            13.18 mm median   WORSE than the 11.56 mm
+                                                          residual it corrects
+  standardisation ON DEVICE             6.36 mm median   over half of it
+  FP32                                   0.53 mm         the actual correction
+
+WHY. The 12 features span a 2,198x range of scales:
+    cx        sd 150.25        det_z     sd 0.068
+    area_px   sd  96.72        cam_range sd 0.084
+Per-tensor INT8 sets ONE scale for the whole input tensor, so the small
+features are crushed by the large ones. Folding the standardisation into
+layer 0 made it worse still, pushing that layer's max/std from 3.95 to 5.97 --
+the same dynamic-range mechanism documented in
+Results/weight_range_regularisation, now on an input tensor rather than weights.
+
+Standardising on the device (24 flops) halves the damage but does not fix it:
+6.36 mm of quantisation error against a 11.56 mm residual leaves ~45% of the
+correction, versus 95% in FP32.
+
+THE ANSWER IS NOT TO QUANTISE IT
+  weights        5,187 params x 4 B = 20.3 KB float32
+  free heap      253 KB measured on device
+  timing         0.26 ms of a 50 ms budget already used -- 192x headroom
+  ESP32          has a single-precision FPU
+Quantisation exists to buy memory and compute. Here there is nothing to buy:
+20 KB is 8% of free heap, and a 5k-MAC float forward pass is negligible beside
+the 0.26 ms the two INT8 policies already take.
+
+This is a genuine asymmetry worth stating: INT8 was NECESSARY for the policy
+(to fit at all) and FREE (after clipping + QAT); for the corrector it is
+UNNECESSARY and EXPENSIVE. "Quantise everything" is the wrong default.
+
+STATUS
+Conversion tooling and the measurement are committed. The firmware integration
+(a third model, plus a message type carrying 12 features instead of the object
+pose block) is NOT yet built.
