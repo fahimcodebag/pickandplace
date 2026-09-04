@@ -176,7 +176,12 @@ def main():
                         "its 'avg=X.XXms' on-device inference timing. The "
                         "serial port is exclusive, so this is the only way to "
                         "read it while HIL runs.")
-    p.add_argument("--render", action="store_true")
+    p.add_argument("--render", dest="render", action="store_true", default=None,
+                   help="force the on-screen viewer on")
+    p.add_argument("--no-render", dest="render", action="store_false",
+                   help="disable the viewer. Worth using for long runs: "
+                        "rendering every control step is pure overhead when "
+                        "nobody is watching.")
     args = p.parse_args()
     SERIAL_PORT = '/dev/ttyUSB0'
     BAUDRATE = 921600
@@ -188,8 +193,11 @@ def main():
     print("=" * 62)
 
     print("\n1. Creating RoboSuite environment...")
-    raw_env, env = make_env(render=args.render or RENDER,
-                            random_spawn=args.random_spawn)
+    # None = fall back to the module default; the flags force it either way.
+    # (Previously this read `args.render or RENDER`, which could never be
+    # False and so left no way to switch the viewer off.)
+    RENDER = RENDER if args.render is None else args.render
+    raw_env, env = make_env(render=RENDER, random_spawn=args.random_spawn)
     print(f"   spawn: {'RANDOM (box + rotation)' if args.random_spawn else 'FIXED'}")
     print(f"✓ Environment ready: {env.observation_space.shape} → "
           f"{env.action_space.shape}")
