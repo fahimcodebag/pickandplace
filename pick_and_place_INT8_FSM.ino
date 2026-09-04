@@ -51,6 +51,7 @@
 //   (place model similarly -> place_model.h)
 #include "grasp_model.h"   // grasp_model_tflite[],  grasp_model_tflite_len
 #include "place_model.h"   // place_model_tflite[],  place_model_tflite_len
+#include "corrector_model.h"  // FP32 AprilTag residual corrector (20.3 KB)
 
 // ── Dimensions ─────────────────────────────────────────────────────────────
 #define STATE_DIM  46
@@ -121,11 +122,18 @@ static const int   RT_STEPS  = 12;    static const float RT_DZ    = 0.3f;
 #define STATE_MSG 0x01
 #define ACTION_MSG 0x02
 #define RESET_MSG 0x03
+// Carries the 46-float observation PLUS the 12 detector features the residual
+// corrector needs. The object-pose block arrives UNCORRECTED (straight from
+// solvePnP) and this sketch corrects it, so part of perception runs here
+// rather than on the PC.
+#define CORR_MSG  0x04
 #define SYNC_BYTE_0 0xAA
 #define SYNC_BYTE_1 0x55
 #define SYNC_BYTE_2 0xAA
 #define SYNC_BYTE_3 0x55
 #define STATE_PAYLOAD_SIZE 191   // type1+seq1+len2+state184+flags1+crc2
+#define CORR_PAYLOAD_SIZE  239   // ... +12 feature floats (48 B)
+#define CORR_FEATS 12
 #define ACTION_PAYLOAD_SIZE 35   // type1+seq1+len2+action28+status1+crc2
 
 // ── FSM states ─────────────────────────────────────────────────────────────
@@ -164,7 +172,8 @@ namespace {
   uint8_t* place_arena = nullptr;
 }
 
-struct Stats { uint32_t total=0; uint32_t episodes=0; float avg_ms=0.0f; } stats;
+struct Stats { uint32_t total=0; uint32_t episodes=0; float avg_ms=0.0f;
+               uint32_t corrections=0; float corr_ms=0.0f; } stats;
 
 // ── Prototypes ─────────────────────────────────────────────────────────────
 bool  waitForSync();
@@ -283,9 +292,9 @@ void loop(){
   sendAction(action, seq, (uint8_t)fsm.phase);
 
   if(stats.total % 100 == 0){
-    Serial.printf("[%lu] ep=%lu phase=%d avg=%.2fms heap=%dKB\n",
+    Serial.printf("[%lu] ep=%lu phase=%d avg=%.2fms corr=%.3fms n=%lu heap=%dKB\n",
                   stats.total, stats.episodes, fsm.phase, stats.avg_ms,
-                  ESP.getFreeHeap()/1024);
+                  stats.corr_ms, stats.corrections, ESP.getFreeHeap()/1024);
   }
 }
 
@@ -461,6 +470,53 @@ void runModel(tflite::MicroInterpreter* it, TfLiteTensor* in, TfLiteTensor* out,
   }
 }
 
+// ── AprilTag residual corrector (FP32, hand-rolled) ────────────────────────
+// 12 -> 64 -> 64 -> 3, ReLU, linear output in METRES. Deliberately not INT8:
+// per-tensor quantisation was measured at 6.4-13.2 mm of error against the
+// 11.6 mm residual it corrects, because the 12 features span a 2198x range of
+// scales (Results/corrector_on_device.txt). No TFLite interpreter and no third
+// arena -- 5,187 floats and a few thousand MACs on a core already 99.5% idle.
+static void correctorForward(const float* feat, float* out3){
+  float h1[CORR_H1], h2[CORR_H2];
+  for(int j=0;j<CORR_H1;j++){
+    float a = CORR_B0[j];
+    for(int i=0;i<CORR_IN;i++)
+      a += CORR_W0[j*CORR_IN+i] * ((feat[i] - CORR_MU[i]) / CORR_SD[i]);
+    h1[j] = a > 0.0f ? a : 0.0f;
+  }
+  for(int j=0;j<CORR_H2;j++){
+    float a = CORR_B1[j];
+    for(int i=0;i<CORR_H1;i++) a += CORR_W1[j*CORR_H1+i] * h1[i];
+    h2[j] = a > 0.0f ? a : 0.0f;
+  }
+  for(int j=0;j<CORR_OUT;j++){
+    float a = CORR_B2[j];
+    for(int i=0;i<CORR_H2;i++) a += CORR_W2[j*CORR_H2+i] * h2[i];
+    out3[j] = a;
+  }
+}
+
+// Apply the correction in place. Only POSITION is corrected -- the model has a
+// 3-vector output -- so obj_quat and the relative quaternion are untouched, but
+// obj_to_eef_pos must be re-derived because it depends on the corrected pose.
+// robosuite defines it as R_eef^T (obj_pos - eef_pos); that composition is
+// exact, which is why holding a world pose and recomputing the relative block
+// is sound (see perception_wrapper mode="recompute").
+static void applyCorrection(float* s, const float* feat){
+  float d[3]; correctorForward(feat, d);
+  s[0]+=d[0]; s[1]+=d[1]; s[2]+=d[2];                 // obj_pos, world
+  const float* q = &s[38];                            // eef_quat, xyzw
+  const float x=q[0],y=q[1],z=q[2],w=q[3];
+  // R_eef columns; we need R^T v, i.e. dot of v with each column
+  const float r[9] = {
+    1-2*(y*y+z*z), 2*(x*y-z*w),   2*(x*z+y*w),
+    2*(x*y+z*w),   1-2*(x*x+z*z), 2*(y*z-x*w),
+    2*(x*z-y*w),   2*(y*z+x*w),   1-2*(x*x+y*y)};
+  const float v[3] = { s[0]-s[35], s[1]-s[36], s[2]-s[37] };
+  for(int c=0;c<3;c++)
+    s[7+c] = r[0*3+c]*v[0] + r[1*3+c]*v[1] + r[2*3+c]*v[2];
+}
+
 // ── Serial protocol (mirrors pick_and_place_FP32.ino) ──────────────────────
 bool waitForSync(){
   uint8_t st=0; unsigned long t=millis();
@@ -479,21 +535,36 @@ bool waitForSync(){
 
 int receiveState(float* state, uint8_t* seq, uint8_t* flags){
   if(!waitForSync()) return 0;
-  uint8_t buf[STATE_PAYLOAD_SIZE];
+  static uint8_t buf[CORR_PAYLOAD_SIZE];       // the larger of the two
   unsigned long t=millis(); size_t n=0;
-  while(n<STATE_PAYLOAD_SIZE && millis()-t<1000){
-    if(Serial.available()>0) buf[n++]=Serial.read();
-  }
+  // Read the 4-byte header first so the payload size can follow the TYPE.
+  // The old code read a fixed STATE_PAYLOAD_SIZE and inspected the type
+  // afterwards, which cannot accommodate two frame sizes.
+  while(n<4 && millis()-t<1000){ if(Serial.available()>0) buf[n++]=Serial.read(); }
   if(n<4) return 0;
   uint8_t type=buf[0]; *seq=buf[1];
-  // RESET frames are sent at full state-frame size so this fixed-size read
-  // consumes them immediately rather than stalling on a short read.
-  if(type==RESET_MSG) return 3;
-  if(n!=STATE_PAYLOAD_SIZE || type!=STATE_MSG) return 0;
-  uint16_t rc = buf[STATE_PAYLOAD_SIZE-2] | (buf[STATE_PAYLOAD_SIZE-1]<<8);
-  if(rc != checksum(buf, STATE_PAYLOAD_SIZE-2)) return 0;
+  if(type==RESET_MSG){                          // drain the rest of the frame
+    while(n<STATE_PAYLOAD_SIZE && millis()-t<1000)
+      if(Serial.available()>0) buf[n++]=Serial.read();
+    return 3;
+  }
+  size_t want = (type==CORR_MSG) ? CORR_PAYLOAD_SIZE : STATE_PAYLOAD_SIZE;
+  if(type!=STATE_MSG && type!=CORR_MSG) return 0;
+  while(n<want && millis()-t<1000){ if(Serial.available()>0) buf[n++]=Serial.read(); }
+  if(n!=want) return 0;
+  uint16_t rc = buf[want-2] | (buf[want-1]<<8);
+  if(rc != checksum(buf, want-2)) return 0;
   memcpy(state, &buf[4], STATE_DIM*sizeof(float));
   *flags = buf[4 + STATE_DIM*sizeof(float)];   // true grasp/success from the PC
+  if(type==CORR_MSG){
+    float feat[CORR_FEATS];
+    memcpy(feat, &buf[5 + STATE_DIM*sizeof(float)], CORR_FEATS*sizeof(float));
+    unsigned long c0 = micros();
+    applyCorrection(state, feat);              // perception, ON DEVICE
+    float cms = (micros()-c0)/1000.0f;
+    stats.corrections++;
+    stats.corr_ms = (stats.corr_ms*(stats.corrections-1)+cms)/stats.corrections;
+  }
   return 1;
 }
 

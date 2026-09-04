@@ -9,6 +9,11 @@ class ProtocolFloat32:
     STATE_MSG = 0x01
     ACTION_MSG = 0x02
     RESET_MSG = 0x03
+    # Observation PLUS the 12 detector features the residual corrector needs.
+    # The object-pose block is sent UNCORRECTED, straight out of solvePnP, and
+    # the ESP32 corrects it -- so part of perception runs on the MCU rather
+    # than the host. Frame is 48 bytes longer than STATE_MSG.
+    CORR_MSG  = 0x04
     SYNC_PATTERN = b'\xAA\x55\xAA\x55'
     
     # FSM flag bits (PC -> ESP32). These are physics/contact queries the MCU
@@ -67,6 +72,26 @@ class ProtocolFloat32:
         full_message = ProtocolFloat32.SYNC_PATTERN + message_without_sync + crc_bytes
 
         return full_message
+
+    @staticmethod
+    def encode_state_corr(state, feats, seq_num=0, flags=0):
+        """CORR_MSG: the 46-float observation with an UNCORRECTED object pose,
+        followed by the 12 corrector features. The board applies the residual
+        and re-derives obj_to_eef_pos itself.
+
+        feats must be in the order recorded in corrector_model.h:
+          reproj, area_px, obliq_deg, cam_range, gripper_perp, gripper_dz,
+          cx, cy, obj_yaw, det_x, det_y, det_z
+        """
+        assert len(feats) == 12, f"expected 12 features, got {len(feats)}"
+        payload_len = len(state) * 4 + 1 + len(feats) * 4
+        body = (np.asarray(state, np.float32).tobytes()
+                + bytes([flags & 0xFF])
+                + np.asarray(feats, np.float32).tobytes())
+        header = struct.pack('BBH', ProtocolFloat32.CORR_MSG, seq_num, payload_len)
+        msg = header + body
+        return (ProtocolFloat32.SYNC_PATTERN + msg
+                + struct.pack('H', sum(msg) % 65536))
 
     @staticmethod
     def encode_reset(seq_num=0):

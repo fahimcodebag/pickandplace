@@ -44,3 +44,45 @@ STATUS
 Conversion tooling and the measurement are committed. The firmware integration
 (a third model, plus a message type carrying 12 features instead of the object
 pose block) is NOT yet built.
+
+--------------------------------------------------------------------------------
+FIRMWARE: THE CORRECTOR NOW RUNS ON THE ESP32
+--------------------------------------------------------------------------------
+corrector_model.h   5,187 FP32 weights (20.3 KB), generated from
+                    assets/tag_residual_small.json
+sketch              correctorForward() -- a hand-rolled 12->64->64->3 ReLU MLP.
+                    No third TFLite interpreter and no third 40 KB arena: at
+                    5k MACs on a core using 0.26 ms of 50, an interpreter would
+                    cost more memory than the model.
+                    applyCorrection() adds the residual to obj_pos and
+                    RE-DERIVES obj_to_eef_pos = R_eef^T (obj_pos - eef_pos),
+                    because that block depends on the corrected pose. Only
+                    position is corrected; the model has a 3-vector output, so
+                    the quaternion blocks are untouched.
+protocol            new CORR_MSG (0x04), 243-byte frame = STATE_MSG + 12
+                    feature floats. STATE_MSG is unchanged, so the existing HIL
+                    path still works untouched.
+timing              stats.corr_ms is timed separately with micros() and printed
+                    in the periodic line, so the corrector's on-device cost
+                    will be a measurement rather than an estimate.
+
+VERIFIED WITHOUT HARDWARE
+  header + forward pass vs the reference model, 40 real detections:
+      max 0.158 um  -- float32 rounding
+  applyCorrection's R^T v vs perception_wrapper.relative_block, 200 poses:
+      relative error 8.5e-08, CONSTANT across |v| spanning 0.01 to 100, which
+      identifies it as rounding rather than a formula error
+  frame sizes: STATE 195 B, CORR 243 B, matching the sketch's 191/239 payloads
+
+A BUG CAUGHT IN THE GENERATOR: the first version used textwrap.wrap to fold the
+weight arrays, which breaks long unbroken runs mid-token and split a float
+literal across lines ("0.0429" / "0538"). That would not have compiled. Chunking
+by element count instead.
+
+NOT YET DONE
+  - compiling and flashing (no Arduino toolchain here)
+  - the PC-side harness that assembles CORR_MSG from live tag detections;
+    tag_e2e computes all 12 features already, so this is plumbing
+  - AprilTag DETECTION on the MCU, which is a separate problem: it needs a
+    1280x960 decode buffer (1200 KB) against ~253 KB internal, so a PSRAM board
+    is required. A boot-time probe now reports the board's capability.
