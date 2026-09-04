@@ -62,6 +62,15 @@ def main():
                         "detected pose. Cuts median pose error 11.56 -> 7.08 mm "
                         "(leave-one-seed-out). Per-setup calibration -- it "
                         "encodes THIS camera in THIS scene.")
+    p.add_argument("--detect-until-first", action="store_true",
+                   help="Stop detecting after the FIRST success. The deployable "
+                        "policy: the object is static until grasped and the tag "
+                        "is occluded afterwards, so one good detection is "
+                        "enough (measured: 1 detection scores 88.0%% against "
+                        "7 detections' 86.5%%). Retrying the identical frame is "
+                        "pointless in simulation -- rendering is deterministic "
+                        "-- so this keeps trying as the arm moves and the view "
+                        "changes, which is also what hardware would do.")
     p.add_argument("--latch-median", type=int, default=1,
                    help="latch the MEDIAN of the last K detected world poses "
                         "instead of the single current one. The object is "
@@ -244,7 +253,7 @@ def main():
                 grasped = False
 
             if a.mode != "truth":
-                if t % a.period == 0:
+                if t % a.period == 0 and not (a.detect_until_first and held is not None):
                     n_tick += 1
                     r = detect_best(od)
                     if r is not None:

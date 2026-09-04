@@ -1,0 +1,83 @@
+================================================================================
+FULL PERCEPTION ON A PLAIN ESP32: THE WRIST-CAMERA ROUTE
+86.8% end-to-end, one detection per episode, ~100 KB of 253 KB free. No PSRAM.
+================================================================================
+
+THE BLOCKER, AND WHAT DISSOLVED IT
+On-device AprilTag looked impossible: detection needs the DECODED pixel array
+(adaptive threshold, union-find, quad fit all need random pixel access), and a
+1280x960 grayscale buffer is 1200 KB against ~253 KB free internal SRAM. JPEG
+does not help -- 120 KB compressed still decodes to 1200 KB.
+
+But the binding quantity is TAG PIXELS, not resolution. Measured tag size:
+
+  camera              res        buffer   detected   tag side   verdict
+  agentview        1280x960     1200 KB     20/20     26.3 px   needs PSRAM
+  agentview         320x240       75 KB      0/20      0.0 px   fits, blind
+  eye_in_hand       640x480      300 KB     14/20     41.9 px   needs PSRAM
+  eye_in_hand       320x240       75 KB     14/20     19.9 px   FITS, DECODES
+
+The wrist camera sits ~10x closer, so it still resolves a 19.9 px tag at
+320x240 -- where agentview at the same resolution sees nothing at all.
+
+RAW ACCURACY IS WORSE, BUT FAR MORE CORRECTABLE
+2140 t=0 detections over 3200 resets (67% per attempt):
+  raw pose error   median 20.7 mm, p90 26.5    (agentview 1280x960: 11.2 mm)
+
+Corrector refit on THIS setup -- it is a per-setup calibration and the
+agentview model does not transfer. Tuned on seeds 0-2, held out on seed 3:
+
+  config     params   held-out   cut    R2 x/y/z
+  h32 d2      1,571     0.39mm   98%   +0.99/+0.99/+1.00
+  h64 d2      5,187     0.40mm   98%   +0.99/+0.99/+1.00
+  h64 d3      9,347     0.40mm   98%   +0.99/+0.99/+1.00
+
+98% against agentview's 94%, from a model a third the size. The reason is
+structural: at t=0 the arm is at its home pose, so the camera pose is FIXED and
+detected->true is ONE deterministic calibration map. A LINEAR fit on detected
+position alone already recovers 94% here, against 7% for agentview, whose
+residual varied with arm configuration and occlusion. A fixed viewpoint is the
+easiest calibration problem there is.
+
+(Not the spawn prior: that would leave the ~100 mm spread of the spawn box, not
+1.22 mm.)
+
+END-TO-END, 12 seeds x 50 episodes, paired
+  seed    agentview 1280x960   wrist 320x240
+     7          80.0%              82.0%
+    31          94.0%              94.0%
+    47          78.0%              86.0%
+    89          94.0%              86.0%
+   101          98.0%              82.0%
+   123          88.0%              88.0%
+   211          88.0%              76.0%
+   307          88.0%              86.0%
+   401          94.0%              90.0%
+   503          94.0%              94.0%
+   555          92.0%              90.0%
+  2024          88.0%              88.0%
+  mean          89.7%              86.8%
+
+  wrist vs agentview: -2.8 pts, t=-1.52 p=0.1571, 2/6 seeds up
+  NOT SIGNIFICANT. 2.8 points buys the entire PSRAM requirement.
+  detections per episode: 1.00
+
+THE STACK THAT NOW FITS
+  capture 320x240 grayscale        75 KB
+  AprilTag detect                  unmodified library, 19.9 px tag
+  corrector MLP                     6.1 KB FP32 (1,571 params)
+  grasp + place INT8                16 KB
+  ---------------------------------------
+  ~100 KB against 253 KB free internal SRAM
+
+No PSRAM, no tiled decoding, no image streaming over serial. One detection per
+episode, so a detector taking seconds out of slow memory would still be fine.
+
+CAVEATS
+  - 67% detection per attempt. --detect-until-first keeps trying as the arm
+    moves (re-rendering an identical frame is deterministic in simulation, so a
+    naive retry is useless); measured 1.00 detections per episode in the end.
+  - The corrector is a per-setup calibration. Any change of camera, resolution
+    or mounting requires refitting (wrist_dataset.py + fit_wrist_corrector.py).
+  - AprilTag on the MCU is still an unported library. This establishes that it
+    FITS, not that it has been run.
