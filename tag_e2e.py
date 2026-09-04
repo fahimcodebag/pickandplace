@@ -70,11 +70,27 @@ def main():
     p.add_argument("--episodes", type=int, default=25)
     p.add_argument("--seed", type=int, default=7)
     p.add_argument("--out", required=True)
+    p.add_argument("--video", default=None,
+                   help="write an mp4 of the run with the detected tag drawn on "
+                        "each frame. Uses the offscreen renderer, so it works "
+                        "headless -- no display needed under WSL2.")
+    p.add_argument("--video-cam", default=None,
+                   help="camera to record (default: the detection camera)")
+    p.add_argument("--video-every", type=int, default=1,
+                   help="record every Nth control step")
+    p.add_argument("--onscreen", action="store_true",
+                   help="open a live MuJoCo window instead of rendering "
+                        "headless. Needs MUJOCO_GL=glfw and a display (WSLg "
+                        "provides one). Slower, and it still detects tags from "
+                        "the OFFSCREEN camera, so results are unchanged.")
     a = p.parse_args()
 
     cams = [c.strip() for c in a.camera.split(",") if c.strip()]
+    vcam = a.video_cam or cams[0]
+    render_cams = cams + ([vcam] if a.video and vcam not in cams else [])
     env, meta = make_tagged_env(camera=cams[0], width=a.width, height=a.height,
-                                horizon=700, camera_names=cams)
+                                horizon=700, camera_names=render_cams,
+                                has_renderer=a.onscreen)
     dets = ([] if a.mode == "truth" else
             [TagDetector(env, camera=c, width=a.width, height=a.height,
                          marker_size_m=meta["marker_size_m"]) for c in cams])
@@ -189,6 +205,28 @@ def main():
     else:
         g = F.load_actor(a.grasp_ckpt); pl = F.load_actor(a.place_ckpt)
 
+    vw = None
+    if a.video:
+        import cv2 as _cv
+        os.makedirs(os.path.dirname(os.path.abspath(a.video)) or ".", exist_ok=True)
+        vw = _cv.VideoWriter(a.video, _cv.VideoWriter_fourcc(*"mp4v"),
+                             20.0 / max(1, a.video_every), (a.width, a.height))
+
+    def grab(od, det_pose):
+        """One annotated frame. Green quad = the tag as detected; the text is
+        the pose actually handed to the policy, after the residual correction."""
+        import cv2 as _cv
+        img = od[f"{vcam}_image"][::-1]                      # robosuite is flipped
+        img = _cv.cvtColor(img, _cv.COLOR_RGB2BGR).copy()
+        if dets and dets[0].last_corners is not None:
+            c = dets[0].last_corners.astype(int)
+            _cv.polylines(img, [c.reshape(-1, 1, 2)], True, (0, 255, 0), 2)
+        txt = ("no detection" if det_pose is None else
+               "obj %.3f %.3f %.3f" % tuple(det_pose))
+        _cv.putText(img, txt, (8, 24), _cv.FONT_HERSHEY_SIMPLEX, 0.6,
+                    (0, 255, 255), 2)
+        return img
+
     rows = []
     for ep in range(a.episodes):
         od = env.reset()
@@ -251,8 +289,12 @@ def main():
                         s[REL_POS], s[REL_QUAT] = relative_block(
                             held[0], held[1], s[EEF_POS], s[EEF_QUAT])
 
+            if vw is not None and t % a.video_every == 0:
+                vw.write(grab(od, held[0] if held is not None else None))
             act = fsm.step(s.astype(np.float32), grasped, placed, g, pl)
             od, _, done, _ = env.step(act)
+            if a.onscreen:
+                env.render()
             if fsm.phase in (F.OK, F.FAIL) or done:
                 break
         rows.append(dict(episode=ep, mode=a.mode, success=int(fsm.phase == F.OK),
@@ -262,6 +304,8 @@ def main():
         if (ep + 1) % 5 == 0:
             print(f"  {ep+1}/{a.episodes} success {np.mean([x['success'] for x in rows])*100:.0f}%",
                   flush=True)
+    if vw is not None:
+        vw.release(); print(f"wrote {a.video}")
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys())); w.writeheader(); w.writerows(rows)

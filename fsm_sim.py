@@ -35,7 +35,9 @@ PLACE_HORIZON, GRASP_HOLD, GRASP_CAP = 300, 8, 250
 TRANSLATE_SCALE = 0.65
 TL_STEPS, TL_DZ, TL_MIN_RISE = 20, 0.5, 0.03
 CARRY_GAIN, CARRY_CLIP = 6.0, 0.5
-RC_STEPS, RC_TOL = 30, 0.03
+# Fix C is ADOPTED, so 60 is the default rather than a flag. Every eval in
+# Results/ passed --rc-steps 60 explicitly, so no measured number changes.
+RC_STEPS, RC_TOL = 60, 0.03
 DS_STEPS, DS_DZ, TOUCH_MARGIN = 30, -0.12, 0.02
 OP_STEPS, RT_STEPS, RT_DZ = 8, 12, 0.3
 MAX_GRASP_ATTEMPTS = 8            # hil_main.py

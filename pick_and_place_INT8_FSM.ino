@@ -99,7 +99,19 @@ static const float TL_MIN_RISE = 0.03f;
 // Scripted release (P-controller phases)
 static const float CARRY_GAIN = 6.0f;
 static const float CARRY_CLIP = 0.5f;
-static const int   RC_STEPS  = 30;    static const float RC_TOL   = 0.03f;
+// Fix C (Results/fixC): RC_STEPS 30 -> 60. RECENTER exits on either reaching
+// RC_TOL of the bin centre or exhausting this budget; at 30 the budget was the
+// binding exit for a large share of episodes, releasing the object short of
+// centre. Worth +0.50 INT8 end-to-end (p=0.031, 0 of 12 seeds worse).
+// Fix A (Results/fixA): lost-grip recovery in TRANSPORT. Measured on the host,
+// 3.33% FP32 / 10.50% INT8 of episodes drop the object a median 9% into the
+// carry and then fly an EMPTY gripper for the whole PLACE_HORIZON, because the
+// release trigger requires `grasped`. TEST_LIFT already had this branch;
+// TRANSPORT did not. Worth +1.75 INT8 / +0.75 FP32 (paired t=4.71, p=0.0010,
+// 11 of 12 seeds up, 0 down).
+static const int   LOST_GRIP_STEPS = 5;   // consecutive ungrasped frames
+static const int   MAX_REGRASP     = 2;   // regrasp attempts per episode
+static const int   RC_STEPS  = 60;    static const float RC_TOL   = 0.03f;
 static const int   DS_STEPS  = 30;    static const float DS_DZ    = -0.12f;
 static const float TOUCH_MARGIN = 0.02f;
 static const int   OP_STEPS  = 8;
@@ -133,6 +145,8 @@ struct FSM {
   int   over_bin = 0;         // consecutive over-bin steps
   int   ph_steps = 0;         // steps in current scripted release phase
   float prev_z = 1e9f;        // for descend z-stall detection
+  int   lost = 0;             // Fix A: consecutive ungrasped frames in carry
+  int   regrasps = 0;         // Fix A: regrasp attempts used this episode
 } fsm;
 
 // ── Two interpreters, two arenas ───────────────────────────────────────────
@@ -315,8 +329,15 @@ void computeAction(const float* s, uint8_t flags, float* a){
       a[6]=1.0f;                                  // gripper scripted closed
       fsm.tr_steps++;
       fsm.over_bin = over ? fsm.over_bin+1 : 0;
+      fsm.lost = grasped ? 0 : fsm.lost + 1;      // Fix A
       if(grasped && fsm.over_bin >= RELEASE_TRIG_HOLD){
         fsm.phase = PH_RECENTER; fsm.ph_steps = 0;
+      } else if(fsm.lost >= LOST_GRIP_STEPS && fsm.regrasps < MAX_REGRASP){
+        // Fix A: the object was dropped mid-carry. Go back and pick it up
+        // instead of flying an empty gripper to the horizon.
+        fsm.regrasps++;
+        fsm.phase = PH_GRASP; fsm.grasp_hold = 0; fsm.grasp_steps = 0;
+        fsm.lost = 0;
       } else if(fsm.tr_steps >= PLACE_HORIZON){
         fsm.phase = PH_DONE_FAIL;                 // never delivered to bin
       }

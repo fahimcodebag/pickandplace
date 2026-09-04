@@ -12,7 +12,9 @@ NAMES = ["NEAR_TARGET_XY", "RELEASE_TRIG_HOLD", "PLACE_HORIZON", "GRASP_HOLD",
          "GRASP_CAP", "TRANSLATE_SCALE", "TL_STEPS", "TL_DZ", "TL_MIN_RISE",
          "CARRY_GAIN", "CARRY_CLIP", "RC_STEPS", "RC_TOL", "DS_STEPS", "DS_DZ",
          "TOUCH_MARGIN", "OP_STEPS", "RT_STEPS", "RT_DZ",
-         "BIN_X", "BIN_Y", "BIN_Z"]
+         "BIN_X", "BIN_Y", "BIN_Z",
+         # Fix A, mirrored into the sketch once the host measurement adopted it
+         "LOST_GRIP_STEPS", "MAX_REGRASP"]
 # TABLE_Z is intentionally absent from fsm_sim: the sketch uses it to fail an
 # episode early when the object drops below the table, while the replica lets
 # the phase machine run on. Both score the episode a failure, so the outcome is
