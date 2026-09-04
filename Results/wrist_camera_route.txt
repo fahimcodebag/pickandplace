@@ -62,13 +62,34 @@ END-TO-END, 12 seeds x 50 episodes, paired
   NOT SIGNIFICANT. 2.8 points buys the entire PSRAM requirement.
   detections per episode: 1.00
 
-THE STACK THAT NOW FITS
-  capture 320x240 grayscale        75 KB
-  AprilTag detect                  unmodified library, 19.9 px tag
-  corrector MLP                     6.1 KB FP32 (1,571 params)
-  grasp + place INT8                16 KB
+THE STACK THAT NOW FITS -- CONFIRMED ON HARDWARE
+Boot log, after shrinking the tensor arenas from 40 KB to 4 KB each (measured
+usage: 892 bytes):
+
+  [board] free internal heap: 320 KB
+  [board] PSRAM: absent, 0 KB free
+
+  free internal SRAM              320 KB   measured, with the corrector loaded
+  capture 320x240 grayscale       -75 KB
   ---------------------------------------
-  ~100 KB against 253 KB free internal SRAM
+  left for the AprilTag detector  245 KB   ~3.3x the frame, for threshold
+                                           buffer, union-find labels, quads
+
+640x480 (300 KB) would fit the 320 KB but leave only 20 KB for the detector, so
+320x240 stays the choice and the wrist camera's proximity is what makes it work.
+
+PSRAM ABSENT is confirmed by the board, so this is not the preferred route --
+it is the only one. The 2.8-point cost against agentview (p=0.157, not
+significant) is therefore a straightforwardly good trade rather than a
+compromise.
+
+ON-DEVICE INFERENCE VERIFIED
+The boot self-test matches desktop TFLite EXACTLY on all 14 outputs, so ESP-NN
+reproduces host inference for these models. Note selftest_expected.py had been
+hardcoded to the August-17 grasp_int8.tflite and reported a total mismatch
+against a correct board; it now reads each header's "Source:" line. A
+validation script pinned to a stale reference reports failure on correct
+hardware, which is the most expensive kind of false alarm.
 
 No PSRAM, no tiled decoding, no image streaming over serial. One detection per
 episode, so a detector taking seconds out of slow memory would still be fine.
