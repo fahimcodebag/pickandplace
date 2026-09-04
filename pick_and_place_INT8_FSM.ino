@@ -166,8 +166,16 @@ namespace {
   TfLiteTensor *grasp_in=nullptr, *grasp_out=nullptr;
   TfLiteTensor *place_in=nullptr, *place_out=nullptr;
 
-  // INT8 64->32->7 nets are tiny; 40KB each is generous headroom.
-  constexpr int kArena = 40 * 1024;
+  // MEASURED on device: "arena used: 888 bytes" for BOTH interpreters, against
+  // the 40 KB each that was allocated -- 78 KB of the 520 KB SRAM sitting idle.
+  // 4 KB leaves 4.5x the measured requirement and frees that back.
+  //
+  // This matters now rather than as tidiness: on-device AprilTag needs a
+  // 320x240 grayscale frame (75 KB) plus detector scratch, on a board whose
+  // boot log reports "PSRAM: absent". Reclaiming 72 KB roughly triples the
+  // margin for it. setupModel() reports arena_used_bytes at boot, so a model
+  // that ever needs more will say so loudly instead of failing quietly.
+  constexpr int kArena = 4 * 1024;
   uint8_t* grasp_arena = nullptr;
   uint8_t* place_arena = nullptr;
 }
