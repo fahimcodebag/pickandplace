@@ -1,0 +1,63 @@
+{
+ "artifact": {
+  "grasp": "c2m512_s1_int8.tflite",
+  "place": "place_orig_int8.tflite",
+  "bytes": 8088,
+  "actor": "64/32",
+  "weights": 5216,
+  "fsm": "9-phase on-device, Fix A + Fix C, check_fsm_sync 24/24"
+ },
+ "hil_random_spawn": {
+  "episodes": 100,
+  "placements": 97,
+  "success_pct": 97.0,
+  "ci95": [
+   91.5,
+   99.4
+  ],
+  "avg_score": 57.48,
+  "score_sd": 18.27,
+  "mean_handoff_attempts": 1.01,
+  "failures": {
+   "ep29": "300 steps, transport horizon (joint-limit jam)",
+   "ep33": "144 steps",
+   "ep68": "147 steps"
+  },
+  "note_ep99": "board said DONE_FAIL, PC scored PLACED - object reached bin before budget expired"
+ },
+ "on_device_timing_ms": {
+  "samples": 149,
+  "min": 0.23,
+  "median": 0.26,
+  "max": 0.27,
+  "budget_ms": 50,
+  "utilisation_pct": 0.52,
+  "headroom_x": 192,
+  "source": "sketch micros() around computeAction(), captured via protocol debug sink"
+ },
+ "heap_kb": {
+  "min": 253,
+  "max": 253,
+  "note": "flat across 100 episodes / ~15k cycles"
+ },
+ "comms": {
+  "cycles": 14996,
+  "successful": 14996,
+  "timeouts": 0,
+  "checksum_errors": 0,
+  "pc_cycle_ms": 9.83,
+  "note": "PC round trip = serial + USB-CDC + usbipd + MuJoCo, NOT inference"
+ },
+ "simulation_reference": {
+  "random_int8": 95.33,
+  "random_fp32": 94.92,
+  "fixed_int8": 99.83,
+  "fixed_fp32": 100.0,
+  "episodes_per_cell": 1200,
+  "random_cells": "held-out seeds"
+ },
+ "agreement": {
+  "binomial_p_vs_sim": 0.633,
+  "verdict": "consistent"
+ }
+}
