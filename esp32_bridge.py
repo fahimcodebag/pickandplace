@@ -213,7 +213,14 @@ class ESP32Bridge:
         while time.time() < deadline:
             self._pump_serial_debug()
             self._drain_debug()
-            if any("[perc]" in l for l in self.recent_lines[mark:]):
+            # Wait for a DECISIVE line. Breaking on any "[perc]" matched the
+            # "[perc] start:" banner the board prints BEFORE it detects, so
+            # the poll returned in ~50 ms, reset_input_buffer() threw away the
+            # "det=" line arriving ~500 ms later, and every detection was
+            # invisible -- the board reported 26 of 120 while the PC saw 0.
+            if any(("det=" in l) or ("SKIP" in l) or ("CRC" in l)
+                   or ("SHORT" in l) or ("Guru" in l)
+                   for l in self.recent_lines[mark:]):
                 time.sleep(0.05)          # let the rest of the line land
                 self._pump_serial_debug()
                 self._drain_debug()
@@ -273,8 +280,10 @@ class ESP32Bridge:
         p = self.perc
         if not p["sent"]:
             return "perception: never invoked"
+        # "printed nothing" must mean NOTHING -- a det=0 is the board
+        # reporting a real non-detection, not silence.
         seen = (p["detected"] + p["oom"] + p["short"] + p["crc"]
-                + p.get("crash", 0))
+                + p.get("crash", 0) + len(p["ms"]))
         out = [f"perception: {p['sent']} frames sent, "
                f"{p['detected']} detected"]
         for k, lbl in (("oom", "OUT-OF-MEMORY"), ("crash", "BOARD CRASHES"),
