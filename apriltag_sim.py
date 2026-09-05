@@ -8,8 +8,19 @@ of an assumed one.
 
 Design notes
 ------------
-* Detection uses OpenCV's `DICT_APRILTAG_36h11` — the same family the ESP32
-  would run — so no extra dependency, and generation/detection stay consistent.
+* Detection uses OpenCV's `DICT_APRILTAG_16h5`, selected by TAG_DICT below.
+  Measured on the wrist camera at 320x240 (30 resets each), which is the
+  deployment configuration:
+      36h11   17/30 (57%)   pos 21.0 mm   ang 2.5 deg
+      16h5    24/30 (80%)   pos 20.4 mm   ang 3.0 deg
+  4x4 data bits survive a marginal ~19.7 px tag better than 6x6, at the same
+  position accuracy. It is also the family the ESP32 port ships
+  (stnk20/apriltag esp-idf branch carries tag16h5 and tag25h9, NOT tag36h11,
+  whose 587-code table is expensive in flash).
+  The cost is a weaker Hamming separation and so a higher false-positive rate;
+  here there is exactly one tag and the upright-normal prior (min_up) already
+  rejects implausible quads, but this needs watching on real imagery where
+  noise produces far more spurious candidates than a clean render.
 * The tag geom is VISUAL-ONLY (`contype=0 conaffinity=0 mass=0`). Physics must
   be bit-identical to the untagged environment or the 92%/90% results (§5, §8.4)
   stop being comparable.
@@ -29,7 +40,7 @@ import xml.etree.ElementTree as ET
 import cv2
 import numpy as np
 
-TAG_DICT = cv2.aruco.DICT_APRILTAG_36h11
+TAG_DICT = cv2.aruco.DICT_APRILTAG_16h5   # see module docstring
 
 
 # ---------------------------------------------------------------------------

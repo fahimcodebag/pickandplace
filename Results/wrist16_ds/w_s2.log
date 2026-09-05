@@ -1,0 +1,46 @@
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+  100 detections / 142 resets (70%)
+  200 detections / 288 resets (69%)
+  300 detections / 431 resets (70%)
+  400 detections / 570 resets (70%)
+  500 detections / 722 resets (69%)
+wrote Results/wrist16_ds/w_s2.csv: 554/800 detected (69.2%), raw error median 20.4 mm
+Exception ignored in: <function MjRenderContext.__del__ at 0x7f23d7381440>
+Traceback (most recent call last):
+  File "/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/utils/binding_utils.py", line 199, in __del__
+    self.gl_ctx.free()
+  File "/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/renderers/context/egl_context.py", line 150, in free
+    EGL.eglDestroyContext(EGL_DISPLAY, self._context)
+  File "/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/OpenGL/error.py", line 230, in glCheckError
+    raise self._errorClass(
+OpenGL.raw.EGL._errors.EGLError: EGLError(
+	err = EGL_NOT_INITIALIZED,
+	baseOperation = eglDestroyContext,
+	cArguments = (
+		<OpenGL._opaque.EGLDisplay_pointer object at 0x7f22b56e12d0>,
+		<OpenGL._opaque.EGLContext_pointer object at 0x7f22b568bd50>,
+	),
+	result = 0
+)
+Exception ignored in: <function EGLGLContext.__del__ at 0x7f23d7381300>
+Traceback (most recent call last):
+  File "/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/renderers/context/egl_context.py", line 155, in __del__
+    self.free()
+  File "/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/renderers/context/egl_context.py", line 150, in free
+    EGL.eglDestroyContext(EGL_DISPLAY, self._context)
+  File "/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/OpenGL/error.py", line 230, in glCheckError
+    raise self._errorClass(
+OpenGL.raw.EGL._errors.EGLError: EGLError(
+	err = EGL_NOT_INITIALIZED,
+	baseOperation = eglDestroyContext,
+	cArguments = (
+		<OpenGL._opaque.EGLDisplay_pointer object at 0x7f22b56e12d0>,
+		<OpenGL._opaque.EGLContext_pointer object at 0x7f22b568bd50>,
+	),
+	result = 0
+)

@@ -1,0 +1,90 @@
+tag16h5 AS THE DEPLOYMENT PATH
+==============================
+Date: 2026-09-05
+
+WHY 16h5, HONESTLY
+------------------
+The ESP32 AprilTag port (stnk20/apriltag, esp-idf) ships tag16h5 and tag25h9.
+tag36h11's 587-code table is expensive in flash. Adopting 16h5 avoids porting
+that table.
+
+It is NOT because 16h5 detects better. An early n=30 spot check suggested 16h5
+detected 80% vs 36h11 57% -- a 23-point gap. That was sampling noise. Measured
+properly at 4 seeds x 800 resets per family:
+
+  family   detections/3200   rate     raw error median   p90
+  36h11         2140         66.9%        20.7 mm       26.5
+  16h5          2186         68.3%        20.8 mm       26.5
+
+Equivalent. The switch costs nothing, which is the actual argument for it.
+
+CORRECTOR REFIT (16h5, robot0_eye_in_hand 320x240, t=0)
+-------------------------------------------------------
+Tag family is part of the per-setup calibration, so the corrector was refit on
+16h5 detections. Seeds split TUNE (0,1,2) / HOLD (3).
+
+  config    params    held-out    cut    R2 x/y/z
+  h32 d2     1,571     0.43 mm    98%   +0.99/+0.99/+1.00
+  h64 d2     5,187     0.39 mm    98%   +0.99/+0.99/+1.00   <- selected
+  h64 d3     9,347     0.40 mm    98%   +0.99/+0.99/+1.00
+
+  held-out baseline 20.65 mm
+
+Matches the 36h11 corrector (20.61 -> 0.39 mm) to within noise, as expected:
+the residual is a camera-calibration map, not a tag-decoding property.
+
+The final layer was trained in millimetres and rescaled to metres on export
+(fit script inherits load()'s *1000). Verified by magnitude ratio against raw
+residuals: 0.999. Omitting this rescale previously scored 0.0% on all 12 seeds.
+
+END-TO-END, 12 seeds x 50 episodes, latch mode, one detection per episode
+-------------------------------------------------------------------------
+  seed   wrist 36h11   wrist 16h5   agentview 1280
+     7        82.0%        86.0%          80.0%
+    31        94.0%        92.0%          94.0%
+    47        86.0%        88.0%          78.0%
+    89        86.0%        84.0%          94.0%
+   101        82.0%        82.0%          98.0%
+   123        88.0%        90.0%          88.0%
+   211        76.0%        84.0%          88.0%
+   307        86.0%        86.0%          88.0%
+   401        90.0%        92.0%          94.0%
+   503        94.0%        92.0%          94.0%
+   555        90.0%        90.0%          92.0%
+  2024        88.0%        86.0%          88.0%
+  mean        86.8%        87.7%          89.7%
+
+  16h5 vs 36h11 wrist:    +0.83 pts  t=0.96  p=0.3582  up/dn 5/4
+  16h5 wrist vs agentview: -2.00 pts  t=-1.04 p=0.3206  up/dn 3/9
+
+All three routes are statistically indistinguishable. Reference: ground-truth
+perception is 94.0%, so the full perception stack costs ~6 points.
+
+The 16h5 wrist route is chosen because it is the only one that FITS: a 320x240
+frame is a 75 KB buffer (ESP32 SRAM, 320 KB free after the arena shrink) versus
+1200 KB at 1280x960, which needs PSRAM this board does not have.
+
+HEADER VALIDATION
+-----------------
+corrector_model.h regenerated: 5,187 params, 20.3 KB FP32.
+Compiled the sketch's correctorForward() standalone and ran it against the
+Python model over 12 real detections:
+
+  max |C - Python| = 8.3e-08 m (0.083 um)   MATCH
+
+FP32 on purpose: per-tensor INT8 cost 6.4-13.2 mm against the residual it
+corrects (Results/corrector_on_device.txt).
+
+METHODS NOTE
+------------
+Three claims in this campaign were first reported from small samples and all
+three were optimistic:
+
+  claim              small sample        large sample
+  wrist accuracy     12.2 mm (n=8)       20.7 mm (n=2140)
+  truth ceiling      100%   (n=8)        94.0%  (n=200)
+  16h5 detection     +23 pts (n=30)      +1.4 pts (n=3200)
+
+A fourth was caught before publication: seed 7 in this run read 95% at the
+20/50 mark and finished at 86%. This is why headline numbers use the full
+12-seed x 50-100 episode protocol.
