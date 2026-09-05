@@ -1044,8 +1044,16 @@ static matd_svd_t matd_svd_tall(matd_t *A, int flags)
             double mag = sqrt(mag2);
 
             // this case arises with matrices of all zeros, for example.
-            if (mag == 0)
+            // MEMORY LEAK FIX (upstream AprilTag has this too): v is
+            // allocated just above and this early continue skipped the
+            // free() at the end of the iteration. Harmless in a desktop
+            // process that exits; on a microcontroller running a detection
+            // every episode it leaked ~800 B per detection, and the board
+            // eventually could not fit a detection at all.
+            if (mag == 0) {
+                free(v);
                 continue;
+            }
 
             for (int i = 0; i < vlen; i++)
                 v[i] /= mag;
@@ -1103,8 +1111,11 @@ static matd_svd_t matd_svd_tall(matd_t *A, int flags)
             double mag = sqrt(mag2);
 
             // this case can occur when the vectors are already perpendicular
-            if (mag == 0)
+            // Same leak as above; see the note at the first site.
+            if (mag == 0) {
+                free(v);
                 continue;
+            }
 
             for (int i = 0; i < vlen; i++)
                 v[i] /= mag;

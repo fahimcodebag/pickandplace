@@ -397,8 +397,15 @@ int quad_segment_maxima(apriltag_detector_t *td, zarray_t *cluster, struct line_
     free(errs);
 
     // if we didn't get at least 4 maxima, we can't fit a quad.
-    if (nmaxima < 4)
+    // MEMORY LEAK FIX: this early return skipped the free() of maxima and
+    // maxima_errs at the end of the function. It fires on clusters that are
+    // not quad-shaped, so it leaked a few hundred bytes on any frame with
+    // such a cluster -- slow, but unbounded on a board that detects forever.
+    if (nmaxima < 4) {
+        free(maxima);
+        free(maxima_errs);
         return 0;
+    }
 
     // select only the best maxima if we have too many
     int max_nmaxima = td->qtp.max_nmaxima;
