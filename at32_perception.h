@@ -45,8 +45,12 @@
 #define AT_ROI_Y0    0
 #define AT_TAG_ID    0
 
-// Refuse to start a detection below this much free MALLOC_CAP_8BIT. Measured
-// worst-case peak for this ROI over 360 frames, plus margin.
+// Refuse to start a detection below this much free MALLOC_CAP_8BIT.
+// Checked AFTER at_perception_init, so it is compared against the pool that
+// remains once the persistent detector is built -- the pool the DETECTION
+// actually draws on. Worst-case frame for this ROI over 360 frames is
+// 176.5 KB, and a second frame set peaked 6% higher, so ~187 KB is the
+// number to clear.
 #ifndef AT_MIN_FREE
 #define AT_MIN_FREE  (190u * 1024u)
 #endif
@@ -88,7 +92,18 @@ static void at_perception_init(void){
   if(at_td) return;
   at_tf = tag16h5_create();
   at_td = apriltag_detector_create();
-  apriltag_detector_add_family(at_td, at_tf);
+  // bits_corrected = 0, not the fork's default of 1. The quick-decode table
+  // is PERSISTENT heap and scales with the Hamming radius: 24.6 KB at 1
+  // versus 2.1 KB at 0 (and 362 KB at upstream's default of 2, which would
+  // not fit at all). Over 360 frames that costs ONE detection, 239 vs 240,
+  // and 22.5 KB is the difference between a worst-case frame fitting and
+  // not. tag16h5 has only 30 codes with a small Hamming distance, so a wider
+  // correction radius also invites false ids -- 22 of them at bits=2, none
+  // at 0 or 1.
+  //
+  // The tradeoff to revisit on a REAL camera: correction earns its keep when
+  // images are noisy, and these are clean renders.
+  apriltag_detector_add_family_bits(at_td, at_tf, 0);
   at_td->quad_decimate = 2.0f;   // ROI + decimate 2 is the memory-driven
   at_td->quad_sigma    = 0.0f;   // setting; see esp32_apriltag/README.md
   at_td->nthreads      = 1;
