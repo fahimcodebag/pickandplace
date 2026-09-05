@@ -160,6 +160,26 @@ class ESP32Bridge:
         time.sleep(0.02)
         self.serial.reset_input_buffer()
 
+    def send_image(self, gray, T_world_cam, settle=2.0):
+        """Send one camera frame for ON-DEVICE perception (IMG_MSG).
+
+        Fire-and-forget like send_reset: the sketch runs the detector and
+        latches the result, and returns no action, so there is nothing to
+        read back. Perception is expected ONCE per episode, at t=0.
+
+        `settle` must cover the link time plus the detection. The ROI is
+        42846 bytes, which at 921600 baud is ~0.47 s, and the detector itself
+        is the unknown -- it has never been timed on hardware. The board
+        prints "[perc] det=.. NN.N ms heap ..." for each frame, so the real
+        figure lands in the debug log; shorten this once it is known.
+        """
+        roi = Protocol.crop_roi(gray)
+        self.serial.write(Protocol.encode_image(roi, T_world_cam, self.seq_num))
+        self.serial.flush()
+        time.sleep(settle)
+        self._drain_debug()
+        self.serial.reset_input_buffer()
+
     def print_stats(self):
         """Print communication statistics"""
         success_rate = (self.stats['successful_cycles'] / max(self.stats['total_cycles'], 1)) * 100
