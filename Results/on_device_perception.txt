@@ -217,3 +217,39 @@ points against the same detector given unlimited memory.
    It runs once per episode, so a slow detection costs startup latency, not
    control rate. esp32_bridge.send_image() waits a fixed 2 s for this
    reason; shorten it once the real figure is in the debug log.
+
+HARDWARE VALIDATION -- IT RUNS
+==============================
+Plain ESP32-DEV, no PSRAM, deployment configuration, from the board's own log:
+
+  perception invocations   6, detected 5 (83%)
+  detect time              192-576 ms, mean 451
+  peak heap used           176876 B (172.7 KB) of 213720 B  -> 36.0 KB margin
+  stack headroom           13520 B of 16384                 -> 2.8 KB used
+  heap drift per detection -24, 0, 0, 0, 0 bytes            -> no leak
+  crashes 0, skips 0
+
+So the full AprilTag front end -- detection, both poses of the planar
+ambiguity, upright disambiguation, extrinsic calibration and the learned
+residual corrector -- runs on a plain ESP32 alongside the two INT8 policies
+and the FSM, at ~0.45 s per episode, with a third of the heap still spare.
+
+CORRECTION: the stack was a red herring. at_perceive measured 8712 B on the
+host by painting a pthread stack, which is why the loop task's 8192 B
+default looked like the cause of the LoadProhibited faults. The board
+reports only 2.8 KB actually used. Every crash in this campaign was
+OUT OF MEMORY -- 0x1d StoreProhibited is a WRITE into a failed allocation
+and 0x1c LoadProhibited a READ of one, and both were being produced by the
+same exhaustion. The host measurement included the thread's own frames and
+overstated the need. 16 KB is kept because it costs little and the true
+xtensa figure is unknown, but it was not the fix.
+
+WHAT ACTUALLY FIXED IT, in order of contribution:
+  crop 222x193 -> 180x160                       ~107 KB of peak
+  zarray growth 2x -> 1.25x                      ~32 KB of peak
+  wrap the received frame instead of copying     ~42 KB
+  quick-decode table bits_corrected 1 -> 0       ~22 KB of PERSISTENT heap
+  unionfind 8 -> 4 bytes per pixel               ~75 KB at full resolution
+  AT_MIN_REGION 25 -> 60                         ~15 KB of peak
+  two inherited memory leaks (matd_svd_tall,
+    quad_segment_maxima)                    unbounded growth per detection
