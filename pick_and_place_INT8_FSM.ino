@@ -54,6 +54,17 @@
 #include "corrector_model.h"  // FP32 AprilTag residual corrector (20.3 KB)
 #include "at32_perception.h"  // on-device AprilTag detection + pose
 
+// The Arduino loop task gets an 8 KB stack by default. AprilTag's quad
+// fitting and its matd/SVD helpers are stack-hungry, and how deep they go
+// depends on how many clusters a frame produces -- so an overflow is
+// intermittent and frame-dependent, which is exactly what the board shows:
+// LoadProhibited (EXCCAUSE 0x1c) reading address 0x00000000, on some frames
+// and not others, at full free heap. That is a stack fault, not the
+// out-of-memory (StoreProhibited into a failed allocation) seen earlier.
+// Costs internal RAM, so it is not free -- but stack is the one budget this
+// port had never been given.
+SET_LOOP_TASK_STACK_SIZE(32 * 1024);
+
 // ── Dimensions ─────────────────────────────────────────────────────────────
 #define STATE_DIM  46
 #define ACTION_DIM 7
@@ -732,8 +743,13 @@ int receiveState(float* state, uint8_t* seq, uint8_t* flags){
     at_perceive(roi, Twc, eef, &r);
     float pms = (micros()-p0)/1000.0f;
     uint32_t h1 = ESP.getFreeHeap();
-    Serial.printf("[perc] det=%d %.1f ms  heap %u -> %u (min %u), peak used %d B\n",
-                  r.ok, pms, h0, h1, ESP.getMinFreeHeap(), (int)h0-(int)ESP.getMinFreeHeap());
+    // Stack high-water: bytes still UNUSED at the deepest point. If this is
+    // small, the 32 KB above is not enough either.
+    UBaseType_t swm = uxTaskGetStackHighWaterMark(NULL);
+    Serial.printf("[perc] det=%d %.1f ms  heap %u -> %u (min %u), peak used %d B, "
+                  "stack headroom %u B\n",
+                  r.ok, pms, h0, h1, ESP.getMinFreeHeap(),
+                  (int)h0-(int)ESP.getMinFreeHeap(), (unsigned)swm);
     if(r.ok){
       applyCorrection2(&r);        // residual corrector, then latch
       latch.have = true; latch.gripped = false;
