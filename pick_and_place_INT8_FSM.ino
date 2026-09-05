@@ -691,7 +691,16 @@ int receiveState(float* state, uint8_t* seq, uint8_t* flags){
     memcpy(Twc, tail, 48);
     memcpy(eef, tail+48, 12);   // carried in the frame; see protocol_float32
 
+    // Printed and FLUSHED before the detector runs. Upstream apriltag does
+    // not check its mallocs, so an out-of-memory is a StoreProhibited panic
+    // through a NULL pointer, not a clean failure -- and a panic loses
+    // anything still sitting in the serial buffer. This line is what
+    // survives, so the next attempt is diagnosable even if it dies.
     uint32_t h0 = ESP.getFreeHeap();
+    uint32_t lb = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+    Serial.printf("[perc] start: free %u B, largest block %u B\n",
+                  (unsigned)h0, (unsigned)lb);
+    Serial.flush();
     unsigned long p0 = micros();
     at_result_t r;
     at_perceive(roi, Twc, eef, &r);

@@ -44,7 +44,7 @@ class ESP32Bridge:
         self._dbg_buf = bytearray()
         self.recent_lines = []          # last board prints, for send_image()
         self.perc = {"sent": 0, "detected": 0, "oom": 0, "short": 0, "crc": 0,
-                     "ms": [], "used": []}
+                     "crash": 0, "ms": [], "used": []}
         if debug_log:
             Protocol.debug_sink = self._dbg_buf
             self._dbg_fh = open(debug_log, "w", buffering=1)
@@ -223,9 +223,14 @@ class ESP32Bridge:
         # is used instead. The run then looks excellent while measuring
         # nothing about perception at all.
         for ln in self.recent_lines[mark:]:
+            if "Guru Meditation" in ln:
+                self.perc["crash"] = self.perc.get("crash", 0) + 1
+                continue
             if "[perc]" not in ln:
                 continue
-            if "OUT OF MEMORY" in ln:
+            if "Guru Meditation" in ln or "StoreProhibited" in ln:
+                self.perc["crash"] = self.perc.get("crash", 0) + 1
+            elif "OUT OF MEMORY" in ln:
                 self.perc["oom"] += 1
             elif "SHORT" in ln:
                 self.perc["short"] += 1
@@ -249,11 +254,12 @@ class ESP32Bridge:
         p = self.perc
         if not p["sent"]:
             return "perception: never invoked"
-        seen = p["detected"] + p["oom"] + p["short"] + p["crc"]
+        seen = (p["detected"] + p["oom"] + p["short"] + p["crc"]
+                + p.get("crash", 0))
         out = [f"perception: {p['sent']} frames sent, "
                f"{p['detected']} detected"]
-        for k, lbl in (("oom", "OUT-OF-MEMORY"), ("short", "short reads"),
-                       ("crc", "CRC errors")):
+        for k, lbl in (("oom", "OUT-OF-MEMORY"), ("crash", "BOARD CRASHES"),
+                       ("short", "short reads"), ("crc", "CRC errors")):
             if p[k]:
                 out.append(f"{p[k]} {lbl}")
         if p["ms"]:
@@ -261,7 +267,14 @@ class ESP32Bridge:
                        f"(mean {sum(p['ms'])/len(p['ms']):.0f})")
         if p["used"]:
             out.append(f"peak heap used {max(p['used'])/1024:.0f} KB")
-        if seen == 0:
+        if p.get("crash"):
+            out.append("!! the board PANICKED and rebooted -- perception did "
+                       "not run, so these episodes used the PC's ground-truth "
+                       "pose. Upstream apriltag does not check its mallocs, so "
+                       "out-of-memory shows up as StoreProhibited on a NULL "
+                       "pointer; check the '[perc] start:' line for the free "
+                       "heap it had")
+        elif seen == 0:
             out.append("!! the board printed NOTHING -- it is almost certainly "
                        "not running the perception build, so these episodes "
                        "used the PC's ground-truth pose")
