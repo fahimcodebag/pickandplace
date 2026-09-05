@@ -45,6 +45,11 @@ class ESP32Bridge:
         self.recent_lines = []          # last board prints, for send_image()
         self.perc = {"sent": 0, "detected": 0, "oom": 0, "short": 0, "crc": 0,
                      "crash": 0, "ms": [], "used": []}
+        # Episodes that ran on a pose the BOARD produced, vs episodes that
+        # silently fell back to the PC's ground truth. Averaging the two
+        # together is what made every earlier HIL number uninterpretable.
+        self.episodes_perceived = 0
+        self.episodes_fallback = 0
         if debug_log:
             Protocol.debug_sink = self._dbg_buf
             self._dbg_fh = open(debug_log, "w", buffering=1)
@@ -216,6 +221,7 @@ class ESP32Bridge:
             time.sleep(0.02)
         self.serial.reset_input_buffer()
         self.perc["sent"] += 1
+        before = dict(self.perc)
 
         # Read back what the board actually did. Without this a failed
         # detection is INVISIBLE: the board simply does not latch, applyLatch
@@ -247,7 +253,20 @@ class ESP32Bridge:
                             int(ln.split("peak used")[1].split()[0]))
                 except (ValueError, IndexError):
                     pass
-        return dict(self.perc)
+        # Per-call outcome, so the caller can retry or mark the episode --
+        # NOT the cumulative counters, which cannot say what THIS frame did.
+        return {
+            "detected": self.perc["detected"] > before["detected"],
+            "skipped":  self.perc["oom"] > before["oom"],
+            "crashed":  self.perc.get("crash", 0) > before.get("crash", 0),
+            "ms": self.perc["ms"][-1] if self.perc["ms"] else None,
+        }
+
+    def note_episode(self, perceived):
+        if perceived:
+            self.episodes_perceived += 1
+        else:
+            self.episodes_fallback += 1
 
     def perception_summary(self):
         """One line saying whether perception actually ran, and at what cost."""
@@ -267,6 +286,10 @@ class ESP32Bridge:
                        f"(mean {sum(p['ms'])/len(p['ms']):.0f})")
         if p["used"]:
             out.append(f"peak heap used {max(p['used'])/1024:.0f} KB")
+        ep = self.episodes_perceived + self.episodes_fallback
+        if ep:
+            out.append(f"episodes on BOARD pose {self.episodes_perceived}/{ep}, "
+                       f"on PC ground truth {self.episodes_fallback}/{ep}")
         if p.get("crash"):
             out.append("!! the board PANICKED and rebooted -- perception did "
                        "not run, so these episodes used the PC's ground-truth "

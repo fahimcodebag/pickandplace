@@ -71,16 +71,52 @@ def render_wrist_gray(raw_env, width=320, height=240,
 def send_perception(raw_env, bridge, camera="robot0_eye_in_hand"):
     """Hand the board one frame and let IT do the perception.
 
-    Called once per episode with the arm at its home pose -- the condition the
-    residual corrector was calibrated under. T_world_cam is forward kinematics,
-    not perception: on a real arm the controller knows where the wrist camera
-    sits.
+    T_world_cam is forward kinematics, not perception: on a real arm the
+    controller knows where the wrist camera sits.
+
+    Returns the board's per-frame outcome dict.
     """
     import robosuite.utils.camera_utils as CU
     gray = render_wrist_gray(raw_env, camera=camera)
     T = CU.get_camera_extrinsic_matrix(raw_env.sim, camera)
     eef = np.asarray(raw_env._observables["robot0_eef_pos"].obs, dtype=np.float32)
-    bridge.send_image(gray, T, eef)
+    return bridge.send_image(gray, T, eef)
+
+
+# The tag is not always visible from the wrist at t=0 -- roughly a third of
+# resets do not decode. The simulator handles this with --detect-until-first:
+# step the FSM and look again as the arm moves. Without the same retry here,
+# a failed detection means the board never latches, applyLatch is a no-op,
+# and the episode silently runs on the GROUND-TRUTH pose the PC sent -- which
+# scores well and measures nothing. Retry instead, and if it never lands, say
+# so rather than quietly averaging the two populations together.
+PERCEPTION_TRIES = 6        # frames to try before giving up
+PERCEPTION_STRIDE = 4       # FSM steps between attempts, to change the view
+
+
+def perceive_until_first(env, raw_env, bridge, obs, render=False):
+    """Send frames until the board detects. Returns (obs, perceived)."""
+    lo, hi = env.action_space.low, env.action_space.high
+    for attempt in range(PERCEPTION_TRIES):
+        r = send_perception(raw_env, bridge)
+        if r.get("detected"):
+            if attempt:
+                print(f"      perception: detected on frame {attempt + 1}")
+            return obs, True
+        if r.get("crashed") or r.get("skipped"):
+            print(f"      perception: board {'crashed' if r.get('crashed') else 'skipped'} "
+                  f"on frame {attempt + 1}")
+        # Advance a little so the next frame is a different view.
+        for _ in range(PERCEPTION_STRIDE):
+            action, _ = bridge.get_action(obs, compute_flags(raw_env))
+            obs, _, done, _ = env.step(np.clip(action, lo, hi))
+            if render:
+                raw_env.render()
+            if done:
+                return obs, False
+    print(f"      perception: NO detection in {PERCEPTION_TRIES} frames — "
+          f"this episode runs on the PC's ground-truth pose")
+    return obs, False
 
 
 def make_env(render=True, random_spawn=False, on_device_perception=False):
@@ -155,10 +191,12 @@ def do_handoff(env, raw_env, bridge, render=True, on_device_perception=False):
     for attempt in range(1, MAX_GRASP_ATTEMPTS + 1):
         obs = env.reset()
         bridge.send_reset()                     # resync the MCU's FSM to GRASP
+        perceived = None
         if on_device_perception:
             # After send_reset, so the latch the board clears on reset is the
             # one this frame refills -- not the other way round.
-            send_perception(raw_env, bridge)
+            obs, perceived = perceive_until_first(env, raw_env, bridge, obs, render)
+            bridge.note_episode(perceived)
         last_phase = None
         grasp_flag_steps = 0
         for t in range(HANDOFF_STEP_CAP):
@@ -313,13 +351,13 @@ def main():
         n = len(scores)
         print(f"\n{'=' * 62}")
         if args.on_device_perception:
-        # Printed BEFORE the score, because the score is uninterpretable
-        # without it: if nothing was detected the board used the PC's
-        # ground-truth pose and the number says nothing about perception.
-        print("-" * 62)
-        print(bridge.perception_summary())
-        print("-" * 62)
-    print(f"Final Results ({n} scored episodes of {N_EPISODES})")
+            # Printed BEFORE the score, because the score is uninterpretable
+            # without it: episodes where the board never latched ran on the
+            # PC's ground-truth pose and say nothing about perception.
+            print("-" * 62)
+            print(bridge.perception_summary())
+            print("-" * 62)
+        print(f"Final Results ({n} scored episodes of {N_EPISODES})")
         print(f"{'=' * 62}")
         if n:
             print(f"Placements:            {placements}/{n} "
