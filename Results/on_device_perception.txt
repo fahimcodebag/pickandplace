@@ -8,8 +8,9 @@ END-TO-END TASK SUCCESS
 -----------------------
   route                                     seeds   ep    mean    median
   ground truth (ceiling)                      --    200   94.00%    --
-  ESP32 C detector, 222x193 (DOES NOT FIT)    12    600   91.00%   91.00%
-  ESP32 C detector, 210x181 (fits the board)  12    600   90.00%   90.00%  <-- deployment
+  ESP32 C detector, 222x193 (PANICS)          12    600   91.00%   91.00%
+  ESP32 C detector, 210x181 (PANICS)          12    600   90.00%   91.00%
+  ESP32 C detector, 190x170 (fits)            12    600   89.17%   89.00%  <-- deployment
   agentview 36h11 + corrector (EXTERNAL cam)  12    600   89.67%   90.00%
   wrist 16h5 OpenCV + corrector               12    600   87.67%   87.00%
   wrist 36h11 OpenCV + corrector              12    600   86.83%   87.00%
@@ -103,16 +104,34 @@ defaulted to upstream 0.2/2048 with the deployment values passed as
 The DEVICE was building a 321 KB peak while every desktop figure was the
 298 KB flagged build. Deployment values are now the defaults.
 
-COST OF FITTING (12 seeds x 50 episodes, paired):
-    old ROI 222x193, region 25   91.00%
-    new ROI 210x181, region 60   90.00%
-    paired -1.00 pts, SE 0.76, 95% CI [-2.67, +0.67]  -- not significant
+THE REAL BUDGET IS 211 KB, NOT 281 KB
+-------------------------------------
+    [perc] start: getFreeHeap 281376 | 8BIT free 215940 largest 110580
+ESP.getFreeHeap() sums EVERY heap cap, including ~65 KB of
+32-bit-access-only IRAM that cannot back the uint8 images and uint16
+unionfind arrays the detector allocates. The pool that constrains it is
+MALLOC_CAP_8BIT: 210.9 KB, largest block 108 KB. Two predicted fits were
+made against getFreeHeap and both were wrong.
+
+COST OF FITTING (12 seeds x 50 episodes, paired on seed):
+    222x193, region 25   91.00%   x86 peak 283 KB   PANICS
+    210x181, region 60   90.00%   x86 peak 259 KB   PANICS
+    190x170, region 60   89.17%   x86 peak 220 KB   fits, ~24 KB spare
+    190x170 vs 222x193: -1.83 pts, SE 0.67, 95% CI [-3.31, -0.35]
+      -- SIGNIFICANT. Fitting a plain ESP32 costs real accuracy.
+    190x170 vs 210x181: -0.83 pts, 95% CI [-2.89, +1.23], not significant
+Coverage of the n=2281 detection distribution falls 94.5% -> 91.3%, and
+sim detection 139/200 -> 135/200 at an unchanged 20.51 mm.
 Detection is unchanged upstream of the task too: 43/60 recorded frames
 either way, and 139/200 sim resets at 20.52 mm against 20.51 mm.
 
-So the deployment configuration is 90.0%, still above the external
-agentview camera (89.67%) and the OpenCV wrist path (87.67%), and 4 points
-under the ground-truth ceiling.
+So the deployable configuration is 89.17%: level with the external
+agentview camera (89.67%), still above the OpenCV wrist path (87.67%), and
+~5 points under the ground-truth ceiling. The headline is no longer "on-
+device perception beats the PC camera" -- that was true only for crops the
+hardware cannot actually run. What survives is that full AprilTag
+perception runs on a plain ESP32 with no PSRAM at a measured cost of 1.8
+points against the same detector given unlimited memory.
 
 2. TIME. The detector has never been timed on hardware. Inference is 0.26 ms
    and the corrector is trivial, but AprilTag quad detection on a 111x96
