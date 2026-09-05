@@ -79,7 +79,8 @@ def send_perception(raw_env, bridge, camera="robot0_eye_in_hand"):
     import robosuite.utils.camera_utils as CU
     gray = render_wrist_gray(raw_env, camera=camera)
     T = CU.get_camera_extrinsic_matrix(raw_env.sim, camera)
-    bridge.send_image(gray, T)
+    eef = np.asarray(raw_env._observables["robot0_eef_pos"].obs, dtype=np.float32)
+    bridge.send_image(gray, T, eef)
 
 
 def make_env(render=True, random_spawn=False, on_device_perception=False):

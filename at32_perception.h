@@ -32,6 +32,7 @@
 // Arduino/libraries/ so the IDE puts <lib>/src on the include path -- the
 // upstream sources include each other as "common/xxx.h", which only resolves
 // from there. Dropping the tree into the sketch's own src/ does NOT work.
+#include <esp_heap_caps.h>   // heap_caps_get_largest_free_block
 #include <apriltag.h>
 #include <tag16h5.h>
 #include <apriltag_pose.h>
@@ -65,6 +66,17 @@ typedef struct {
 
 static apriltag_family_t   *at_tf = NULL;
 static apriltag_detector_t *at_td = NULL;
+
+// Reported rather than crashed on, so an out-of-memory shows up as OOM.
+static void at_oom(const char* where){
+#ifdef ARDUINO
+  Serial.printf("[perc] OUT OF MEMORY at %s (free %u, largest block %u)\n",
+                where, (unsigned)ESP.getFreeHeap(),
+                (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+#else
+  (void)where;
+#endif
+}
 
 static void at_perception_init(void){
   if(at_td) return;
@@ -107,7 +119,14 @@ static void at_perceive(const uint8_t *roi, const float *Twc,
   out->ok = 0;
   at_perception_init();
 
+  // The whole open question about this port is whether the detector fits in
+  // internal SRAM. If it does not, the failure would otherwise be a silent
+  // reboot mid-detection, which reads as a comms fault rather than as OOM.
   image_u8_t *im = image_u8_create(AT_ROI_W, AT_ROI_H);
+  if(!im){
+    at_oom("image_u8_create");
+    return;
+  }
   for(int y=0;y<AT_ROI_H;y++)
     memcpy(im->buf + y*im->stride, roi + (size_t)y*AT_ROI_W, AT_ROI_W);
   zarray_t *dets = apriltag_detector_detect(at_td, im);

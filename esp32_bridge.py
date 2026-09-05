@@ -160,7 +160,7 @@ class ESP32Bridge:
         time.sleep(0.02)
         self.serial.reset_input_buffer()
 
-    def send_image(self, gray, T_world_cam, settle=2.0):
+    def send_image(self, gray, T_world_cam, eef_pos, settle=2.0):
         """Send one camera frame for ON-DEVICE perception (IMG_MSG).
 
         Fire-and-forget like send_reset: the sketch runs the detector and
@@ -174,7 +174,8 @@ class ESP32Bridge:
         figure lands in the debug log; shorten this once it is known.
         """
         roi = Protocol.crop_roi(gray)
-        self.serial.write(Protocol.encode_image(roi, T_world_cam, self.seq_num))
+        self.serial.write(Protocol.encode_image(roi, T_world_cam, eef_pos,
+                                               self.seq_num))
         self.serial.flush()
         time.sleep(settle)
         self._drain_debug()

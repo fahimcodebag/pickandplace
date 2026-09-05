@@ -143,7 +143,7 @@ static const int   RT_STEPS  = 12;    static const float RT_DZ    = 0.3f;
 #define CORR_FEATS 12
 #define ACTION_PAYLOAD_SIZE 35   // type1+seq1+len2+action28+status1+crc2
 // type1+seq1+len2 + ROI + 12 transform floats + crc2
-#define IMG_PAYLOAD_SIZE (4 + AT_ROI_W*AT_ROI_H + 48 + 2)
+#define IMG_PAYLOAD_SIZE (4 + AT_ROI_W*AT_ROI_H + 60 + 2)
 
 // ── FSM states ─────────────────────────────────────────────────────────────
 enum Phase {
@@ -271,6 +271,9 @@ void selfTest(){
 
 // ── setup ──────────────────────────────────────────────────────────────────
 void setup(){
+  // 42 KB image frames need far more than the 256-byte default, or the FIFO
+  // overflows mid-frame. Must precede begin().
+  Serial.setRxBufferSize(8192);
   Serial.begin(921600);
   while(!Serial) delay(10);
   Serial.println("\n===============================================");
@@ -650,31 +653,43 @@ int receiveState(float* state, uint8_t* seq, uint8_t* flags){
   }
   if(type==IMG_MSG){
     // Raw ROI pixels: run the whole perception front end here.
-    // The buffer is static, not stack or heap -- 42 KB would blow the task
-    // stack, and keeping it out of the heap leaves the heap free for the
-    // detector, which is what is actually tight.
+    // Static, not stack or heap -- 42 KB would blow the task stack, and
+    // keeping it out of the heap leaves the heap for the detector, which is
+    // what is actually tight.
     static uint8_t roi[AT_ROI_W*AT_ROI_H];
-    static uint8_t tail[48+2];
-    size_t got=0;
-    while(got<sizeof(roi) && millis()-t<8000)
-      if(Serial.available()>0) roi[got++]=Serial.read();
-    if(got!=sizeof(roi)) return 0;
-    got=0;
-    while(got<sizeof(tail) && millis()-t<8000)
-      if(Serial.available()>0) tail[got++]=Serial.read();
-    if(got!=sizeof(tail)) return 0;
+    static uint8_t tail[60+2];          // 12 transform + 3 gripper floats, crc
+    // readBytes() pulls straight from the UART driver's buffer. Polling
+    // Serial.available() one byte at a time cannot keep up here: at 921600
+    // baud a byte lands every 10.85 us, and two HardwareSerial calls per byte
+    // is slower than that, so the RX FIFO overflows part way through 42 KB
+    // and the frame is lost with no error.
+    Serial.setTimeout(8000);
+    size_t got = Serial.readBytes(roi, sizeof(roi));
+    if(got != sizeof(roi)){
+      Serial.printf("[perc] SHORT image: %u/%u bytes\n",
+                    (unsigned)got, (unsigned)sizeof(roi));
+      return 0;
+    }
+    got = Serial.readBytes(tail, sizeof(tail));
+    if(got != sizeof(tail)){
+      Serial.printf("[perc] SHORT tail: %u/%u\n",
+                    (unsigned)got, (unsigned)sizeof(tail));
+      return 0;
+    }
     uint32_t sum=0;
     for(int i=0;i<4;i++) sum+=buf[i];
     for(size_t i=0;i<sizeof(roi);i++) sum+=roi[i];
-    for(size_t i=0;i<48;i++) sum+=tail[i];
-    uint16_t rc = tail[48] | (tail[49]<<8);
-    if(rc != (uint16_t)(sum%65536)) return 0;
+    for(size_t i=0;i<60;i++) sum+=tail[i];
+    uint16_t rc = tail[60] | (tail[61]<<8);
+    if(rc != (uint16_t)(sum%65536)){
+      Serial.printf("[perc] CRC bad: got %u want %u\n",
+                    rc, (unsigned)(sum%65536));
+      return 0;
+    }
 
     float Twc[12], eef[3];
     memcpy(Twc, tail, 48);
-    // The gripper position the features need comes from the LAST state the
-    // board received, which the PC always sends before the image.
-    memcpy(eef, &lastState[35], 3*sizeof(float));
+    memcpy(eef, tail+48, 12);   // carried in the frame; see protocol_float32
 
     uint32_t h0 = ESP.getFreeHeap();
     unsigned long p0 = micros();
@@ -682,8 +697,8 @@ int receiveState(float* state, uint8_t* seq, uint8_t* flags){
     at_perceive(roi, Twc, eef, &r);
     float pms = (micros()-p0)/1000.0f;
     uint32_t h1 = ESP.getFreeHeap();
-    Serial.printf("[perc] det=%d %.1f ms  heap %u -> %u (min %u), used %d B\n",
-                  r.ok, pms, h0, h1, ESP.getMinFreeHeap(), (int)h0-(int)h1);
+    Serial.printf("[perc] det=%d %.1f ms  heap %u -> %u (min %u), peak used %d B\n",
+                  r.ok, pms, h0, h1, ESP.getMinFreeHeap(), (int)h0-(int)ESP.getMinFreeHeap());
     if(r.ok){
       applyCorrection2(&r);        // residual corrector, then latch
       latch.have = true; latch.gripped = false;
@@ -691,6 +706,7 @@ int receiveState(float* state, uint8_t* seq, uint8_t* flags){
       for(int i=0;i<4;i++) latch.quat[i]=r.quat[i];
       stats.perceptions++;
       stats.perc_ms = (stats.perc_ms*(stats.perceptions-1)+pms)/stats.perceptions;
+      Serial.printf("[perc] obj %.4f %.4f %.4f\n", r.pos[0], r.pos[1], r.pos[2]);
     }
     return 4;
   }

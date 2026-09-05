@@ -109,18 +109,24 @@ class ProtocolFloat32:
     #
     # T_world_cam is forward kinematics, not perception: on a real arm the
     # controller knows where the wrist camera is. It is sent as the 12 floats
-    # of a 3x4 row-major transform.
+    # of a 3x4 row-major transform, followed by the 3 floats of the gripper
+    # position. The gripper position is part of the message rather than read
+    # from the last state, because the image is sent immediately after reset()
+    # -- before any state has arrived for this episode, so the board's copy
+    # would be the PREVIOUS episode's (or zeros on the first).
     IMG_W, IMG_H = 222, 193
     IMG_X0, IMG_Y0 = 98, 0
 
     @staticmethod
-    def encode_image(roi_bytes, T_world_cam, seq_num=0):
-        """IMG_MSG: raw ROI pixels + the 3x4 camera-to-world transform."""
+    def encode_image(roi_bytes, T_world_cam, eef_pos, seq_num=0):
+        """IMG_MSG: ROI pixels + the 3x4 camera-to-world transform + gripper pos."""
         npx = ProtocolFloat32.IMG_W * ProtocolFloat32.IMG_H
         assert len(roi_bytes) == npx, f"expected {npx} pixels, got {len(roi_bytes)}"
         T = np.asarray(T_world_cam, np.float32).reshape(4, 4)[:3, :4].ravel()
-        payload_len = npx + 12 * 4
-        body = bytes(roi_bytes) + T.astype(np.float32).tobytes()
+        e = np.asarray(eef_pos, np.float32).reshape(3)
+        payload_len = npx + 15 * 4
+        body = (bytes(roi_bytes) + T.astype(np.float32).tobytes()
+                + e.astype(np.float32).tobytes())
         header = struct.pack('BBH', ProtocolFloat32.IMG_MSG, seq_num, payload_len)
         msg = header + body
         return (ProtocolFloat32.SYNC_PATTERN + msg
