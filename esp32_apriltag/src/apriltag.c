@@ -58,14 +58,14 @@ either expressed or implied, of the Regents of The University of Michigan.
 # define M_PI 3.141592653589793238462643383279502884196
 #endif
 
-#ifndef HOST_BUILD
+#ifdef _WIN32   // newlib and glibc both declare random()/srandom()
 static inline void srandom(unsigned int seed)
 {
         srand(seed);
 }
 #endif
 
-#ifndef HOST_BUILD
+#ifdef _WIN32   // newlib and glibc both declare random()/srandom()
 static inline long int random(void)
 {
         return rand();

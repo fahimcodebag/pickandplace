@@ -33,7 +33,7 @@ either expressed or implied, of the Regents of The University of Michigan.
 #include "g2d.h"
 #include "common/math_util.h"
 
-#ifndef HOST_BUILD
+#ifdef _WIN32   // newlib and glibc both declare random()/srandom()
 static inline long int random(void)
 {
         return rand();

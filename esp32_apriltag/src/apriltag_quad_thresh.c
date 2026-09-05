@@ -50,7 +50,7 @@ either expressed or implied, of the Regents of The University of Michigan.
 #include "common/postscript_utils.h"
 #include "common/math_util.h"
 
-#ifndef HOST_BUILD
+#ifdef _WIN32   // newlib and glibc both declare random()/srandom()
 static inline long int random(void)
 {
         return rand();
