@@ -27,11 +27,15 @@
 #include "tag16h5.h"
 #include "apriltag_pose.h"
 #include "common/image_u8.h"
-#else                      // Arduino: the IDE compiles src/ recursively
-#include "src/esp32_apriltag/apriltag.h"
-#include "src/esp32_apriltag/tag16h5.h"
-#include "src/esp32_apriltag/apriltag_pose.h"
-#include "src/esp32_apriltag/common/image_u8.h"
+#else
+// Arduino: esp32_apriltag is a LIBRARY, not a sketch subfolder. Install it in
+// Arduino/libraries/ so the IDE puts <lib>/src on the include path -- the
+// upstream sources include each other as "common/xxx.h", which only resolves
+// from there. Dropping the tree into the sketch's own src/ does NOT work.
+#include <apriltag.h>
+#include <tag16h5.h>
+#include <apriltag_pose.h>
+#include <common/image_u8.h>
 #endif
 
 #define AT_ROI_W   222

@@ -210,6 +210,11 @@ int workerpool_get_nprocs()
     SYSTEM_INFO sysinfo;
     GetSystemInfo(&sysinfo);
     return sysinfo.dwNumberOfProcessors;
+#elif defined(ESP32) || defined(ARDUINO_ARCH_ESP32) || !defined(_SC_NPROCESSORS_ONLN)
+    // newlib on the ESP32 has no _SC_NPROCESSORS_ONLN. Nothing in this
+    // project calls this -- the detector runs with nthreads = 1, so
+    // workerpool never spawns a thread -- but it still has to compile.
+    return 1;
 #else
     return sysconf (_SC_NPROCESSORS_ONLN);
 #endif
