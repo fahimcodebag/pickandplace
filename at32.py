@@ -10,9 +10,14 @@ import ctypes, os
 import numpy as np
 
 # Crop window and decimation are the memory-driven deployment settings.
-# The crop bound comes from n=2186 wrist detections (Results/wrist16_ds):
-# cx 126.2..305.2, cy 13.0..164.2, max tag side 25.5 px, padded by 12 px.
-ROI = (98, 0, 222, 193)     # x0, y0, w, h  within a 320x240 frame
+#
+# Sized by what the BOARD can actually hold, measured on hardware: it reports
+# 276.5 KB free with a 110.6 KB largest block, and the previous 222x193 crop
+# needed more than that and panicked (upstream apriltag does not check its
+# mallocs, so out-of-memory arrives as StoreProhibited on a NULL pointer).
+# 210x181 costs no coverage -- 94.5% of n=2281 detections versus 94.7% -- and
+# leaves ~50 KB of headroom instead of ~14 KB.
+ROI = (110, 0, 210, 181)    # x0, y0, w, h  within a 320x240 frame
 DECIMATE = 2.0
 
 _LIB = os.path.join(os.path.dirname(os.path.abspath(__file__)),

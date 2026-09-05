@@ -1,8 +1,22 @@
+#ifndef AT_MIN_REGION
+// Minimum connected-region size, in decimated pixels, for a boundary to be
+// clustered at all. Upstream hardcodes 25. Raising it stops noise clusters
+// from ever being ALLOCATED, which is where the detector's peak memory goes;
+// the tag's own black/white regions are far larger. 60 costs NOTHING --
+// detection is 43/60 frames at both 25 and 60 -- and saves 15 KB. 80 breaks
+// it (33/60), so 60 is near the edge and should not be raised further.
+//
+// These three defaults are the DEPLOYMENT values, not upstream's. They have
+// to be, because the Arduino IDE gives no way to pass -D flags to a library:
+// anything left as an "optional flag" silently builds at the upstream value
+// on the device while the desktop measures something else.
+#define AT_MIN_REGION 60
+#endif
 #ifndef AT_CLUSTERMAP_FRAC
-#define AT_CLUSTERMAP_FRAC 0.2
+#define AT_CLUSTERMAP_FRAC 0.1
 #endif
 #ifndef AT_MEM_CHUNK
-#define AT_MEM_CHUNK 2048
+#define AT_MEM_CHUNK 1024
 #endif
 /* Copyright (C) 2013-2016, The Regents of The University of Michigan.
 All rights reserved.
@@ -1501,7 +1515,7 @@ zarray_t* do_gradient_clusters(image_u8_t* threshim, int ts, int y0, int y1, int
 
             // XXX don't query this until we know we need it?
             uint64_t rep0 = unionfind_get_representative(uf, y*w + x);
-            if (unionfind_get_set_size(uf, rep0) < 25) {
+            if (unionfind_get_set_size(uf, rep0) < AT_MIN_REGION) {
                 continue;
             }
 
@@ -1531,7 +1545,7 @@ zarray_t* do_gradient_clusters(image_u8_t* threshim, int ts, int y0, int y1, int
                                                                         \
                 if (v0 + v1 == 255) {                                   \
                     uint64_t rep1 = unionfind_get_representative(uf, (y + dy)*w + x + dx); \
-                    if (unionfind_get_set_size(uf, rep1) > 24) {        \
+                    if (unionfind_get_set_size(uf, rep1) >= AT_MIN_REGION) { \
                         uint64_t clusterid;                                 \
                         if (rep0 < rep1)                                    \
                             clusterid = (rep1 << 32) + rep0;                \

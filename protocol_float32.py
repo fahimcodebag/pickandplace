@@ -101,7 +101,7 @@ class ProtocolFloat32:
     # tag, solves the pose, applies the calibration and the corrector, and
     # writes the object-pose block of its own state vector.
     #
-    # Only the deployment ROI is sent (222x193 = 42846 B), not the whole
+    # Only the deployment ROI is sent (210x181 = 38010 B), not the whole
     # 320x240 frame -- the board would have to crop to that anyway to fit the
     # detector in RAM, so sending the rest would just cost ~32 KB of link
     # time. At 921600 baud the ROI is ~0.47 s, which is affordable because
@@ -114,8 +114,8 @@ class ProtocolFloat32:
     # from the last state, because the image is sent immediately after reset()
     # -- before any state has arrived for this episode, so the board's copy
     # would be the PREVIOUS episode's (or zeros on the first).
-    IMG_W, IMG_H = 222, 193
-    IMG_X0, IMG_Y0 = 98, 0
+    IMG_W, IMG_H = 210, 181
+    IMG_X0, IMG_Y0 = 110, 0
 
     @staticmethod
     def encode_image(roi_bytes, T_world_cam, eef_pos, seq_num=0):

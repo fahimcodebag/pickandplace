@@ -652,6 +652,21 @@ int receiveState(float* state, uint8_t* seq, uint8_t* flags){
     return 3;
   }
   if(type==IMG_MSG){
+    // The ROI is defined in THREE places (protocol_float32.py, at32.py and
+    // at32_perception.h) and they must agree. If they drift, the pixel count
+    // no longer matches and every later byte is misaligned, which would show
+    // up as an unexplained detection failure rather than an error.
+    {
+      uint16_t plen = buf[2] | (buf[3]<<8);
+      const uint16_t want = (uint16_t)(AT_ROI_W*AT_ROI_H + 60);
+      if(plen != want){
+        Serial.printf("[perc] ROI MISMATCH: PC sent %u B payload, this build "
+                      "expects %u (%dx%d). Update at32_perception.h or "
+                      "protocol_float32.py.\n",
+                      plen, want, AT_ROI_W, AT_ROI_H);
+        return 0;
+      }
+    }
     // Raw ROI pixels: run the whole perception front end here.
     // Static, not stack or heap -- 42 KB would blow the task stack, and
     // keeping it out of the heap leaves the heap for the detector, which is
