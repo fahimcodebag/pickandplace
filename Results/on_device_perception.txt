@@ -11,7 +11,8 @@ END-TO-END TASK SUCCESS
   ESP32 C detector, 222x193 (PANICS)          12    600   91.00%   91.00%
   ESP32 C detector, 210x181 (PANICS)          12    600   90.00%   91.00%
   ESP32 C detector, 190x170                   12    600   89.17%   89.00%
-  ESP32 C detector, 180x160 (deployment)      12    600   90.67%   91.00%  <-- runs
+  ESP32 C detector, 180x160 bits=1            12    600   90.67%   91.00%
+  ESP32 C detector, 180x160 bits=0            12    600   89.67%   91.00%  <-- DEPLOYMENT
   agentview 36h11 + corrector (EXTERNAL cam)  12    600   89.67%   90.00%
   wrist 16h5 OpenCV + corrector               12    600   87.67%   87.00%
   wrist 36h11 OpenCV + corrector              12    600   86.83%   87.00%
@@ -142,6 +143,32 @@ PER-FRAME PEAK IS A DISTRIBUTION, NOT A NUMBER (n=360 frames)
   175x152  median 138.1  p99 161.3  MAX 169.9 KB   detect 62%
 A second frame set peaked 6% higher, so deployment is sized to ~1.06x MAX.
 
+THE PERSISTENT TABLE
+--------------------
+apriltag builds a quick-decode table once, and it is PERSISTENT heap that
+the per-frame budget never sees. It scales with the Hamming radius:
+    bits   persistent   max frame peak   detections/360   false ids
+      2     362.1 KB       176.5 KB           241             22
+      1      24.6 KB       176.5 KB           240              0
+      0       2.1 KB       176.5 KB           239              0
+Deployment uses 0. One detection in 360 buys 22.5 KB, and post-init the
+pool goes from 186.9 KB -- less than a worst-case frame -- to ~209 KB.
+tag16h5 has only 30 codes at a small Hamming distance, so a wide radius is
+a false-id hazard as well as a memory one.
+
+REVISIT ON A REAL CAMERA: bits=0 is tuned to clean renders. Error
+correction earns its keep when images are noisy, and this is the first
+knob to give memory back to.
+
+FINAL DEPLOYMENT CONFIGURATION
+------------------------------
+  ROI 180x160 at (140,0), quad_decimate 2, tag16h5, bits_corrected 0
+  AT_MIN_REGION 60, AT_CLUSTERMAP_FRAC 0.1, AT_MEM_CHUNK 1024
+  zarray growth 1.25x, loop task stack 16 KB, AT_MIN_FREE guard at 190 KB
+  measured on hardware: 8BIT pool 216956 B, stack headroom 14176 B,
+  detection ~450-550 ms, peak ~176 KB worst case
+  end-to-end 89.67% against a 94% ground-truth ceiling
+
 THE HEAP FIGURE
 ---------------
     [perc] start: getFreeHeap 281376 | 8BIT free 215940 largest 110580
@@ -155,8 +182,12 @@ COST OF FITTING (12 seeds x 50 episodes, paired on seed):
     222x193, region 25   91.00%   x86 peak 283 KB   PANICS
     210x181, region 60   90.00%   x86 peak 259 KB   PANICS
     190x170, region 60   89.17%   x86 peak 220 KB   fits, ~24 KB spare
-    180x160 vs 222x193: -0.33 pts, SE 0.64, 95% CI [-1.75, +1.08]
-      -- NOT significant. Fitting the board costs nothing measurable.
+    DEPLOYMENT (180x160, bits_corrected=0) vs the unconstrained 222x193:
+      -1.33 pts, SE 0.90, 95% CI [-3.31, +0.64]  -- not significant
+    bits=0 vs bits=1 at the same crop:
+      -1.00 pts, SE 0.52, 95% CI [-2.15, +0.15]  -- not significant, but the
+      point estimate is a 1-point cost for 22.5 KB of persistent heap, and
+      that heap is what makes a worst-case frame fit at all.
     180x160 vs 190x170: +1.50 pts, 95% CI [-0.39, +3.39]
 
     RETRACTION: an earlier revision reported 190x170 as -1.83 pts vs
