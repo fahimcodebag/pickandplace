@@ -287,3 +287,35 @@ The resolution worth revisiting is downward: 160x120 was never measured,
 and if detection holds it would free enough for bits_corrected=1 and a
 wider correction radius, which matters more on a real noisy camera than
 pixel count does.
+
+AND DOWNWARD? 160x120 DOES NOT BUY BACK ERROR CORRECTION
+========================================================
+The idea was that a smaller frame frees enough heap to restore
+bits_corrected=1. Measured over 200 renders at 160x120 (tag side 9.6 px
+mean, 7.9 min):
+
+  config                           static   max peak   detected
+  320x240 ROI 180x160 dec 2        28.1 KB   176.5 KB    67%   <- deployed
+  160x120 ROI 100x90  dec 1         8.8 KB   199.8 KB    69%
+  160x120 ROI 100x90  dec 2         8.8 KB    65.5 KB     0%
+
+  budget                                    avail    worst   margin
+  320x240 dec2 bits=0 (deployed)           209.0 KB 187.1 KB  +21.9  OK
+  320x240 dec2 bits=1                      187.3 KB 187.1 KB   +0.2  too tight
+  160x120 dec1 bits=0                      228.3 KB 211.8 KB  +16.5  OK
+  160x120 dec1 bits=1                      206.6 KB 211.8 KB   -5.2  does not fit
+
+It does not work, and the reason is specific: at 160x120 the tag is 9.6 px,
+so decimating by 2 leaves ~5 px and NOTHING decodes (0/200). Decimate 1 is
+forced, and running the detector at full scale costs more peak (199.8 KB)
+than the smaller frame buffer saves (19 KB). bits=1 fits nowhere.
+
+So bits_corrected=0 is not a corner that a resolution change can un-cut.
+Restoring error correction needs ~22 KB that no configuration measured here
+has. On a real camera, where correction actually matters, the options are a
+board with PSRAM or a tag family with more Hamming distance than 16h5.
+
+Incidental: the C port at decimate 1 detects far better on small images
+than OpenCV does at the same resolution -- 138/200 against 85/200 at
+160x120. Not acted on, but it suggests the detection rates in this campaign
+are a property of the decimation, not only of tag visibility.
