@@ -346,6 +346,18 @@ void loop(){
 }
 
 // ── The FSM: pick the action for this state ────────────────────────────────
+// Stop propagating the object through the gripper and pin it where it fell.
+static void latchFreezeAtDrop(const float* s){
+  if(!latch.have || !latch.gripped) return;
+  latch.pos[0] = s[OBJ_X];
+  latch.pos[1] = s[OBJ_Y];
+  latch.pos[2] = TABLE_Z;          // it is on the table now, not in the hand
+  for(int i=0;i<4;i++) latch.quat[i] = s[3+i];
+  latch.gripped = false;
+  Serial.printf("[perc] grip lost -- latch frozen at %.4f %.4f %.4f\n",
+                latch.pos[0], latch.pos[1], latch.pos[2]);
+}
+
 void computeAction(const float* s, uint8_t flags, float* a){
   zeroAction(a);
   bool grasped = (flags & FLAG_GRASPED) != 0;   // true MuJoCo contact check
@@ -403,6 +415,20 @@ void computeAction(const float* s, uint8_t flags, float* a){
       } else if(fsm.lost >= LOST_GRIP_STEPS && fsm.regrasps < MAX_REGRASP){
         // Fix A: the object was dropped mid-carry. Go back and pick it up
         // instead of flying an empty gripper to the horizon.
+        //
+        // The latch has to be told, or perception keeps LYING for the rest
+        // of the episode: latch.gripped propagates the object through the
+        // gripper, so a dropped object goes on tracking the empty hand and
+        // the regrasp steers at a phantom. Freeze it instead at where the
+        // object actually was when the grip failed -- s[OBJ_*] still holds
+        // this step's gripper-derived pose -- and drop z to the table,
+        // because that is where it falls to. Approximate, but it points the
+        // regrasp at the right part of the table instead of at the gripper.
+        //
+        // Re-detecting would be better and is not possible here: the ROI
+        // and the corrector are both calibrated for the HOME pose at t=0,
+        // and the arm is mid-carry.
+        latchFreezeAtDrop(s);
         fsm.regrasps++;
         fsm.phase = PH_GRASP; fsm.grasp_hold = 0; fsm.grasp_steps = 0;
         fsm.lost = 0;
