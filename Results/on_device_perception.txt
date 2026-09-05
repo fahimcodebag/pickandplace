@@ -319,3 +319,37 @@ Incidental: the C port at decimate 1 detects far better on small images
 than OpenCV does at the same resolution -- 138/200 against 85/200 at
 160x120. Not acted on, but it suggests the detection rates in this campaign
 are a property of the decimation, not only of tag visibility.
+
+HIL WITH PERCEPTION ACCOUNTING (20 episodes, random spawn)
+==========================================================
+After fixing the PC-side poll that was discarding the board's det= line:
+
+  episodes                 20
+  perceived on BOARD pose  18/20   (2 fell back to the PC's pose)
+  first-frame success      16/20   (80%) -- at the home pose, one shot
+  attempts to detection    1 x16, 2 x2
+  detection time           337-582 ms, mean 487
+  peak heap used           191780 B (187.3 KB) of 213720 -> 21.4 KB margin
+  heap drift per detection 0 B every time
+  crashes 0, skips 0
+
+The peak is worth noting: 187.3 KB, against the ~187 KB worst case this
+configuration was sized to. The 1.06x scaling applied to the 360-frame
+maximum landed on the real hardware number almost exactly, and the 21.4 KB
+that remains is the margin that budget bought. The earlier 176.9 KB figure
+came from frames at the home pose only; retries from displaced poses
+produce more clusters and cost more.
+
+WHY THE ACCOUNTING MATTERS
+An earlier run of this same build reported 19/20 placed and 0 detections:
+the board had detected 26 of 120 frames while the PC saw none, because the
+poll matched the "[perc] start:" banner printed BEFORE detection and then
+flushed the port before "det=" arrived. Every episode burned all six
+retries and ran on ground truth -- exactly the silent fallback this
+accounting exists to expose. 120 attempts for 20 episodes, exactly six
+each, was the tell.
+
+A HIL success rate still mixes two populations and is not an accuracy
+measurement; 18/20 on board pose and 2/20 on ground truth is the honest
+description. The accuracy figure remains the 89.67% over 600 sim episodes,
+where no ground-truth pose is ever available to fall back to.
