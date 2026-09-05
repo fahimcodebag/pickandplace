@@ -15,9 +15,12 @@ import numpy as np
 # 276.5 KB free with a 110.6 KB largest block, and the previous 222x193 crop
 # needed more than that and panicked (upstream apriltag does not check its
 # mallocs, so out-of-memory arrives as StoreProhibited on a NULL pointer).
-# 210x181 costs no coverage -- 94.5% of n=2281 detections versus 94.7% -- and
-# leaves ~50 KB of headroom instead of ~14 KB.
-ROI = (110, 0, 210, 181)    # x0, y0, w, h  within a 320x240 frame
+# Sized against the pool that ACTUALLY constrains it: MALLOC_CAP_8BIT, which
+# the board reports as 210.9 KB (getFreeHeap says 281 KB, but ~65 KB of that
+# is 32-bit-access-only IRAM that cannot back a byte array). Both 222x193 and
+# 210x181 panicked against that budget. 190x170 covers 91.3% of n=2281
+# detections against 94.5%, and leaves roughly 24 KB spare.
+ROI = (130, 0, 190, 170)    # x0, y0, w, h  within a 320x240 frame
 DECIMATE = 2.0
 
 _LIB = os.path.join(os.path.dirname(os.path.abspath(__file__)),

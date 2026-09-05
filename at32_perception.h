@@ -39,9 +39,9 @@
 #include <common/image_u8.h>
 #endif
 
-#define AT_ROI_W   210
-#define AT_ROI_H   181
-#define AT_ROI_X0  110
+#define AT_ROI_W   190
+#define AT_ROI_H   170
+#define AT_ROI_X0  130
 #define AT_ROI_Y0    0
 #define AT_TAG_ID    0
 
