@@ -14,6 +14,7 @@ class ProtocolFloat32:
     # the ESP32 corrects it -- so part of perception runs on the MCU rather
     # than the host. Frame is 48 bytes longer than STATE_MSG.
     CORR_MSG  = 0x04
+    IMG_MSG   = 0x05
     SYNC_PATTERN = b'\xAA\x55\xAA\x55'
     
     # FSM flag bits (PC -> ESP32). These are physics/contact queries the MCU
@@ -92,6 +93,46 @@ class ProtocolFloat32:
         msg = header + body
         return (ProtocolFloat32.SYNC_PATTERN + msg
                 + struct.pack('H', sum(msg) % 65536))
+
+    # ---- IMG_MSG: full on-device perception -------------------------------
+    # CORR_MSG puts the DETECTION on the PC and only the corrector on the
+    # board. IMG_MSG moves the whole front end across: the PC sends raw
+    # pixels and the camera-to-world transform, and the board detects the
+    # tag, solves the pose, applies the calibration and the corrector, and
+    # writes the object-pose block of its own state vector.
+    #
+    # Only the deployment ROI is sent (222x193 = 42846 B), not the whole
+    # 320x240 frame -- the board would have to crop to that anyway to fit the
+    # detector in RAM, so sending the rest would just cost ~32 KB of link
+    # time. At 921600 baud the ROI is ~0.47 s, which is affordable because
+    # perception runs ONCE per episode, at t=0.
+    #
+    # T_world_cam is forward kinematics, not perception: on a real arm the
+    # controller knows where the wrist camera is. It is sent as the 12 floats
+    # of a 3x4 row-major transform.
+    IMG_W, IMG_H = 222, 193
+    IMG_X0, IMG_Y0 = 98, 0
+
+    @staticmethod
+    def encode_image(roi_bytes, T_world_cam, seq_num=0):
+        """IMG_MSG: raw ROI pixels + the 3x4 camera-to-world transform."""
+        npx = ProtocolFloat32.IMG_W * ProtocolFloat32.IMG_H
+        assert len(roi_bytes) == npx, f"expected {npx} pixels, got {len(roi_bytes)}"
+        T = np.asarray(T_world_cam, np.float32).reshape(4, 4)[:3, :4].ravel()
+        payload_len = npx + 12 * 4
+        body = bytes(roi_bytes) + T.astype(np.float32).tobytes()
+        header = struct.pack('BBH', ProtocolFloat32.IMG_MSG, seq_num, payload_len)
+        msg = header + body
+        return (ProtocolFloat32.SYNC_PATTERN + msg
+                + struct.pack('H', sum(msg) % 65536))
+
+    @staticmethod
+    def crop_roi(gray):
+        """Cut the deployment ROI out of a full 320x240 frame."""
+        x0, y0 = ProtocolFloat32.IMG_X0, ProtocolFloat32.IMG_Y0
+        return np.ascontiguousarray(
+            gray[y0:y0 + ProtocolFloat32.IMG_H,
+                 x0:x0 + ProtocolFloat32.IMG_W], dtype=np.uint8).tobytes()
 
     @staticmethod
     def encode_reset(seq_num=0):

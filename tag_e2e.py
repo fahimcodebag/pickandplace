@@ -57,6 +57,9 @@ def main():
     p.add_argument("--width", type=int, default=1280)
     p.add_argument("--height", type=int, default=960)
     p.add_argument("--period", type=int, default=5, help="control steps between detections")
+    p.add_argument("--backend", default="opencv", choices=["opencv", "esp32"],
+                   help="esp32 = the firmware's own C detector (esp32_apriltag/), "
+                        "cropped and decimated exactly as on device")
     p.add_argument("--residual-model", default=None,
                    help="JSON from tag_dataset.py: a linear correction on the "
                         "detected pose. Cuts median pose error 11.56 -> 7.08 mm "
@@ -101,7 +104,7 @@ def main():
                                 horizon=700, camera_names=render_cams,
                                 has_renderer=a.onscreen)
     dets = ([] if a.mode == "truth" else
-            [TagDetector(env, camera=c, width=a.width, height=a.height,
+            [TagDetector(env, backend=a.backend, camera=c, width=a.width, height=a.height,
                          marker_size_m=meta["marker_size_m"]) for c in cams])
 
     RM = None

@@ -1,0 +1,8 @@
+tune 1714  hold 567   held-out baseline 20.48 mm
+config       params   held-out    cut  R2 x/y/z
+h32 d2        1,571      0.06mm   100%  +0.98/+0.97/+0.99
+h64 d2        5,187      0.06mm   100%  +0.98/+0.97/+0.99
+h64 d3        9,347      0.05mm   100%  +0.99/+0.97/+0.99
+
+best: h64 d3 (0.05 mm held-out). refitting on ALL data
+saved assets/tag_residual_wrist32.json
