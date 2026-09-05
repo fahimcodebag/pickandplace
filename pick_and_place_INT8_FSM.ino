@@ -711,10 +711,21 @@ int receiveState(float* state, uint8_t* seq, uint8_t* flags){
     // through a NULL pointer, not a clean failure -- and a panic loses
     // anything still sitting in the serial buffer. This line is what
     // survives, so the next attempt is diagnosable even if it dies.
-    uint32_t h0 = ESP.getFreeHeap();
-    uint32_t lb = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-    Serial.printf("[perc] start: free %u B, largest block %u B\n",
-                  (unsigned)h0, (unsigned)lb);
+    // ESP.getFreeHeap() counts EVERY heap cap, including the IRAM region that
+    // is 32-bit-access-only and cannot back a byte array. The detector
+    // allocates byte and int16 buffers, so the pool that actually constrains
+    // it is MALLOC_CAP_8BIT (and MALLOC_CAP_INTERNAL|8BIT once PSRAM exists).
+    // Reporting getFreeHeap() as "the budget" is what made 276 KB look like
+    // enough for a 259 KB peak that then failed.
+    uint32_t h0   = ESP.getFreeHeap();
+    uint32_t f8   = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    uint32_t fint = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    uint32_t lb8  = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+    uint32_t lbi  = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    Serial.printf("[perc] start: getFreeHeap %u | 8BIT free %u largest %u | "
+                  "INTERNAL|8BIT free %u largest %u | roi %dx%d\n",
+                  (unsigned)h0, (unsigned)f8, (unsigned)lb8,
+                  (unsigned)fint, (unsigned)lbi, AT_ROI_W, AT_ROI_H);
     Serial.flush();
     unsigned long p0 = micros();
     at_result_t r;
