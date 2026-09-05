@@ -312,7 +312,14 @@ def main():
         bridge.disconnect()
         n = len(scores)
         print(f"\n{'=' * 62}")
-        print(f"Final Results ({n} scored episodes of {N_EPISODES})")
+        if args.on_device_perception:
+        # Printed BEFORE the score, because the score is uninterpretable
+        # without it: if nothing was detected the board used the PC's
+        # ground-truth pose and the number says nothing about perception.
+        print("-" * 62)
+        print(bridge.perception_summary())
+        print("-" * 62)
+    print(f"Final Results ({n} scored episodes of {N_EPISODES})")
         print(f"{'=' * 62}")
         if n:
             print(f"Placements:            {placements}/{n} "

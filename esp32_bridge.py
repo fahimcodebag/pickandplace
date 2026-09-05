@@ -42,6 +42,9 @@ class ESP32Bridge:
 
         self.debug_log = debug_log
         self._dbg_buf = bytearray()
+        self.recent_lines = []          # last board prints, for send_image()
+        self.perc = {"sent": 0, "detected": 0, "oom": 0, "short": 0, "crc": 0,
+                     "ms": [], "used": []}
         if debug_log:
             Protocol.debug_sink = self._dbg_buf
             self._dbg_fh = open(debug_log, "w", buffering=1)
@@ -58,6 +61,8 @@ class ESP32Bridge:
             txt = line.decode("utf-8", "replace").strip("\r\x00")
             if txt.strip():
                 self._dbg_fh.write(txt + "\n")
+                self.recent_lines.append(txt)
+                del self.recent_lines[:-200]
         
     def connect(self):
         """Establish serial connection to ESP32"""
@@ -174,12 +179,64 @@ class ESP32Bridge:
         figure lands in the debug log; shorten this once it is known.
         """
         roi = Protocol.crop_roi(gray)
+        mark = len(self.recent_lines)
         self.serial.write(Protocol.encode_image(roi, T_world_cam, eef_pos,
                                                self.seq_num))
         self.serial.flush()
         time.sleep(settle)
         self._drain_debug()
         self.serial.reset_input_buffer()
+        self.perc["sent"] += 1
+
+        # Read back what the board actually did. Without this a failed
+        # detection is INVISIBLE: the board simply does not latch, applyLatch
+        # becomes a no-op, and the object pose the PC sent -- ground truth --
+        # is used instead. The run then looks excellent while measuring
+        # nothing about perception at all.
+        for ln in self.recent_lines[mark:]:
+            if "[perc]" not in ln:
+                continue
+            if "OUT OF MEMORY" in ln:
+                self.perc["oom"] += 1
+            elif "SHORT" in ln:
+                self.perc["short"] += 1
+            elif "CRC" in ln:
+                self.perc["crc"] += 1
+            elif "det=" in ln:
+                try:
+                    if int(ln.split("det=")[1].split()[0]) == 1:
+                        self.perc["detected"] += 1
+                    self.perc["ms"].append(
+                        float(ln.split("det=")[1].split()[1]))
+                    if "peak used" in ln:
+                        self.perc["used"].append(
+                            int(ln.split("peak used")[1].split()[0]))
+                except (ValueError, IndexError):
+                    pass
+        return dict(self.perc)
+
+    def perception_summary(self):
+        """One line saying whether perception actually ran, and at what cost."""
+        p = self.perc
+        if not p["sent"]:
+            return "perception: never invoked"
+        seen = p["detected"] + p["oom"] + p["short"] + p["crc"]
+        out = [f"perception: {p['sent']} frames sent, "
+               f"{p['detected']} detected"]
+        for k, lbl in (("oom", "OUT-OF-MEMORY"), ("short", "short reads"),
+                       ("crc", "CRC errors")):
+            if p[k]:
+                out.append(f"{p[k]} {lbl}")
+        if p["ms"]:
+            out.append(f"detect {min(p['ms']):.0f}-{max(p['ms']):.0f} ms "
+                       f"(mean {sum(p['ms'])/len(p['ms']):.0f})")
+        if p["used"]:
+            out.append(f"peak heap used {max(p['used'])/1024:.0f} KB")
+        if seen == 0:
+            out.append("!! the board printed NOTHING -- it is almost certainly "
+                       "not running the perception build, so these episodes "
+                       "used the PC's ground-truth pose")
+        return " | ".join(out)
 
     def print_stats(self):
         """Print communication statistics"""
