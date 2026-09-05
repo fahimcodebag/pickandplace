@@ -99,6 +99,31 @@ def make_env(render=True, random_spawn=False, on_device_perception=False):
         single_object_mode=2,
         object_type="bread",
     )
+    if on_device_perception:
+        # The board can only detect a tag that EXISTS. hil_main has always
+        # built a plain PickPlace env, which has no tag on the bread -- so
+        # without this the wrist frames are tagless and the board reports
+        # det=0 forever, which looks exactly like a broken detector.
+        #
+        # Injection goes through robosuite's set_xml_processor hook, the same
+        # way apriltag_sim.make_tagged_env does it, so the tag survives every
+        # hard reset instead of being wiped by the next _load_model().
+        import os as _os
+        from apriltag_sim import inject_tag, generate_tag_png
+        _png = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                             "assets", "tag36h11_0.png")
+        _half, _zoff = 0.022, 0.026
+        _marker_size_m = 2.0 * _half * generate_tag_png(_png)
+        # The board hardcodes AT_TAGSIZE; a mismatch silently rescales every
+        # pose it reports, so fail loudly instead.
+        assert abs(_marker_size_m - 0.034375) < 1e-6, (
+            f"tag is {_marker_size_m:.6f} m but at32_perception.h assumes "
+            f"0.034375 m -- update AT_TAGSIZE")
+        rs_env.set_xml_processor(lambda xml: inject_tag(
+            xml, _png, body_name="Bread_main",
+            half_size=_half, z_offset=_zoff))
+        rs_env.reset()
+
     # Spawn condition. Fixed pins the object at the tuned pose (x=y=0, no
     # rotation) and is what this rig has always run. Random uses robosuite's
     # native PickPlace box PLUS z-rotation -- the condition every headline
