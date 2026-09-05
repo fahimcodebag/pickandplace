@@ -253,3 +253,37 @@ WHAT ACTUALLY FIXED IT, in order of contribution:
   AT_MIN_REGION 25 -> 60                         ~15 KB of peak
   two inherited memory leaks (matd_svd_tall,
     quad_segment_maxima)                    unbounded growth per detection
+
+WOULD A HIGHER-RESOLUTION CAMERA HELP? NO, ON BOTH COUNTS
+=========================================================
+Measured at 640x480 (tag side 41.6 px against ~20 at 320x240), ROI sized to
+the observed tag spread cx 294..612 / cy 28..290 -> 340x300:
+
+  config                          static   max peak   total    detected
+  320x240 ROI 180x160 dec 2       28.1 KB   176.5 KB  204.6 KB   67%   <- deployed
+  640x480 ROI 340x300 dec 2       99.6 KB   481.9 KB  581.6 KB   64%
+  640x480 ROI 340x300 dec 4       99.6 KB   151.8 KB  251.4 KB   64%
+  available pool                                      213.7 KB
+
+MEMORY: no. Decimating by 4 keeps the WORKING image about the size it is
+now, so the detector's peak is fine (151.8 KB) -- but the full-resolution
+ROI buffer is 99.6 KB on its own, because refine_edges and the decoder
+sample the ORIGINAL image, not the decimated one. That buffer scales with
+the square of resolution and cannot be decimated away. 251.4 KB against a
+213.7 KB pool, and the ROI cannot shrink because the tag genuinely spans
+318 px of the wider frame.
+
+ACCURACY: also no. Detection does not improve -- 64% at 640x480 against
+67% at 320x240. The limit is whether the tag is VISIBLE from the wrist at
+t=0, not how many pixels it has once it is. Doubling the resolution buys
+nothing to spend the memory on.
+
+So 320x240 is not a compromise forced by the board; it is at the point
+where more pixels stop helping. A PSRAM board (ESP32-CAM, WROVER) would
+hold the 581.6 KB of the decimate-2 path comfortably, but would gain about
+3 points of detection LOSS for it.
+
+The resolution worth revisiting is downward: 160x120 was never measured,
+and if detection holds it would free enough for bits_corrected=1 and a
+wider correction radius, which matters more on a real noisy camera than
+pixel count does.
