@@ -162,8 +162,15 @@ static inline void zarray_ensure_capacity(zarray_t *za, int capacity)
     if (capacity <= za->alloc)
         return;
 
+    // Upstream doubles, which leaves up to 2x slack. The detector allocates
+    // one of these per boundary cluster and their combined slack is a large
+    // part of its peak, on a board whose usable 8BIT pool is ~216 KB. Growing
+    // by 1/4 instead keeps the same CONTENTS -- detection is bit-identical --
+    // and just wastes less. Costs a few more reallocs, which is irrelevant
+    // when perception runs once per episode.
     while (za->alloc < capacity) {
-        za->alloc *= 2;
+        int next = za->alloc + (za->alloc >> 2);
+        za->alloc = (next > za->alloc) ? next : za->alloc + 1;
         if (za->alloc < 8)
             za->alloc = 8;
     }
