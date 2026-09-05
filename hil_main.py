@@ -52,14 +52,46 @@ def compute_flags(raw_env):
     return flags
 
 
-def make_env(render=True, random_spawn=False):
+def render_wrist_gray(raw_env, width=320, height=240,
+                     camera="robot0_eye_in_hand"):
+    """The 320x240 grayscale wrist frame the ESP32 will detect in.
+
+    Rendered directly rather than through use_camera_obs, because GymWrapper
+    flattens every observation into the state vector and an image would
+    destroy the 46-float layout the board expects.
+
+    The [::-1] flip matches TagDetector.frame(): MuJoCo renders bottom-up and
+    every detection result in Results/ was measured on the flipped image.
+    """
+    import cv2
+    img = raw_env.sim.render(width=width, height=height, camera_name=camera)
+    return cv2.cvtColor(np.ascontiguousarray(img[::-1]), cv2.COLOR_RGB2GRAY)
+
+
+def send_perception(raw_env, bridge, camera="robot0_eye_in_hand"):
+    """Hand the board one frame and let IT do the perception.
+
+    Called once per episode with the arm at its home pose -- the condition the
+    residual corrector was calibrated under. T_world_cam is forward kinematics,
+    not perception: on a real arm the controller knows where the wrist camera
+    sits.
+    """
+    import robosuite.utils.camera_utils as CU
+    gray = render_wrist_gray(raw_env, camera=camera)
+    T = CU.get_camera_extrinsic_matrix(raw_env.sim, camera)
+    bridge.send_image(gray, T)
+
+
+def make_env(render=True, random_spawn=False, on_device_perception=False):
     rs_env = suite.make(
         "PickPlace",
         robots="Panda",
         controller_configs=suite.load_controller_config(
             default_controller="OSC_POSE"),
         has_renderer=render,
-        has_offscreen_renderer=False,
+        # Offscreen rendering only when the board is doing its own perception
+        # -- it costs time and every previous HIL number was measured without.
+        has_offscreen_renderer=on_device_perception,
         use_camera_obs=False,
         horizon=700,              # handoff attempt + scored episode
         reward_shaping=True,
@@ -87,7 +119,7 @@ def make_env(render=True, random_spawn=False):
     return rs_env, GymWrapper(rs_env)
 
 
-def do_handoff(env, raw_env, bridge, render=True):
+def do_handoff(env, raw_env, bridge, render=True, on_device_perception=False):
     """Respawn-and-retry until the ESP32 reports it reached TRANSPORT.
 
     Returns (obs, attempts, ok). Not scored — mirrors reset()'s attempt loop.
@@ -97,6 +129,10 @@ def do_handoff(env, raw_env, bridge, render=True):
     for attempt in range(1, MAX_GRASP_ATTEMPTS + 1):
         obs = env.reset()
         bridge.send_reset()                     # resync the MCU's FSM to GRASP
+        if on_device_perception:
+            # After send_reset, so the latch the board clears on reset is the
+            # one this frame refills -- not the other way round.
+            send_perception(raw_env, bridge)
         last_phase = None
         grasp_flag_steps = 0
         for t in range(HANDOFF_STEP_CAP):
@@ -166,6 +202,12 @@ def main():
     import argparse
     p = argparse.ArgumentParser(description="Hardware-in-the-loop with the ESP32")
     p.add_argument("--episodes", type=int, default=10)
+    p.add_argument("--on-device-perception", action="store_true",
+                   help="send the wrist frame to the ESP32 (IMG_MSG) and let it "
+                        "detect the tag, solve the pose and correct it, instead "
+                        "of the PC passing ground truth. Needs the sketch built "
+                        "with src/esp32_apriltag/. Prints [perc] lines to the "
+                        "--debug-log.")
     p.add_argument("--random-spawn", action="store_true",
                    help="native PickPlace spawn box + z-rotation. This is the "
                         "condition Results/ reports (95.33%% INT8 in sim); the "
@@ -197,7 +239,8 @@ def main():
     # (Previously this read `args.render or RENDER`, which could never be
     # False and so left no way to switch the viewer off.)
     RENDER = RENDER if args.render is None else args.render
-    raw_env, env = make_env(render=RENDER, random_spawn=args.random_spawn)
+    raw_env, env = make_env(render=RENDER, random_spawn=args.random_spawn,
+                            on_device_perception=args.on_device_perception)
     print(f"   spawn: {'RANDOM (box + rotation)' if args.random_spawn else 'FIXED'}")
     print(f"✓ Environment ready: {env.observation_space.shape} → "
           f"{env.action_space.shape}")
@@ -216,7 +259,8 @@ def main():
     try:
         for i in range(1, N_EPISODES + 1):
             print(f"\nEpisode {i}/{N_EPISODES}")
-            obs, attempts, ok = do_handoff(env, raw_env, bridge, RENDER)
+            obs, attempts, ok = do_handoff(env, raw_env, bridge, RENDER,
+                                           args.on_device_perception)
             attempts_log.append(attempts)
             if not ok:
                 print(f"  ✗ handoff failed after {MAX_GRASP_ATTEMPTS} attempts "
