@@ -1,0 +1,355 @@
+FULL PERCEPTION ON A PLAIN ESP32
+================================
+Model: checkpoints/td3_grasp_rand_td3_ln_c2m512_s1/best (FP32 grasp actor)
+Protocol: 12 seeds x 50 episodes = 600 episodes/row, random spawn, paired on seed.
+Camera: robot0_eye_in_hand 320x240, latch mode, one detection at t=0.
+
+END-TO-END TASK SUCCESS
+-----------------------
+  route                                     seeds   ep    mean    median
+  ground truth (ceiling)                      --    200   94.00%    --
+  ESP32 C detector, 222x193 (PANICS)          12    600   91.00%   91.00%
+  ESP32 C detector, 210x181 (PANICS)          12    600   90.00%   91.00%
+  ESP32 C detector, 190x170                   12    600   89.17%   89.00%
+  ESP32 C detector, 180x160 bits=1            12    600   90.67%   91.00%
+  ESP32 C detector, 180x160 bits=0            12    600   89.67%   91.00%  <-- DEPLOYMENT
+  agentview 36h11 + corrector (EXTERNAL cam)  12    600   89.67%   90.00%
+  wrist 16h5 OpenCV + corrector               12    600   87.67%   87.00%
+  wrist 36h11 OpenCV + corrector              12    600   86.83%   87.00%
+
+  Paired, device - OpenCV wrist: +3.33 pts, SE 0.90, t=3.71,
+  95% CI [+1.36, +5.31]. Real, not noise.
+
+  The on-device path is now the BEST perception route measured -- it beats
+  even the fixed external camera, and sits 3 points under the ground-truth
+  ceiling. That was not the expected result: moving perception onto a
+  microcontroller was expected to cost accuracy, not gain it.
+
+WHY IT IS BETTER, NOT WORSE
+---------------------------
+Not the detector's detection rate (which is only slightly higher) but the
+CONSISTENCY of its error. Raw pose error, held-out seed:
+
+  detector            median   p90     max
+  ESP32 C port        20.48   20.80   26.17     <- nearly a constant offset
+  OpenCV aruco        20.65   25.46   34.23     <- spreads
+
+Both are ~20.5 mm on average, but the C port's error is almost a pure fixed
+extrinsic offset while OpenCV's carries per-detection corner noise. A fixed
+offset is exactly what a calibration model removes. So the refit corrector
+reaches 0.06 mm where the OpenCV one reached 0.39 mm:
+
+  corrector (held out, n=567)   median   p90    p99    max   >5mm
+  on C detections                0.06   0.15   0.36   3.28   0.00%
+  on OpenCV detections           0.41   0.71   1.18   1.39   0.00%
+
+  NOTE: the C fit shows a LOWER R2 (0.98/0.97/0.99) than the OpenCV fit
+  (0.99/0.99/1.00) despite the far smaller error. That looked like a red
+  flag and was checked: there is no hidden tail (p99 0.36 mm, 0% above
+  5 mm). R2 is lower because the baseline has almost no variance left to
+  explain -- which is the same fact that makes it so correctable.
+
+WHAT RUNS WHERE
+---------------
+On the ESP32 (at32_perception.h + esp32_apriltag/):
+  tag detection, both poses of the planar ambiguity, upright disambiguation,
+  extrinsic calibration, residual corrector, the object-pose block of the
+  state vector, the grasp/place policies, the FSM.
+From the PC (IMG_MSG):
+  the ROI pixels and the camera-to-world transform. The transform is FORWARD
+  KINEMATICS, not perception -- a real arm's controller knows where its wrist
+  camera is.
+
+Perception runs ONCE per episode, at t=0. That is what makes the residual
+correctable: the arm is at its home pose, so the camera pose is fixed and
+detected->true is one deterministic map. After the grasp the object rides
+with the gripper, so its pose is recomposed from the latched grip offset.
+
+EQUIVALENCE CHECKS (desktop, before hardware)
+---------------------------------------------
+  at32_perception.h vs the Python reference, 120 recorded cases:
+    detect/no-detect      120/120
+    position              max diff 0.0007 mm
+    quaternion            max diff 0.000001
+    all 12 features       equal to float32 rounding
+  applyLatch vs robosuite relative_block, 200 random poses:
+    position 0.0003 mm, quaternion 4e-7
+  corrector_model.h through the sketch's own C, n=2281:
+    20.47 -> 0.065 mm
+
+MEMORY -- SETTLED ON HARDWARE, AND IT DID NOT FIT AT FIRST
+----------------------------------------------------------
+The board reports, at the moment of detection:
+    free 276536 B, largest block 110580 B
+The 222x193 build needed more and PANICKED:
+    Guru Meditation Error: Core 1 panic'ed (StoreProhibited)
+    EXCVADDR: 0x00000c00
+-- a write through a NULL pointer at a small offset. Upstream apriltag
+never checks its mallocs, so out-of-memory is a panic rather than an error.
+The board then reboots, the PC re-syncs, and the episodes get scored on the
+ground-truth pose the PC sent. Perception failing SILENTLY and scoring
+19/20 is the trap; hil_main now reports what perception actually did, and
+says so loudly when the answer is nothing.
+
+Three changes brought it inside the budget:
+    wrap the received frame instead of copying it       42 KB
+    AT_MIN_REGION 25 -> 60 (noise regions never
+      clustered, so their zarrays never allocated)      15 KB
+    crop 222x193 -> 210x181 @ (110,0)             24 + 5 KB
+Peak 283 -> 259 KB on the host; margin ~+14 -> ~+50 KB. Only 43 blocks are
+live at peak, so allocator overhead is negligible: the failure was total
+size, not fragmentation or per-block cost.
+
+A separate mismatch mattered as much: AT_CLUSTERMAP_FRAC and AT_MEM_CHUNK
+defaulted to upstream 0.2/2048 with the deployment values passed as
+"optional" -D flags, and the Arduino IDE cannot pass flags to a library.
+The DEVICE was building a 321 KB peak while every desktop figure was the
+298 KB flagged build. Deployment values are now the defaults.
+
+TWO BUDGETS, AND THEY COMPETE
+-----------------------------
+HEAP: the pool that constrains the detector is MALLOC_CAP_8BIT, not
+getFreeHeap. getFreeHeap sums every cap including ~65 KB of
+32-bit-access-only IRAM that cannot back a uint8 image or a uint16
+unionfind array.
+
+STACK: at_perceive needs 8712 B, measured by running it on a painted 1 MB
+pthread stack. The Arduino loop task gets 8192 B. It overflowed, and how
+deep it goes depends on how many clusters a frame produces -- so the fault
+was intermittent and frame-dependent.
+
+The two compete, because SET_LOOP_TASK_STACK_SIZE takes its memory from
+the same heap. Raising it to 32 KB fixed the stack and then caused
+OUT-OF-MEMORY on the worst frames: the pool fell to 192.4 KB while the
+worst frame needs ~204 KB. Deployment uses 16 KB -- about twice the
+measured need -- with the ROI cut to 180x160 so the pool stays ~212 KB
+against a ~187 KB worst-case frame.
+
+BOTH panic signatures mean out-of-memory, which cost several diagnostic
+rounds to realise:
+  EXCCAUSE 0x1d StoreProhibited, EXCVADDR 0x0c00 -- WRITE into a failed
+    allocation (the init loop of a NULL buffer)
+  EXCCAUSE 0x1c LoadProhibited,  EXCVADDR 0x0000 -- READ of a failed
+    allocation
+Upstream apriltag never checks a malloc, so exhaustion is a panic and a
+reboot, and the PC then sees a comms blip while the episode silently falls
+back to its own ground-truth pose. at_perceive now refuses to start below
+AT_MIN_FREE and prints "[perc] SKIP", which the FSM handles as a normal
+no-detection.
+
+PER-FRAME PEAK IS A DISTRIBUTION, NOT A NUMBER (n=360 frames)
+  190x170  median 163.2  p99 187.3  MAX 192.0 KB   detect 69%
+  180x160  median 147.4  p99 172.0  MAX 176.5 KB   detect 67%
+  175x152  median 138.1  p99 161.3  MAX 169.9 KB   detect 62%
+A second frame set peaked 6% higher, so deployment is sized to ~1.06x MAX.
+
+THE PERSISTENT TABLE
+--------------------
+apriltag builds a quick-decode table once, and it is PERSISTENT heap that
+the per-frame budget never sees. It scales with the Hamming radius:
+    bits   persistent   max frame peak   detections/360   false ids
+      2     362.1 KB       176.5 KB           241             22
+      1      24.6 KB       176.5 KB           240              0
+      0       2.1 KB       176.5 KB           239              0
+Deployment uses 0. One detection in 360 buys 22.5 KB, and post-init the
+pool goes from 186.9 KB -- less than a worst-case frame -- to ~209 KB.
+tag16h5 has only 30 codes at a small Hamming distance, so a wide radius is
+a false-id hazard as well as a memory one.
+
+REVISIT ON A REAL CAMERA: bits=0 is tuned to clean renders. Error
+correction earns its keep when images are noisy, and this is the first
+knob to give memory back to.
+
+FINAL DEPLOYMENT CONFIGURATION
+------------------------------
+  ROI 180x160 at (140,0), quad_decimate 2, tag16h5, bits_corrected 0
+  AT_MIN_REGION 60, AT_CLUSTERMAP_FRAC 0.1, AT_MEM_CHUNK 1024
+  zarray growth 1.25x, loop task stack 16 KB, AT_MIN_FREE guard at 190 KB
+  measured on hardware: 8BIT pool 216956 B, stack headroom 14176 B,
+  detection ~450-550 ms, peak ~176 KB worst case
+  end-to-end 89.67% against a 94% ground-truth ceiling
+
+THE HEAP FIGURE
+---------------
+    [perc] start: getFreeHeap 281376 | 8BIT free 215940 largest 110580
+ESP.getFreeHeap() sums EVERY heap cap, including ~65 KB of
+32-bit-access-only IRAM that cannot back the uint8 images and uint16
+unionfind arrays the detector allocates. The pool that constrains it is
+MALLOC_CAP_8BIT: 210.9 KB, largest block 108 KB. Two predicted fits were
+made against getFreeHeap and both were wrong.
+
+COST OF FITTING (12 seeds x 50 episodes, paired on seed):
+    222x193, region 25   91.00%   x86 peak 283 KB   PANICS
+    210x181, region 60   90.00%   x86 peak 259 KB   PANICS
+    190x170, region 60   89.17%   x86 peak 220 KB   fits, ~24 KB spare
+    DEPLOYMENT (180x160, bits_corrected=0) vs the unconstrained 222x193:
+      -1.33 pts, SE 0.90, 95% CI [-3.31, +0.64]  -- not significant
+    bits=0 vs bits=1 at the same crop:
+      -1.00 pts, SE 0.52, 95% CI [-2.15, +0.15]  -- not significant, but the
+      point estimate is a 1-point cost for 22.5 KB of persistent heap, and
+      that heap is what makes a worst-case frame fit at all.
+    180x160 vs 190x170: +1.50 pts, 95% CI [-0.39, +3.39]
+
+    RETRACTION: an earlier revision reported 190x170 as -1.83 pts vs
+    222x193 with a CI excluding zero, and concluded that fitting a plain
+    ESP32 costs real accuracy. The SMALLER 180x160 crop then scored HIGHER
+    (90.67%) than 190x170 (89.17%). Crop size is not monotonic with task
+    success in this range -- --detect-until-first retries across frames as
+    the arm moves, so a lower per-frame detection rate costs time rather
+    than episodes. The 190x170 dip was seed noise that happened to clear
+    the significance bar at n=12, and the claim built on it is withdrawn.
+Coverage of the n=2281 detection distribution falls 94.5% -> 91.3%, and
+sim detection 139/200 -> 135/200 at an unchanged 20.51 mm.
+Detection is unchanged upstream of the task too: 43/60 recorded frames
+either way, and 139/200 sim resets at 20.52 mm against 20.51 mm.
+
+So the deployable configuration is 89.17%: level with the external
+agentview camera (89.67%), still above the OpenCV wrist path (87.67%), and
+~5 points under the ground-truth ceiling. The headline is no longer "on-
+device perception beats the PC camera" -- that was true only for crops the
+hardware cannot actually run. What survives is that full AprilTag
+perception runs on a plain ESP32 with no PSRAM at a measured cost of 1.8
+points against the same detector given unlimited memory.
+
+2. TIME. The detector has never been timed on hardware. Inference is 0.26 ms
+   and the corrector is trivial, but AprilTag quad detection on a 111x96
+   working image at 240 MHz is unknown -- plausibly tens to hundreds of ms.
+   It runs once per episode, so a slow detection costs startup latency, not
+   control rate. esp32_bridge.send_image() waits a fixed 2 s for this
+   reason; shorten it once the real figure is in the debug log.
+
+HARDWARE VALIDATION -- IT RUNS
+==============================
+Plain ESP32-DEV, no PSRAM, deployment configuration, from the board's own log:
+
+  perception invocations   6, detected 5 (83%)
+  detect time              192-576 ms, mean 451
+  peak heap used           176876 B (172.7 KB) of 213720 B  -> 36.0 KB margin
+  stack headroom           13520 B of 16384                 -> 2.8 KB used
+  heap drift per detection -24, 0, 0, 0, 0 bytes            -> no leak
+  crashes 0, skips 0
+
+So the full AprilTag front end -- detection, both poses of the planar
+ambiguity, upright disambiguation, extrinsic calibration and the learned
+residual corrector -- runs on a plain ESP32 alongside the two INT8 policies
+and the FSM, at ~0.45 s per episode, with a third of the heap still spare.
+
+CORRECTION: the stack was a red herring. at_perceive measured 8712 B on the
+host by painting a pthread stack, which is why the loop task's 8192 B
+default looked like the cause of the LoadProhibited faults. The board
+reports only 2.8 KB actually used. Every crash in this campaign was
+OUT OF MEMORY -- 0x1d StoreProhibited is a WRITE into a failed allocation
+and 0x1c LoadProhibited a READ of one, and both were being produced by the
+same exhaustion. The host measurement included the thread's own frames and
+overstated the need. 16 KB is kept because it costs little and the true
+xtensa figure is unknown, but it was not the fix.
+
+WHAT ACTUALLY FIXED IT, in order of contribution:
+  crop 222x193 -> 180x160                       ~107 KB of peak
+  zarray growth 2x -> 1.25x                      ~32 KB of peak
+  wrap the received frame instead of copying     ~42 KB
+  quick-decode table bits_corrected 1 -> 0       ~22 KB of PERSISTENT heap
+  unionfind 8 -> 4 bytes per pixel               ~75 KB at full resolution
+  AT_MIN_REGION 25 -> 60                         ~15 KB of peak
+  two inherited memory leaks (matd_svd_tall,
+    quad_segment_maxima)                    unbounded growth per detection
+
+WOULD A HIGHER-RESOLUTION CAMERA HELP? NO, ON BOTH COUNTS
+=========================================================
+Measured at 640x480 (tag side 41.6 px against ~20 at 320x240), ROI sized to
+the observed tag spread cx 294..612 / cy 28..290 -> 340x300:
+
+  config                          static   max peak   total    detected
+  320x240 ROI 180x160 dec 2       28.1 KB   176.5 KB  204.6 KB   67%   <- deployed
+  640x480 ROI 340x300 dec 2       99.6 KB   481.9 KB  581.6 KB   64%
+  640x480 ROI 340x300 dec 4       99.6 KB   151.8 KB  251.4 KB   64%
+  available pool                                      213.7 KB
+
+MEMORY: no. Decimating by 4 keeps the WORKING image about the size it is
+now, so the detector's peak is fine (151.8 KB) -- but the full-resolution
+ROI buffer is 99.6 KB on its own, because refine_edges and the decoder
+sample the ORIGINAL image, not the decimated one. That buffer scales with
+the square of resolution and cannot be decimated away. 251.4 KB against a
+213.7 KB pool, and the ROI cannot shrink because the tag genuinely spans
+318 px of the wider frame.
+
+ACCURACY: also no. Detection does not improve -- 64% at 640x480 against
+67% at 320x240. The limit is whether the tag is VISIBLE from the wrist at
+t=0, not how many pixels it has once it is. Doubling the resolution buys
+nothing to spend the memory on.
+
+So 320x240 is not a compromise forced by the board; it is at the point
+where more pixels stop helping. A PSRAM board (ESP32-CAM, WROVER) would
+hold the 581.6 KB of the decimate-2 path comfortably, but would gain about
+3 points of detection LOSS for it.
+
+The resolution worth revisiting is downward: 160x120 was never measured,
+and if detection holds it would free enough for bits_corrected=1 and a
+wider correction radius, which matters more on a real noisy camera than
+pixel count does.
+
+AND DOWNWARD? 160x120 DOES NOT BUY BACK ERROR CORRECTION
+========================================================
+The idea was that a smaller frame frees enough heap to restore
+bits_corrected=1. Measured over 200 renders at 160x120 (tag side 9.6 px
+mean, 7.9 min):
+
+  config                           static   max peak   detected
+  320x240 ROI 180x160 dec 2        28.1 KB   176.5 KB    67%   <- deployed
+  160x120 ROI 100x90  dec 1         8.8 KB   199.8 KB    69%
+  160x120 ROI 100x90  dec 2         8.8 KB    65.5 KB     0%
+
+  budget                                    avail    worst   margin
+  320x240 dec2 bits=0 (deployed)           209.0 KB 187.1 KB  +21.9  OK
+  320x240 dec2 bits=1                      187.3 KB 187.1 KB   +0.2  too tight
+  160x120 dec1 bits=0                      228.3 KB 211.8 KB  +16.5  OK
+  160x120 dec1 bits=1                      206.6 KB 211.8 KB   -5.2  does not fit
+
+It does not work, and the reason is specific: at 160x120 the tag is 9.6 px,
+so decimating by 2 leaves ~5 px and NOTHING decodes (0/200). Decimate 1 is
+forced, and running the detector at full scale costs more peak (199.8 KB)
+than the smaller frame buffer saves (19 KB). bits=1 fits nowhere.
+
+So bits_corrected=0 is not a corner that a resolution change can un-cut.
+Restoring error correction needs ~22 KB that no configuration measured here
+has. On a real camera, where correction actually matters, the options are a
+board with PSRAM or a tag family with more Hamming distance than 16h5.
+
+Incidental: the C port at decimate 1 detects far better on small images
+than OpenCV does at the same resolution -- 138/200 against 85/200 at
+160x120. Not acted on, but it suggests the detection rates in this campaign
+are a property of the decimation, not only of tag visibility.
+
+HIL WITH PERCEPTION ACCOUNTING (20 episodes, random spawn)
+==========================================================
+After fixing the PC-side poll that was discarding the board's det= line:
+
+  episodes                 20
+  perceived on BOARD pose  18/20   (2 fell back to the PC's pose)
+  first-frame success      16/20   (80%) -- at the home pose, one shot
+  attempts to detection    1 x16, 2 x2
+  detection time           337-582 ms, mean 487
+  peak heap used           191780 B (187.3 KB) of 213720 -> 21.4 KB margin
+  heap drift per detection 0 B every time
+  crashes 0, skips 0
+
+The peak is worth noting: 187.3 KB, against the ~187 KB worst case this
+configuration was sized to. The 1.06x scaling applied to the 360-frame
+maximum landed on the real hardware number almost exactly, and the 21.4 KB
+that remains is the margin that budget bought. The earlier 176.9 KB figure
+came from frames at the home pose only; retries from displaced poses
+produce more clusters and cost more.
+
+WHY THE ACCOUNTING MATTERS
+An earlier run of this same build reported 19/20 placed and 0 detections:
+the board had detected 26 of 120 frames while the PC saw none, because the
+poll matched the "[perc] start:" banner printed BEFORE detection and then
+flushed the port before "det=" arrived. Every episode burned all six
+retries and ran on ground truth -- exactly the silent fallback this
+accounting exists to expose. 120 attempts for 20 episodes, exactly six
+each, was the tell.
+
+A HIL success rate still mixes two populations and is not an accuracy
+measurement; 18/20 on board pose and 2/20 on ground truth is the honest
+description. The accuracy figure remains the 89.67% over 600 sim episodes,
+where no ground-truth pose is ever available to fall back to.

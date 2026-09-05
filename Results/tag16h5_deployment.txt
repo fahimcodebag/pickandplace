@@ -1,0 +1,78 @@
+tag16h5 AS THE DEPLOYMENT PATH
+==============================
+Model: checkpoints/td3_grasp_rand_td3_ln_c2m512_s1/best (FP32 grasp actor)
+Camera: robot0_eye_in_hand, 320x240. Latch mode, --detect-until-first, random spawn.
+Protocol: 12 seeds x 50 episodes = 600 episodes per row, paired on seed.
+
+END-TO-END TASK SUCCESS
+-----------------------
+  route                        seeds   ep   mean     median
+  agentview 36h11 + corrector    12    600  89.67%   90.00%   (external camera; NOT on-device)
+  wrist 16h5   + corrector       12    600  87.67%   87.00%   <-- deployment path
+  wrist 36h11  + corrector       12    600  86.83%   87.00%
+
+  Paired, 16h5 - 36h11 on the wrist: +0.83 pts, SE 0.87, t=0.96,
+  95% CI [-1.08, +2.74]. The two families are EQUIVALENT end-to-end.
+
+DETECTION LAYER (n=3200 resets per family, 4 seeds x 800)
+---------------------------------------------------------
+  family   detect rate   raw pose error
+  16h5        68.3%         20.8 mm
+  36h11       66.9%         20.7 mm
+  Also equivalent.
+
+  CORRECTION: an earlier n=30 spot check suggested 16h5 detected 23 points
+  better (80% vs 57%). That was sampling noise and is retracted. This is the
+  third small-sample over-read in this campaign (see the methods note below).
+
+WHY SWITCH, THEN
+----------------
+Not accuracy -- flash. The ESP32 AprilTag port (stnk20, esp-idf) ships the
+tag16h5 and tag25h9 code tables. tag36h11 has 587 codes and would have to be
+added to flash. Since the families perform identically at both the detection
+and task level, 16h5 is free.
+
+CORRECTOR
+---------
+  fit_wrist16_corrector.py, 4 seeds x 800 resets -> 2186 detections.
+  Seeds split TUNE (1640) / HOLD (546); features derived from the DETECTED
+  pose only, never ground truth.
+
+  config     params   held-out    cut   R2 x/y/z
+  h32 d2      1,571     0.43mm    98%   +0.99/+0.99/+1.00
+  h64 d2      5,187     0.39mm    98%   +0.99/+0.99/+1.00   <-- selected
+  h64 d3      9,347     0.40mm    98%   +0.99/+0.99/+1.00
+  held-out baseline 20.65 mm
+
+  h32 is within 0.04 mm at 1/3 the size; h64 chosen only because 20.3 KB is
+  immaterial against the 320 KB free measured on hardware. If flash ever gets
+  tight, h32 is a free swap.
+
+  Why the residual is this correctable: the detection happens at t=0 with the
+  arm at its home pose, so the camera pose is FIXED and detected->true is one
+  deterministic calibration map, not a pose-varying function.
+
+EXPORT VALIDATION
+-----------------
+  corrector_model.h, 5,187 params, 20.3 KB, FP32.
+  The mm->m rescale IS applied to the final layer (fit_wrist16_corrector.py
+  inherits load()'s *1000 scaling; omitting this rescale previously scored
+  0.0% on all 12 seeds).
+    magnitude ratio vs true residual: 0.999
+    Python, in-sample:                20.76 -> 0.31 mm (median)
+    C loop over the header, n=2186:   21.36 -> 0.332 mm (mean)
+  The C check compiles corrector_model.h and runs the same arithmetic the
+  sketch runs. It is the guard against the unit bug recurring.
+
+  FP32 on purpose: per-tensor INT8 costs 6.4-13.2 mm against a residual whose
+  whole magnitude is 20.7 mm (Results/corrector_on_device.txt).
+
+METHODS NOTE -- SMALL-SAMPLE OVER-READS
+---------------------------------------
+Three claims in this campaign were first reported from small samples and all
+three were optimistic:
+  wrist accuracy    12.2 mm (n=8)   ->  20.7 mm (n=2140)
+  truth ceiling      100%  (n=8)    ->  94.0%  (n=200)
+  16h5 detection     +23 pts (n=30) ->  +1.4 pts (n=3200)
+The large-sample checks cost minutes each. This is the argument for the
+12-seed x 100-episode protocol used for every headline number in this thesis.

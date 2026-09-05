@@ -52,14 +52,83 @@ def compute_flags(raw_env):
     return flags
 
 
-def make_env(render=True, random_spawn=False):
+def render_wrist_gray(raw_env, width=320, height=240,
+                     camera="robot0_eye_in_hand"):
+    """The 320x240 grayscale wrist frame the ESP32 will detect in.
+
+    Rendered directly rather than through use_camera_obs, because GymWrapper
+    flattens every observation into the state vector and an image would
+    destroy the 46-float layout the board expects.
+
+    The [::-1] flip matches TagDetector.frame(): MuJoCo renders bottom-up and
+    every detection result in Results/ was measured on the flipped image.
+    """
+    import cv2
+    img = raw_env.sim.render(width=width, height=height, camera_name=camera)
+    return cv2.cvtColor(np.ascontiguousarray(img[::-1]), cv2.COLOR_RGB2GRAY)
+
+
+def send_perception(raw_env, bridge, camera="robot0_eye_in_hand"):
+    """Hand the board one frame and let IT do the perception.
+
+    T_world_cam is forward kinematics, not perception: on a real arm the
+    controller knows where the wrist camera sits.
+
+    Returns the board's per-frame outcome dict.
+    """
+    import robosuite.utils.camera_utils as CU
+    gray = render_wrist_gray(raw_env, camera=camera)
+    T = CU.get_camera_extrinsic_matrix(raw_env.sim, camera)
+    eef = np.asarray(raw_env._observables["robot0_eef_pos"].obs, dtype=np.float32)
+    return bridge.send_image(gray, T, eef)
+
+
+# The tag is not always visible from the wrist at t=0 -- roughly a third of
+# resets do not decode. The simulator handles this with --detect-until-first:
+# step the FSM and look again as the arm moves. Without the same retry here,
+# a failed detection means the board never latches, applyLatch is a no-op,
+# and the episode silently runs on the GROUND-TRUTH pose the PC sent -- which
+# scores well and measures nothing. Retry instead, and if it never lands, say
+# so rather than quietly averaging the two populations together.
+PERCEPTION_TRIES = 6        # frames to try before giving up
+PERCEPTION_STRIDE = 4       # FSM steps between attempts, to change the view
+
+
+def perceive_until_first(env, raw_env, bridge, obs, render=False):
+    """Send frames until the board detects. Returns (obs, perceived)."""
+    lo, hi = env.action_space.low, env.action_space.high
+    for attempt in range(PERCEPTION_TRIES):
+        r = send_perception(raw_env, bridge)
+        if r.get("detected"):
+            if attempt:
+                print(f"      perception: detected on frame {attempt + 1}")
+            return obs, True
+        if r.get("crashed") or r.get("skipped"):
+            print(f"      perception: board {'crashed' if r.get('crashed') else 'skipped'} "
+                  f"on frame {attempt + 1}")
+        # Advance a little so the next frame is a different view.
+        for _ in range(PERCEPTION_STRIDE):
+            action, _ = bridge.get_action(obs, compute_flags(raw_env))
+            obs, _, done, _ = env.step(np.clip(action, lo, hi))
+            if render:
+                raw_env.render()
+            if done:
+                return obs, False
+    print(f"      perception: NO detection in {PERCEPTION_TRIES} frames — "
+          f"this episode runs on the PC's ground-truth pose")
+    return obs, False
+
+
+def make_env(render=True, random_spawn=False, on_device_perception=False):
     rs_env = suite.make(
         "PickPlace",
         robots="Panda",
         controller_configs=suite.load_controller_config(
             default_controller="OSC_POSE"),
         has_renderer=render,
-        has_offscreen_renderer=False,
+        # Offscreen rendering only when the board is doing its own perception
+        # -- it costs time and every previous HIL number was measured without.
+        has_offscreen_renderer=on_device_perception,
         use_camera_obs=False,
         horizon=700,              # handoff attempt + scored episode
         reward_shaping=True,
@@ -67,6 +136,31 @@ def make_env(render=True, random_spawn=False):
         single_object_mode=2,
         object_type="bread",
     )
+    if on_device_perception:
+        # The board can only detect a tag that EXISTS. hil_main has always
+        # built a plain PickPlace env, which has no tag on the bread -- so
+        # without this the wrist frames are tagless and the board reports
+        # det=0 forever, which looks exactly like a broken detector.
+        #
+        # Injection goes through robosuite's set_xml_processor hook, the same
+        # way apriltag_sim.make_tagged_env does it, so the tag survives every
+        # hard reset instead of being wiped by the next _load_model().
+        import os as _os
+        from apriltag_sim import inject_tag, generate_tag_png
+        _png = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                             "assets", "tag36h11_0.png")
+        _half, _zoff = 0.022, 0.026
+        _marker_size_m = 2.0 * _half * generate_tag_png(_png)
+        # The board hardcodes AT_TAGSIZE; a mismatch silently rescales every
+        # pose it reports, so fail loudly instead.
+        assert abs(_marker_size_m - 0.034375) < 1e-6, (
+            f"tag is {_marker_size_m:.6f} m but at32_perception.h assumes "
+            f"0.034375 m -- update AT_TAGSIZE")
+        rs_env.set_xml_processor(lambda xml: inject_tag(
+            xml, _png, body_name="Bread_main",
+            half_size=_half, z_offset=_zoff))
+        rs_env.reset()
+
     # Spawn condition. Fixed pins the object at the tuned pose (x=y=0, no
     # rotation) and is what this rig has always run. Random uses robosuite's
     # native PickPlace box PLUS z-rotation -- the condition every headline
@@ -87,7 +181,7 @@ def make_env(render=True, random_spawn=False):
     return rs_env, GymWrapper(rs_env)
 
 
-def do_handoff(env, raw_env, bridge, render=True):
+def do_handoff(env, raw_env, bridge, render=True, on_device_perception=False):
     """Respawn-and-retry until the ESP32 reports it reached TRANSPORT.
 
     Returns (obs, attempts, ok). Not scored — mirrors reset()'s attempt loop.
@@ -97,6 +191,12 @@ def do_handoff(env, raw_env, bridge, render=True):
     for attempt in range(1, MAX_GRASP_ATTEMPTS + 1):
         obs = env.reset()
         bridge.send_reset()                     # resync the MCU's FSM to GRASP
+        perceived = None
+        if on_device_perception:
+            # After send_reset, so the latch the board clears on reset is the
+            # one this frame refills -- not the other way round.
+            obs, perceived = perceive_until_first(env, raw_env, bridge, obs, render)
+            bridge.note_episode(perceived)
         last_phase = None
         grasp_flag_steps = 0
         for t in range(HANDOFF_STEP_CAP):
@@ -166,6 +266,12 @@ def main():
     import argparse
     p = argparse.ArgumentParser(description="Hardware-in-the-loop with the ESP32")
     p.add_argument("--episodes", type=int, default=10)
+    p.add_argument("--on-device-perception", action="store_true",
+                   help="send the wrist frame to the ESP32 (IMG_MSG) and let it "
+                        "detect the tag, solve the pose and correct it, instead "
+                        "of the PC passing ground truth. Needs the sketch built "
+                        "with src/esp32_apriltag/. Prints [perc] lines to the "
+                        "--debug-log.")
     p.add_argument("--random-spawn", action="store_true",
                    help="native PickPlace spawn box + z-rotation. This is the "
                         "condition Results/ reports (95.33%% INT8 in sim); the "
@@ -197,7 +303,8 @@ def main():
     # (Previously this read `args.render or RENDER`, which could never be
     # False and so left no way to switch the viewer off.)
     RENDER = RENDER if args.render is None else args.render
-    raw_env, env = make_env(render=RENDER, random_spawn=args.random_spawn)
+    raw_env, env = make_env(render=RENDER, random_spawn=args.random_spawn,
+                            on_device_perception=args.on_device_perception)
     print(f"   spawn: {'RANDOM (box + rotation)' if args.random_spawn else 'FIXED'}")
     print(f"✓ Environment ready: {env.observation_space.shape} → "
           f"{env.action_space.shape}")
@@ -216,7 +323,8 @@ def main():
     try:
         for i in range(1, N_EPISODES + 1):
             print(f"\nEpisode {i}/{N_EPISODES}")
-            obs, attempts, ok = do_handoff(env, raw_env, bridge, RENDER)
+            obs, attempts, ok = do_handoff(env, raw_env, bridge, RENDER,
+                                           args.on_device_perception)
             attempts_log.append(attempts)
             if not ok:
                 print(f"  ✗ handoff failed after {MAX_GRASP_ATTEMPTS} attempts "
@@ -242,6 +350,13 @@ def main():
         bridge.disconnect()
         n = len(scores)
         print(f"\n{'=' * 62}")
+        if args.on_device_perception:
+            # Printed BEFORE the score, because the score is uninterpretable
+            # without it: episodes where the board never latched ran on the
+            # PC's ground-truth pose and say nothing about perception.
+            print("-" * 62)
+            print(bridge.perception_summary())
+            print("-" * 62)
         print(f"Final Results ({n} scored episodes of {N_EPISODES})")
         print(f"{'=' * 62}")
         if n:

@@ -8,8 +8,19 @@ of an assumed one.
 
 Design notes
 ------------
-* Detection uses OpenCV's `DICT_APRILTAG_36h11` — the same family the ESP32
-  would run — so no extra dependency, and generation/detection stay consistent.
+* Detection uses OpenCV's `DICT_APRILTAG_16h5`, selected by TAG_DICT below.
+  Measured on the wrist camera at 320x240 (30 resets each), which is the
+  deployment configuration:
+      36h11   17/30 (57%)   pos 21.0 mm   ang 2.5 deg
+      16h5    24/30 (80%)   pos 20.4 mm   ang 3.0 deg
+  4x4 data bits survive a marginal ~19.7 px tag better than 6x6, at the same
+  position accuracy. It is also the family the ESP32 port ships
+  (stnk20/apriltag esp-idf branch carries tag16h5 and tag25h9, NOT tag36h11,
+  whose 587-code table is expensive in flash).
+  The cost is a weaker Hamming separation and so a higher false-positive rate;
+  here there is exactly one tag and the upright-normal prior (min_up) already
+  rejects implausible quads, but this needs watching on real imagery where
+  noise produces far more spurious candidates than a clean render.
 * The tag geom is VISUAL-ONLY (`contype=0 conaffinity=0 mass=0`). Physics must
   be bit-identical to the untagged environment or the 92%/90% results (§5, §8.4)
   stop being comparable.
@@ -29,7 +40,7 @@ import xml.etree.ElementTree as ET
 import cv2
 import numpy as np
 
-TAG_DICT = cv2.aruco.DICT_APRILTAG_36h11
+TAG_DICT = cv2.aruco.DICT_APRILTAG_16h5   # see module docstring
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +152,7 @@ class TagDetector:
     """Detects the tag in a rendered frame and returns its world-frame pose."""
 
     def __init__(self, env, camera="agentview", width=320, height=240,
-                 marker_size_m=0.0344, tag_id=0):
+                 marker_size_m=0.0344, tag_id=0, backend="opencv"):
         from robosuite.utils import camera_utils
         self._camera_utils = camera_utils
         self.env = env
@@ -157,6 +168,18 @@ class TagDetector:
         self.detector = cv2.aruco.ArucoDetector(
             cv2.aruco.getPredefinedDictionary(TAG_DICT),
             cv2.aruco.DetectorParameters())
+
+        # Optional: use the ESP32 port (esp32_apriltag/) instead of OpenCV, so
+        # the desktop numbers describe the detector the firmware actually runs
+        # -- same C code, same ROI crop, same decimation. The two are NOT
+        # interchangeable: corners differ by ~1 px, which moves the pose, and
+        # the residual corrector is calibrated to whichever produced it.
+        self.at32 = None
+        if backend == "esp32":
+            from at32 import At32Pose
+            self.at32 = At32Pose()
+        elif backend != "opencv":
+            raise ValueError(f"unknown detector backend {backend!r}")
 
         h = marker_size_m / 2.0
         # Corner order must match OpenCV's: TL, TR, BR, BL.
@@ -201,10 +224,24 @@ class TagDetector:
         """Return (position_world[3], quat_world_xyzw[4]) or None if not seen."""
         img = self.frame(obs_dict)
         gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        corners, ids, _ = self.detector.detectMarkers(gray)
-        if ids is None or self.tag_id not in ids.flatten():
-            return None
-        idx = int(np.where(ids.flatten() == self.tag_id)[0][0])
+        if self.at32 is not None:
+            # Full C perception front end: corners AND pose, the same code the
+            # firmware runs. Its pose stage is AprilTag's orthogonal iteration,
+            # not OpenCV IPPE; on identical corners the two agree to a median
+            # of 0.04 mm (max 1.12), but it is the C one that ships, so it is
+            # the C one that is measured and that the corrector is fitted to.
+            r = self.at32.detect_pose(gray, self.K, self.marker_size,
+                                      want_id=self.tag_id)
+            if r is None or not r[1]:
+                return None
+            img_pts, at32_sols = r[0].astype(np.float32), r[1]
+            corners, idx = [img_pts.reshape(1, 4, 2)], 0
+        else:
+            at32_sols = None
+            corners, ids, _ = self.detector.detectMarkers(gray)
+            if ids is None or self.tag_id not in ids.flatten():
+                return None
+            idx = int(np.where(ids.flatten() == self.tag_id)[0][0])
 
         # IPPE_SQUARE on a planar marker is TWO-fold ambiguous: two poses
         # project to nearly the same image. Taking solvePnP's single answer
@@ -225,9 +262,14 @@ class TagDetector:
         x, y = img_pts[:, 0], img_pts[:, 1]
         self.last_area_px = float(0.5 * abs(np.dot(x, np.roll(y, 1)) -
                                             np.dot(y, np.roll(x, 1))))
-        n, rvecs, tvecs, err = cv2.solvePnPGeneric(
-            self.obj_pts, img_pts, self.K, self.dist,
-            flags=cv2.SOLVEPNP_IPPE_SQUARE)
+        if at32_sols is not None:
+            n = len(at32_sols)
+            errs_list = [e for _, e in at32_sols]
+        else:
+            n, rvecs, tvecs, err = cv2.solvePnPGeneric(
+                self.obj_pts, img_pts, self.K, self.dist,
+                flags=cv2.SOLVEPNP_IPPE_SQUARE)
+            errs_list = None
         if not n:
             return None
 
@@ -239,12 +281,16 @@ class TagDetector:
         # together (up - k*err) picks upright poses that fit badly -- measured:
         # it fixed orientation (p95 91.3 -> 4.3 deg) but pushed position the
         # wrong way (median 9.3 -> 23.0 mm).
-        errs = np.asarray(err).flatten()
+        errs = (np.asarray(errs_list).flatten() if errs_list is not None
+                else np.asarray(err).flatten())
         cand = []
         for i in range(n):
-            T_cam_tag = np.eye(4)
-            T_cam_tag[:3, :3] = cv2.Rodrigues(rvecs[i])[0]
-            T_cam_tag[:3, 3] = np.asarray(tvecs[i]).flatten()
+            if at32_sols is not None:
+                T_cam_tag = at32_sols[i][0]
+            else:
+                T_cam_tag = np.eye(4)
+                T_cam_tag[:3, :3] = cv2.Rodrigues(rvecs[i])[0]
+                T_cam_tag[:3, 3] = np.asarray(tvecs[i]).flatten()
             T_wt = T_world_cam @ T_cam_tag
             up = float(T_wt[:3, 2] @ np.array([0.0, 0.0, 1.0]))
             cand.append((up, float(errs[i]) if i < len(errs) else np.inf, T_wt))

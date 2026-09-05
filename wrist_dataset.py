@@ -32,13 +32,16 @@ def main():
     p.add_argument("--height", type=int, default=240)
     p.add_argument("--samples", type=int, default=800)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--backend", default="opencv", choices=["opencv", "esp32"],
+                   help="esp32 = the actual firmware detector (esp32_apriltag/), "
+                        "cropped to the deployment ROI and decimated as on device")
     p.add_argument("--out", required=True)
     a = p.parse_args()
 
     env, meta = make_tagged_env(camera=a.camera, width=a.width, height=a.height,
                                 horizon=200)
     det = TagDetector(env, camera=a.camera, width=a.width, height=a.height,
-                      marker_size_m=meta["marker_size_m"])
+                      marker_size_m=meta["marker_size_m"], backend=a.backend)
     np.random.seed(a.seed)
     rows, seen = [], 0
     for i in range(a.samples):

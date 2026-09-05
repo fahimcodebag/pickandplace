@@ -52,6 +52,20 @@
 #include "grasp_model.h"   // grasp_model_tflite[],  grasp_model_tflite_len
 #include "place_model.h"   // place_model_tflite[],  place_model_tflite_len
 #include "corrector_model.h"  // FP32 AprilTag residual corrector (20.3 KB)
+#include "at32_perception.h"  // on-device AprilTag detection + pose
+
+// The Arduino loop task gets an 8 KB stack by default. AprilTag's quad
+// fitting and its matd/SVD helpers are stack-hungry, and how deep they go
+// depends on how many clusters a frame produces -- so an overflow is
+// intermittent and frame-dependent, which is exactly what the board shows:
+// LoadProhibited (EXCCAUSE 0x1c) reading address 0x00000000, on some frames
+// and not others, at full free heap. That is a stack fault, not the
+// out-of-memory (StoreProhibited into a failed allocation) seen earlier.
+// Costs internal RAM, so it is not free: 32 KB took so much from the heap
+// that the worst frames then ran OUT of heap, trading one fault for the
+// other. 16 KB is roughly twice the 8712 B measured on the host and leaves
+// the pool at ~212 KB against a ~187 KB worst-case frame.
+SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 
 // ── Dimensions ─────────────────────────────────────────────────────────────
 #define STATE_DIM  46
@@ -127,6 +141,12 @@ static const int   RT_STEPS  = 12;    static const float RT_DZ    = 0.3f;
 // solvePnP) and this sketch corrects it, so part of perception runs here
 // rather than on the PC.
 #define CORR_MSG  0x04
+// IMG_MSG carries RAW PIXELS. CORR_MSG leaves the detector on the PC and runs
+// only the corrector here; IMG_MSG moves the whole front end onto the board --
+// it detects the tag, solves the pose, disambiguates it, calibrates it and
+// corrects it, then writes its own object-pose block. The PC sends the ROI
+// crop and the camera-to-world transform (forward kinematics, not perception).
+#define IMG_MSG   0x05
 #define SYNC_BYTE_0 0xAA
 #define SYNC_BYTE_1 0x55
 #define SYNC_BYTE_2 0xAA
@@ -135,6 +155,8 @@ static const int   RT_STEPS  = 12;    static const float RT_DZ    = 0.3f;
 #define CORR_PAYLOAD_SIZE  239   // ... +12 feature floats (48 B)
 #define CORR_FEATS 12
 #define ACTION_PAYLOAD_SIZE 35   // type1+seq1+len2+action28+status1+crc2
+// type1+seq1+len2 + ROI + 12 transform floats + crc2
+#define IMG_PAYLOAD_SIZE (4 + AT_ROI_W*AT_ROI_H + 60 + 2)
 
 // ── FSM states ─────────────────────────────────────────────────────────────
 enum Phase {
@@ -156,6 +178,13 @@ struct FSM {
   int   lost = 0;             // Fix A: consecutive ungrasped frames in carry
   int   regrasps = 0;         // Fix A: regrasp attempts used this episode
 } fsm;
+
+static struct {
+  bool  have;
+  float pos[3], quat[4];
+  float rel_pos[3], rel_quat[4];   // object in the GRIPPER frame, at latch time
+  bool  gripped;                   // once true, propagate through the gripper
+} latch = {false};
 
 // ── Two interpreters, two arenas ───────────────────────────────────────────
 namespace {
@@ -181,7 +210,8 @@ namespace {
 }
 
 struct Stats { uint32_t total=0; uint32_t episodes=0; float avg_ms=0.0f;
-               uint32_t corrections=0; float corr_ms=0.0f; } stats;
+               uint32_t corrections=0; float corr_ms=0.0f;
+               uint32_t perceptions=0; float perc_ms=0.0f; } stats;
 
 // ── Prototypes ─────────────────────────────────────────────────────────────
 bool  waitForSync();
@@ -211,6 +241,9 @@ static inline void pXYtoBin(const float* s, float* a){
 
 void resetFSM(){
   fsm = FSM();
+  // A new episode is a new object pose, so the latched perception is stale.
+  // Leaving it set would carry the previous episode's object into this one.
+  latch.have = false; latch.gripped = false;
   stats.episodes++;
 }
 
@@ -251,6 +284,9 @@ void selfTest(){
 
 // ── setup ──────────────────────────────────────────────────────────────────
 void setup(){
+  // 42 KB image frames need far more than the 256-byte default, or the FIFO
+  // overflows mid-frame. Must precede begin().
+  Serial.setRxBufferSize(8192);
   Serial.begin(921600);
   while(!Serial) delay(10);
   Serial.println("\n===============================================");
@@ -300,9 +336,12 @@ void loop(){
   sendAction(action, seq, (uint8_t)fsm.phase);
 
   if(stats.total % 100 == 0){
-    Serial.printf("[%lu] ep=%lu phase=%d avg=%.2fms corr=%.3fms n=%lu heap=%dKB\n",
+    Serial.printf("[%lu] ep=%lu phase=%d avg=%.2fms corr=%.3fms n=%lu "
+                  "perc=%.1fms n=%lu heap=%dKB min=%dKB\n",
                   stats.total, stats.episodes, fsm.phase, stats.avg_ms,
-                  stats.corr_ms, stats.corrections, ESP.getFreeHeap()/1024);
+                  stats.corr_ms, stats.corrections,
+                  stats.perc_ms, stats.perceptions,
+                  ESP.getFreeHeap()/1024, ESP.getMinFreeHeap()/1024);
   }
 }
 
@@ -510,6 +549,17 @@ static void correctorForward(const float* feat, float* out3){
 // robosuite defines it as R_eef^T (obj_pos - eef_pos); that composition is
 // exact, which is why holding a world pose and recomputing the relative block
 // is sound (see perception_wrapper mode="recompute").
+// The most recent state from the PC. IMG_MSG needs the gripper position for
+// two of the corrector's features, and an image frame does not carry it.
+static float lastState[STATE_DIM];
+
+// Same corrector, applied to a pose the BOARD produced rather than to the
+// object block of a state vector the PC produced.
+static void applyCorrection2(at_result_t* r){
+  float d[3]; correctorForward(r->feat, d);
+  r->pos[0]+=d[0]; r->pos[1]+=d[1]; r->pos[2]+=d[2];
+}
+
 static void applyCorrection(float* s, const float* feat){
   float d[3]; correctorForward(feat, d);
   s[0]+=d[0]; s[1]+=d[1]; s[2]+=d[2];                 // obj_pos, world
@@ -541,6 +591,64 @@ bool waitForSync(){
   return false;
 }
 
+// ── On-device perception latch ─────────────────────────────────────────────
+// Perception runs ONCE, at t=0, with the arm at its home pose -- that is what
+// makes the residual correctable at all (the camera pose is fixed, so
+// detected->true is one deterministic calibration map). After the grasp the
+// object moves WITH the gripper, so its world pose is recovered from the
+// latched grip offset and the live gripper pose rather than re-detected.
+
+static void quatMul(const float*a, const float*b, float*o){
+  o[0]=a[3]*b[0]+a[0]*b[3]+a[1]*b[2]-a[2]*b[1];
+  o[1]=a[3]*b[1]-a[0]*b[2]+a[1]*b[3]+a[2]*b[0];
+  o[2]=a[3]*b[2]+a[0]*b[1]-a[1]*b[0]+a[2]*b[3];
+  o[3]=a[3]*b[3]-a[0]*b[0]-a[1]*b[1]-a[2]*b[2];
+}
+static void quatConj(const float*q, float*o){ o[0]=-q[0];o[1]=-q[1];o[2]=-q[2];o[3]=q[3]; }
+static void quatRot(const float*q, const float*v, float*o){
+  const float x=q[0],y=q[1],z=q[2],w=q[3];
+  const float r[9]={1-2*(y*y+z*z), 2*(x*y-z*w),   2*(x*z+y*w),
+                    2*(x*y+z*w),   1-2*(x*x+z*z), 2*(y*z-x*w),
+                    2*(x*z-y*w),   2*(y*z+x*w),   1-2*(x*x+y*y)};
+  for(int i=0;i<3;i++) o[i]=r[i*3+0]*v[0]+r[i*3+1]*v[1]+r[i*3+2]*v[2];
+}
+
+// Write the latched object pose into the four object blocks of the state:
+//   [0..2] world pos, [3..6] world quat,
+//   [7..9] pos in gripper frame, [10..13] quat in gripper frame.
+static void applyLatch(float* s){
+  if(!latch.have) return;
+  const float* ep = &s[35];
+  const float* eq = &s[38];
+  float wp[3], wq[4];
+  if(latch.gripped){
+    // object rides with the gripper: world = gripper * (latched offset)
+    quatRot(eq, latch.rel_pos, wp);
+    wp[0]+=ep[0]; wp[1]+=ep[1]; wp[2]+=ep[2];
+    quatMul(eq, latch.rel_quat, wq);
+  } else {
+    for(int i=0;i<3;i++) wp[i]=latch.pos[i];
+    for(int i=0;i<4;i++) wq[i]=latch.quat[i];
+  }
+  s[0]=wp[0]; s[1]=wp[1]; s[2]=wp[2];
+  for(int i=0;i<4;i++) s[3+i]=wq[i];
+  // relative block: gripper^-1 * object
+  float cq[4], d[3], rq[4];
+  quatConj(eq, cq);
+  d[0]=wp[0]-ep[0]; d[1]=wp[1]-ep[1]; d[2]=wp[2]-ep[2];
+  quatRot(cq, d, &s[7]);
+  quatMul(cq, wq, rq);
+  for(int i=0;i<4;i++) s[10+i]=rq[i];
+  // Freeze the grip offset the first time the PC reports a closed grasp, so
+  // the carry phase propagates the object instead of holding it where it was
+  // first seen.
+  if(!latch.gripped && fsm.phase != PH_GRASP){
+    for(int i=0;i<3;i++) latch.rel_pos[i] = s[7+i];    // already gripper-frame
+    for(int i=0;i<4;i++) latch.rel_quat[i] = s[10+i];
+    latch.gripped = true;
+  }
+}
+
 int receiveState(float* state, uint8_t* seq, uint8_t* flags){
   if(!waitForSync()) return 0;
   static uint8_t buf[CORR_PAYLOAD_SIZE];       // the larger of the two
@@ -556,6 +664,105 @@ int receiveState(float* state, uint8_t* seq, uint8_t* flags){
       if(Serial.available()>0) buf[n++]=Serial.read();
     return 3;
   }
+  if(type==IMG_MSG){
+    // The ROI is defined in THREE places (protocol_float32.py, at32.py and
+    // at32_perception.h) and they must agree. If they drift, the pixel count
+    // no longer matches and every later byte is misaligned, which would show
+    // up as an unexplained detection failure rather than an error.
+    {
+      uint16_t plen = buf[2] | (buf[3]<<8);
+      const uint16_t want = (uint16_t)(AT_ROI_W*AT_ROI_H + 60);
+      if(plen != want){
+        Serial.printf("[perc] ROI MISMATCH: PC sent %u B payload, this build "
+                      "expects %u (%dx%d). Update at32_perception.h or "
+                      "protocol_float32.py.\n",
+                      plen, want, AT_ROI_W, AT_ROI_H);
+        return 0;
+      }
+    }
+    // Raw ROI pixels: run the whole perception front end here.
+    // Static, not stack or heap -- 42 KB would blow the task stack, and
+    // keeping it out of the heap leaves the heap for the detector, which is
+    // what is actually tight.
+    static uint8_t roi[AT_ROI_W*AT_ROI_H];
+    static uint8_t tail[60+2];          // 12 transform + 3 gripper floats, crc
+    // readBytes() pulls straight from the UART driver's buffer. Polling
+    // Serial.available() one byte at a time cannot keep up here: at 921600
+    // baud a byte lands every 10.85 us, and two HardwareSerial calls per byte
+    // is slower than that, so the RX FIFO overflows part way through 42 KB
+    // and the frame is lost with no error.
+    Serial.setTimeout(8000);
+    size_t got = Serial.readBytes(roi, sizeof(roi));
+    if(got != sizeof(roi)){
+      Serial.printf("[perc] SHORT image: %u/%u bytes\n",
+                    (unsigned)got, (unsigned)sizeof(roi));
+      return 0;
+    }
+    got = Serial.readBytes(tail, sizeof(tail));
+    if(got != sizeof(tail)){
+      Serial.printf("[perc] SHORT tail: %u/%u\n",
+                    (unsigned)got, (unsigned)sizeof(tail));
+      return 0;
+    }
+    uint32_t sum=0;
+    for(int i=0;i<4;i++) sum+=buf[i];
+    for(size_t i=0;i<sizeof(roi);i++) sum+=roi[i];
+    for(size_t i=0;i<60;i++) sum+=tail[i];
+    uint16_t rc = tail[60] | (tail[61]<<8);
+    if(rc != (uint16_t)(sum%65536)){
+      Serial.printf("[perc] CRC bad: got %u want %u\n",
+                    rc, (unsigned)(sum%65536));
+      return 0;
+    }
+
+    float Twc[12], eef[3];
+    memcpy(Twc, tail, 48);
+    memcpy(eef, tail+48, 12);   // carried in the frame; see protocol_float32
+
+    // Printed and FLUSHED before the detector runs. Upstream apriltag does
+    // not check its mallocs, so an out-of-memory is a StoreProhibited panic
+    // through a NULL pointer, not a clean failure -- and a panic loses
+    // anything still sitting in the serial buffer. This line is what
+    // survives, so the next attempt is diagnosable even if it dies.
+    // ESP.getFreeHeap() counts EVERY heap cap, including the IRAM region that
+    // is 32-bit-access-only and cannot back a byte array. The detector
+    // allocates byte and int16 buffers, so the pool that actually constrains
+    // it is MALLOC_CAP_8BIT (and MALLOC_CAP_INTERNAL|8BIT once PSRAM exists).
+    // Reporting getFreeHeap() as "the budget" is what made 276 KB look like
+    // enough for a 259 KB peak that then failed.
+    uint32_t h0   = ESP.getFreeHeap();
+    uint32_t f8   = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    uint32_t fint = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    uint32_t lb8  = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+    uint32_t lbi  = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    Serial.printf("[perc] start: getFreeHeap %u | 8BIT free %u largest %u | "
+                  "INTERNAL|8BIT free %u largest %u | roi %dx%d\n",
+                  (unsigned)h0, (unsigned)f8, (unsigned)lb8,
+                  (unsigned)fint, (unsigned)lbi, AT_ROI_W, AT_ROI_H);
+    Serial.flush();
+    unsigned long p0 = micros();
+    at_result_t r;
+    at_perceive(roi, Twc, eef, &r);
+    float pms = (micros()-p0)/1000.0f;
+    uint32_t h1 = ESP.getFreeHeap();
+    // Stack high-water: bytes still UNUSED at the deepest point. If this is
+    // small, the 32 KB above is not enough either.
+    UBaseType_t swm = uxTaskGetStackHighWaterMark(NULL);
+    Serial.printf("[perc] det=%d %.1f ms  heap %u -> %u (min %u), peak used %d B, "
+                  "stack headroom %u B\n",
+                  r.ok, pms, h0, h1, ESP.getMinFreeHeap(),
+                  (int)h0-(int)ESP.getMinFreeHeap(), (unsigned)swm);
+    if(r.ok){
+      applyCorrection2(&r);        // residual corrector, then latch
+      latch.have = true; latch.gripped = false;
+      for(int i=0;i<3;i++) latch.pos[i]=r.pos[i];
+      for(int i=0;i<4;i++) latch.quat[i]=r.quat[i];
+      stats.perceptions++;
+      stats.perc_ms = (stats.perc_ms*(stats.perceptions-1)+pms)/stats.perceptions;
+      Serial.printf("[perc] obj %.4f %.4f %.4f\n", r.pos[0], r.pos[1], r.pos[2]);
+    }
+    return 4;
+  }
   size_t want = (type==CORR_MSG) ? CORR_PAYLOAD_SIZE : STATE_PAYLOAD_SIZE;
   if(type!=STATE_MSG && type!=CORR_MSG) return 0;
   while(n<want && millis()-t<1000){ if(Serial.available()>0) buf[n++]=Serial.read(); }
@@ -564,6 +771,10 @@ int receiveState(float* state, uint8_t* seq, uint8_t* flags){
   if(rc != checksum(buf, want-2)) return 0;
   memcpy(state, &buf[4], STATE_DIM*sizeof(float));
   *flags = buf[4 + STATE_DIM*sizeof(float)];   // true grasp/success from the PC
+  memcpy(lastState, state, STATE_DIM*sizeof(float));
+  // A latched on-device perception overrides the object block the PC sent.
+  // The PC still sends one so the gripper/proprio half of the state is live.
+  applyLatch(state);
   if(type==CORR_MSG){
     float feat[CORR_FEATS];
     memcpy(feat, &buf[5 + STATE_DIM*sizeof(float)], CORR_FEATS*sizeof(float));

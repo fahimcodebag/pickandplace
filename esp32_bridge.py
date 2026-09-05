@@ -42,11 +42,36 @@ class ESP32Bridge:
 
         self.debug_log = debug_log
         self._dbg_buf = bytearray()
+        self.recent_lines = []          # last board prints, for send_image()
+        self.perc = {"sent": 0, "detected": 0, "oom": 0, "short": 0, "crc": 0,
+                     "crash": 0, "ms": [], "used": []}
+        # Episodes that ran on a pose the BOARD produced, vs episodes that
+        # silently fell back to the PC's ground truth. Averaging the two
+        # together is what made every earlier HIL number uninterpretable.
+        self.episodes_perceived = 0
+        self.episodes_fallback = 0
         if debug_log:
             Protocol.debug_sink = self._dbg_buf
             self._dbg_fh = open(debug_log, "w", buffering=1)
         else:
             self._dbg_fh = None
+
+    def _pump_serial_debug(self):
+        """Pull whatever the board has printed into the debug buffer.
+
+        _drain_debug only moves bytes the PROTOCOL's sync search discarded.
+        Anything the board printed while the PC was not mid-frame sits in the
+        OS serial buffer, and send_reset/send_image then call
+        reset_input_buffer() and throw it away -- which silently discarded
+        every [perc] diagnostic. Only safe in the fire-and-forget windows,
+        where no protocol reply is expected.
+        """
+        try:
+            n = self.serial.in_waiting
+            if n:
+                self._dbg_buf.extend(self.serial.read(n))
+        except Exception:
+            pass
 
     def _drain_debug(self):
         """Move any complete lines the board printed into the log file."""
@@ -58,6 +83,8 @@ class ESP32Bridge:
             txt = line.decode("utf-8", "replace").strip("\r\x00")
             if txt.strip():
                 self._dbg_fh.write(txt + "\n")
+                self.recent_lines.append(txt)
+                del self.recent_lines[:-200]
         
     def connect(self):
         """Establish serial connection to ESP32"""
@@ -158,7 +185,132 @@ class ESP32Bridge:
         self.serial.write(Protocol.encode_reset(self.seq_num))
         self.serial.flush()
         time.sleep(0.02)
+        self._pump_serial_debug()
+        self._drain_debug()
         self.serial.reset_input_buffer()
+
+    def send_image(self, gray, T_world_cam, eef_pos, settle=2.0):
+        """Send one camera frame for ON-DEVICE perception (IMG_MSG).
+
+        Fire-and-forget like send_reset: the sketch runs the detector and
+        latches the result, and returns no action, so there is nothing to
+        read back. Perception is expected ONCE per episode, at t=0.
+
+        `settle` must cover the link time plus the detection. The ROI is
+        42846 bytes, which at 921600 baud is ~0.47 s, and the detector itself
+        is the unknown -- it has never been timed on hardware. The board
+        prints "[perc] det=.. NN.N ms heap ..." for each frame, so the real
+        figure lands in the debug log; shorten this once it is known.
+        """
+        roi = Protocol.crop_roi(gray)
+        mark = len(self.recent_lines)
+        self.serial.write(Protocol.encode_image(roi, T_world_cam, eef_pos,
+                                               self.seq_num))
+        self.serial.flush()
+        # Poll rather than one long sleep, so a slow detection is captured
+        # without waiting the full settle when it is fast.
+        deadline = time.time() + settle
+        while time.time() < deadline:
+            self._pump_serial_debug()
+            self._drain_debug()
+            # Wait for a DECISIVE line. Breaking on any "[perc]" matched the
+            # "[perc] start:" banner the board prints BEFORE it detects, so
+            # the poll returned in ~50 ms, reset_input_buffer() threw away the
+            # "det=" line arriving ~500 ms later, and every detection was
+            # invisible -- the board reported 26 of 120 while the PC saw 0.
+            if any(("det=" in l) or ("SKIP" in l) or ("CRC" in l)
+                   or ("SHORT" in l) or ("Guru" in l)
+                   for l in self.recent_lines[mark:]):
+                time.sleep(0.05)          # let the rest of the line land
+                self._pump_serial_debug()
+                self._drain_debug()
+                break
+            time.sleep(0.02)
+        self.serial.reset_input_buffer()
+        self.perc["sent"] += 1
+        before = dict(self.perc)
+
+        # Read back what the board actually did. Without this a failed
+        # detection is INVISIBLE: the board simply does not latch, applyLatch
+        # becomes a no-op, and the object pose the PC sent -- ground truth --
+        # is used instead. The run then looks excellent while measuring
+        # nothing about perception at all.
+        for ln in self.recent_lines[mark:]:
+            if "Guru Meditation" in ln:
+                self.perc["crash"] = self.perc.get("crash", 0) + 1
+                continue
+            if "[perc]" not in ln:
+                continue
+            if "Guru Meditation" in ln or "StoreProhibited" in ln:
+                self.perc["crash"] = self.perc.get("crash", 0) + 1
+            elif "OUT OF MEMORY" in ln:
+                self.perc["oom"] += 1
+            elif "SHORT" in ln:
+                self.perc["short"] += 1
+            elif "CRC" in ln:
+                self.perc["crc"] += 1
+            elif "det=" in ln:
+                try:
+                    if int(ln.split("det=")[1].split()[0]) == 1:
+                        self.perc["detected"] += 1
+                    self.perc["ms"].append(
+                        float(ln.split("det=")[1].split()[1]))
+                    if "peak used" in ln:
+                        self.perc["used"].append(
+                            int(ln.split("peak used")[1].split()[0]))
+                except (ValueError, IndexError):
+                    pass
+        # Per-call outcome, so the caller can retry or mark the episode --
+        # NOT the cumulative counters, which cannot say what THIS frame did.
+        return {
+            "detected": self.perc["detected"] > before["detected"],
+            "skipped":  self.perc["oom"] > before["oom"],
+            "crashed":  self.perc.get("crash", 0) > before.get("crash", 0),
+            "ms": self.perc["ms"][-1] if self.perc["ms"] else None,
+        }
+
+    def note_episode(self, perceived):
+        if perceived:
+            self.episodes_perceived += 1
+        else:
+            self.episodes_fallback += 1
+
+    def perception_summary(self):
+        """One line saying whether perception actually ran, and at what cost."""
+        p = self.perc
+        if not p["sent"]:
+            return "perception: never invoked"
+        # "printed nothing" must mean NOTHING -- a det=0 is the board
+        # reporting a real non-detection, not silence.
+        seen = (p["detected"] + p["oom"] + p["short"] + p["crc"]
+                + p.get("crash", 0) + len(p["ms"]))
+        out = [f"perception: {p['sent']} frames sent, "
+               f"{p['detected']} detected"]
+        for k, lbl in (("oom", "OUT-OF-MEMORY"), ("crash", "BOARD CRASHES"),
+                       ("short", "short reads"), ("crc", "CRC errors")):
+            if p[k]:
+                out.append(f"{p[k]} {lbl}")
+        if p["ms"]:
+            out.append(f"detect {min(p['ms']):.0f}-{max(p['ms']):.0f} ms "
+                       f"(mean {sum(p['ms'])/len(p['ms']):.0f})")
+        if p["used"]:
+            out.append(f"peak heap used {max(p['used'])/1024:.0f} KB")
+        ep = self.episodes_perceived + self.episodes_fallback
+        if ep:
+            out.append(f"episodes on BOARD pose {self.episodes_perceived}/{ep}, "
+                       f"on PC ground truth {self.episodes_fallback}/{ep}")
+        if p.get("crash"):
+            out.append("!! the board PANICKED and rebooted -- perception did "
+                       "not run, so these episodes used the PC's ground-truth "
+                       "pose. Upstream apriltag does not check its mallocs, so "
+                       "out-of-memory shows up as StoreProhibited on a NULL "
+                       "pointer; check the '[perc] start:' line for the free "
+                       "heap it had")
+        elif seen == 0:
+            out.append("!! the board printed NOTHING -- it is almost certainly "
+                       "not running the perception build, so these episodes "
+                       "used the PC's ground-truth pose")
+        return " | ".join(out)
 
     def print_stats(self):
         """Print communication statistics"""
