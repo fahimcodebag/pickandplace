@@ -51,6 +51,23 @@ class ESP32Bridge:
         else:
             self._dbg_fh = None
 
+    def _pump_serial_debug(self):
+        """Pull whatever the board has printed into the debug buffer.
+
+        _drain_debug only moves bytes the PROTOCOL's sync search discarded.
+        Anything the board printed while the PC was not mid-frame sits in the
+        OS serial buffer, and send_reset/send_image then call
+        reset_input_buffer() and throw it away -- which silently discarded
+        every [perc] diagnostic. Only safe in the fire-and-forget windows,
+        where no protocol reply is expected.
+        """
+        try:
+            n = self.serial.in_waiting
+            if n:
+                self._dbg_buf.extend(self.serial.read(n))
+        except Exception:
+            pass
+
     def _drain_debug(self):
         """Move any complete lines the board printed into the log file."""
         if self._dbg_fh is None:
@@ -163,6 +180,8 @@ class ESP32Bridge:
         self.serial.write(Protocol.encode_reset(self.seq_num))
         self.serial.flush()
         time.sleep(0.02)
+        self._pump_serial_debug()
+        self._drain_debug()
         self.serial.reset_input_buffer()
 
     def send_image(self, gray, T_world_cam, eef_pos, settle=2.0):
@@ -183,8 +202,18 @@ class ESP32Bridge:
         self.serial.write(Protocol.encode_image(roi, T_world_cam, eef_pos,
                                                self.seq_num))
         self.serial.flush()
-        time.sleep(settle)
-        self._drain_debug()
+        # Poll rather than one long sleep, so a slow detection is captured
+        # without waiting the full settle when it is fast.
+        deadline = time.time() + settle
+        while time.time() < deadline:
+            self._pump_serial_debug()
+            self._drain_debug()
+            if any("[perc]" in l for l in self.recent_lines[mark:]):
+                time.sleep(0.05)          # let the rest of the line land
+                self._pump_serial_debug()
+                self._drain_debug()
+                break
+            time.sleep(0.02)
         self.serial.reset_input_buffer()
         self.perc["sent"] += 1
 

@@ -122,14 +122,21 @@ static void at_perceive(const uint8_t *roi, const float *Twc,
   // The whole open question about this port is whether the detector fits in
   // internal SRAM. If it does not, the failure would otherwise be a silent
   // reboot mid-detection, which reads as a comms fault rather than as OOM.
-  image_u8_t *im = image_u8_create(AT_ROI_W, AT_ROI_H);
-  if(!im){
-    at_oom("image_u8_create");
-    return;
-  }
-  for(int y=0;y<AT_ROI_H;y++)
-    memcpy(im->buf + y*im->stride, roi + (size_t)y*AT_ROI_W, AT_ROI_W);
+  // Wrap the caller's buffer instead of copying it. image_u8_create would
+  // allocate a SECOND 42 KB frame and hold both live through the whole
+  // detection, on a board that reports only ~270 KB free.
+  //
+  // Safe because the detector never writes to its input at these settings:
+  // quad_decimate = 2 > 1, so apriltag.c takes the image_u8_decimate() branch
+  // and works on a fresh image, and quad_sigma = 0 skips the in-place blur
+  // and the in-place sharpen. Read-only, hence the cast.
+  // Positional, not designated: this header is included from the .ino and so
+  // compiles as C++, where designated initializers are a GNU extension.
+  // Fields are { width, height, stride, buf }.
+  image_u8_t imv = { AT_ROI_W, AT_ROI_H, AT_ROI_W, (uint8_t*) roi };
+  image_u8_t *im = &imv;
   zarray_t *dets = apriltag_detector_detect(at_td, im);
+  if(!dets){ at_oom("apriltag_detector_detect"); return; }
 
   apriltag_detection_t *d = NULL;
   for(int i=0;i<zarray_size(dets);i++){
@@ -138,7 +145,7 @@ static void at_perceive(const uint8_t *roi, const float *Twc,
     // occasional false ids. Take only the tag we placed.
     if(c->id == AT_TAG_ID){ d = c; break; }
   }
-  if(!d){ apriltag_detections_destroy(dets); image_u8_destroy(im); return; }
+  if(!d){ apriltag_detections_destroy(dets); return; }
 
   apriltag_detection_info_t info;
   info.det = d; info.tagsize = AT_TAGSIZE;
@@ -227,5 +234,5 @@ static void at_perceive(const uint8_t *roi, const float *Twc,
     out->ok = 1;
   }
   apriltag_detections_destroy(dets);
-  image_u8_destroy(im);
+  // no image_u8_destroy: imv wraps the caller's buffer and owns nothing
 }
