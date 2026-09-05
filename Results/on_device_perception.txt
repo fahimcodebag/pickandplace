@@ -8,7 +8,8 @@ END-TO-END TASK SUCCESS
 -----------------------
   route                                     seeds   ep    mean    median
   ground truth (ceiling)                      --    200   94.00%    --
-  ESP32 C detector + refit corrector          12    600   91.00%   91.00%  <-- deployment
+  ESP32 C detector, 222x193 (DOES NOT FIT)    12    600   91.00%   91.00%
+  ESP32 C detector, 210x181 (fits the board)  12    600   90.00%   90.00%  <-- deployment
   agentview 36h11 + corrector (EXTERNAL cam)  12    600   89.67%   90.00%
   wrist 16h5 OpenCV + corrector               12    600   87.67%   87.00%
   wrist 36h11 OpenCV + corrector              12    600   86.83%   87.00%
@@ -73,16 +74,45 @@ EQUIVALENCE CHECKS (desktop, before hardware)
   corrector_model.h through the sketch's own C, n=2281:
     20.47 -> 0.065 mm
 
-STILL OPEN -- NOT YET MEASURED ON HARDWARE
-------------------------------------------
-Everything above is desktop. Two numbers need a flash to settle:
+MEMORY -- SETTLED ON HARDWARE, AND IT DID NOT FIT AT FIRST
+----------------------------------------------------------
+The board reports, at the moment of detection:
+    free 276536 B, largest block 110580 B
+The 222x193 build needed more and PANICKED:
+    Guru Meditation Error: Core 1 panic'ed (StoreProhibited)
+    EXCVADDR: 0x00000c00
+-- a write through a NULL pointer at a small offset. Upstream apriltag
+never checks its mallocs, so out-of-memory is a panic rather than an error.
+The board then reboots, the PC re-syncs, and the episodes get scored on the
+ground-truth pose the PC sent. Perception failing SILENTLY and scoring
+19/20 is the trap; hil_main now reports what perception actually did, and
+says so loudly when the answer is nothing.
 
-1. MEMORY. Host peak is 340 KB including the frame, against ~320 KB free.
-   That is an x86-64 UPPER BOUND: the remaining pointer-bearing blocks
-   shrink on a 32-bit target, but there is no xtensa toolchain here so it
-   was not extrapolated. It may not fit. If it does not, the levers are a
-   tighter ROI (currently padded 12 px beyond an n=2186 bound) or capture at
-   160x120. The sketch prints free heap around the first detection.
+Three changes brought it inside the budget:
+    wrap the received frame instead of copying it       42 KB
+    AT_MIN_REGION 25 -> 60 (noise regions never
+      clustered, so their zarrays never allocated)      15 KB
+    crop 222x193 -> 210x181 @ (110,0)             24 + 5 KB
+Peak 283 -> 259 KB on the host; margin ~+14 -> ~+50 KB. Only 43 blocks are
+live at peak, so allocator overhead is negligible: the failure was total
+size, not fragmentation or per-block cost.
+
+A separate mismatch mattered as much: AT_CLUSTERMAP_FRAC and AT_MEM_CHUNK
+defaulted to upstream 0.2/2048 with the deployment values passed as
+"optional" -D flags, and the Arduino IDE cannot pass flags to a library.
+The DEVICE was building a 321 KB peak while every desktop figure was the
+298 KB flagged build. Deployment values are now the defaults.
+
+COST OF FITTING (12 seeds x 50 episodes, paired):
+    old ROI 222x193, region 25   91.00%
+    new ROI 210x181, region 60   90.00%
+    paired -1.00 pts, SE 0.76, 95% CI [-2.67, +0.67]  -- not significant
+Detection is unchanged upstream of the task too: 43/60 recorded frames
+either way, and 139/200 sim resets at 20.52 mm against 20.51 mm.
+
+So the deployment configuration is 90.0%, still above the external
+agentview camera (89.67%) and the OpenCV wrist path (87.67%), and 4 points
+under the ground-truth ceiling.
 
 2. TIME. The detector has never been timed on hardware. Inference is 0.26 ms
    and the corrector is trivial, but AprilTag quad detection on a 111x96
