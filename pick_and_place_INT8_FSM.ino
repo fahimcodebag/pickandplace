@@ -61,9 +61,11 @@
 // LoadProhibited (EXCCAUSE 0x1c) reading address 0x00000000, on some frames
 // and not others, at full free heap. That is a stack fault, not the
 // out-of-memory (StoreProhibited into a failed allocation) seen earlier.
-// Costs internal RAM, so it is not free -- but stack is the one budget this
-// port had never been given.
-SET_LOOP_TASK_STACK_SIZE(32 * 1024);
+// Costs internal RAM, so it is not free: 32 KB took so much from the heap
+// that the worst frames then ran OUT of heap, trading one fault for the
+// other. 16 KB is roughly twice the 8712 B measured on the host and leaves
+// the pool at ~212 KB against a ~187 KB worst-case frame.
+SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 
 // ── Dimensions ─────────────────────────────────────────────────────────────
 #define STATE_DIM  46

@@ -10,7 +10,8 @@ END-TO-END TASK SUCCESS
   ground truth (ceiling)                      --    200   94.00%    --
   ESP32 C detector, 222x193 (PANICS)          12    600   91.00%   91.00%
   ESP32 C detector, 210x181 (PANICS)          12    600   90.00%   91.00%
-  ESP32 C detector, 190x170 (fits)            12    600   89.17%   89.00%  <-- deployment
+  ESP32 C detector, 190x170                   12    600   89.17%   89.00%
+  ESP32 C detector, 180x160 (deployment)      12    600   90.67%   91.00%  <-- runs
   agentview 36h11 + corrector (EXTERNAL cam)  12    600   89.67%   90.00%
   wrist 16h5 OpenCV + corrector               12    600   87.67%   87.00%
   wrist 36h11 OpenCV + corrector              12    600   86.83%   87.00%
@@ -104,8 +105,45 @@ defaulted to upstream 0.2/2048 with the deployment values passed as
 The DEVICE was building a 321 KB peak while every desktop figure was the
 298 KB flagged build. Deployment values are now the defaults.
 
-THE REAL BUDGET IS 211 KB, NOT 281 KB
--------------------------------------
+TWO BUDGETS, AND THEY COMPETE
+-----------------------------
+HEAP: the pool that constrains the detector is MALLOC_CAP_8BIT, not
+getFreeHeap. getFreeHeap sums every cap including ~65 KB of
+32-bit-access-only IRAM that cannot back a uint8 image or a uint16
+unionfind array.
+
+STACK: at_perceive needs 8712 B, measured by running it on a painted 1 MB
+pthread stack. The Arduino loop task gets 8192 B. It overflowed, and how
+deep it goes depends on how many clusters a frame produces -- so the fault
+was intermittent and frame-dependent.
+
+The two compete, because SET_LOOP_TASK_STACK_SIZE takes its memory from
+the same heap. Raising it to 32 KB fixed the stack and then caused
+OUT-OF-MEMORY on the worst frames: the pool fell to 192.4 KB while the
+worst frame needs ~204 KB. Deployment uses 16 KB -- about twice the
+measured need -- with the ROI cut to 180x160 so the pool stays ~212 KB
+against a ~187 KB worst-case frame.
+
+BOTH panic signatures mean out-of-memory, which cost several diagnostic
+rounds to realise:
+  EXCCAUSE 0x1d StoreProhibited, EXCVADDR 0x0c00 -- WRITE into a failed
+    allocation (the init loop of a NULL buffer)
+  EXCCAUSE 0x1c LoadProhibited,  EXCVADDR 0x0000 -- READ of a failed
+    allocation
+Upstream apriltag never checks a malloc, so exhaustion is a panic and a
+reboot, and the PC then sees a comms blip while the episode silently falls
+back to its own ground-truth pose. at_perceive now refuses to start below
+AT_MIN_FREE and prints "[perc] SKIP", which the FSM handles as a normal
+no-detection.
+
+PER-FRAME PEAK IS A DISTRIBUTION, NOT A NUMBER (n=360 frames)
+  190x170  median 163.2  p99 187.3  MAX 192.0 KB   detect 69%
+  180x160  median 147.4  p99 172.0  MAX 176.5 KB   detect 67%
+  175x152  median 138.1  p99 161.3  MAX 169.9 KB   detect 62%
+A second frame set peaked 6% higher, so deployment is sized to ~1.06x MAX.
+
+THE HEAP FIGURE
+---------------
     [perc] start: getFreeHeap 281376 | 8BIT free 215940 largest 110580
 ESP.getFreeHeap() sums EVERY heap cap, including ~65 KB of
 32-bit-access-only IRAM that cannot back the uint8 images and uint16
@@ -117,9 +155,18 @@ COST OF FITTING (12 seeds x 50 episodes, paired on seed):
     222x193, region 25   91.00%   x86 peak 283 KB   PANICS
     210x181, region 60   90.00%   x86 peak 259 KB   PANICS
     190x170, region 60   89.17%   x86 peak 220 KB   fits, ~24 KB spare
-    190x170 vs 222x193: -1.83 pts, SE 0.67, 95% CI [-3.31, -0.35]
-      -- SIGNIFICANT. Fitting a plain ESP32 costs real accuracy.
-    190x170 vs 210x181: -0.83 pts, 95% CI [-2.89, +1.23], not significant
+    180x160 vs 222x193: -0.33 pts, SE 0.64, 95% CI [-1.75, +1.08]
+      -- NOT significant. Fitting the board costs nothing measurable.
+    180x160 vs 190x170: +1.50 pts, 95% CI [-0.39, +3.39]
+
+    RETRACTION: an earlier revision reported 190x170 as -1.83 pts vs
+    222x193 with a CI excluding zero, and concluded that fitting a plain
+    ESP32 costs real accuracy. The SMALLER 180x160 crop then scored HIGHER
+    (90.67%) than 190x170 (89.17%). Crop size is not monotonic with task
+    success in this range -- --detect-until-first retries across frames as
+    the arm moves, so a lower per-frame detection rate costs time rather
+    than episodes. The 190x170 dip was seed noise that happened to clear
+    the significance bar at n=12, and the claim built on it is withdrawn.
 Coverage of the n=2281 detection distribution falls 94.5% -> 91.3%, and
 sim detection 139/200 -> 135/200 at an unchanged 20.51 mm.
 Detection is unchanged upstream of the task too: 43/60 recorded frames

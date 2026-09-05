@@ -20,7 +20,7 @@ import numpy as np
 # is 32-bit-access-only IRAM that cannot back a byte array). Both 222x193 and
 # 210x181 panicked against that budget. 190x170 covers 91.3% of n=2281
 # detections against 94.5%, and leaves roughly 24 KB spare.
-ROI = (130, 0, 190, 170)    # x0, y0, w, h  within a 320x240 frame
+ROI = (140, 0, 180, 160)    # x0, y0, w, h  within a 320x240 frame
 DECIMATE = 2.0
 
 _LIB = os.path.join(os.path.dirname(os.path.abspath(__file__)),

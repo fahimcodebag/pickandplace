@@ -39,11 +39,17 @@
 #include <common/image_u8.h>
 #endif
 
-#define AT_ROI_W   190
-#define AT_ROI_H   170
-#define AT_ROI_X0  130
+#define AT_ROI_W   180
+#define AT_ROI_H   160
+#define AT_ROI_X0  140
 #define AT_ROI_Y0    0
 #define AT_TAG_ID    0
+
+// Refuse to start a detection below this much free MALLOC_CAP_8BIT. Measured
+// worst-case peak for this ROI over 360 frames, plus margin.
+#ifndef AT_MIN_FREE
+#define AT_MIN_FREE  (190u * 1024u)
+#endif
 
 // Wrist camera, 320x240, from robosuite's intrinsics. Full-frame pixels; the
 // principal point is shifted into crop coordinates at use.
@@ -118,6 +124,25 @@ static void at_perceive(const uint8_t *roi, const float *Twc,
                         const float *eef, at_result_t *out){
   out->ok = 0;
   at_perception_init();
+
+#ifdef ARDUINO
+  // Upstream apriltag never checks a malloc, so running out mid-detection is
+  // a panic (StoreProhibited writing into a failed allocation, or
+  // LoadProhibited reading one) followed by a reboot -- which the PC sees as
+  // a comms blip while the episode silently falls back to its own pose.
+  // Refusing up front turns that into a clean "no detection", which the FSM
+  // already handles. AT_MIN_FREE is the measured worst-case frame plus
+  // headroom, not a guess: see Results/on_device_perception.txt.
+  {
+    size_t f8 = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    if(f8 < AT_MIN_FREE){
+      Serial.printf("[perc] SKIP: only %u B free, need %u -- refusing rather "
+                    "than panicking mid-detection\n",
+                    (unsigned)f8, (unsigned)AT_MIN_FREE);
+      return;
+    }
+  }
+#endif
 
   // The whole open question about this port is whether the detector fits in
   // internal SRAM. If it does not, the failure would otherwise be a silent
