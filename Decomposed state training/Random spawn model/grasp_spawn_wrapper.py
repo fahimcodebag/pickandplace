@@ -184,7 +184,7 @@ def make_spawn_grasp_env(env_name="PickPlace", seed=None, render=False,
                          curriculum=True, level=None, static_spec=None,
                          require_lift=False, align_grip=False,
                          reward_v2=False, dense_align=False,
-                         builtin_reward=False):
+                         builtin_reward=False, object_type="bread"):
     """Create a robosuite env with grasp rewards + dynamic spawn control.
 
     The placement initializer is patched to read env._spawn_spec on every
@@ -208,7 +208,12 @@ def make_spawn_grasp_env(env_name="PickPlace", seed=None, render=False,
         reward_shaping=False,     # GraspRewardWrapper provides the reward
         control_freq=20,
         single_object_mode=2,
-        object_type="bread",
+        # Per-object policies: the 46-D observation carries NO shape or
+        # identity information (see Results/object_generalisation.txt), so one
+        # policy cannot serve four objects -- it cannot tell them apart. The
+        # deployment answer is one policy per object, selected by the AprilTag
+        # id, which perception already decodes and was otherwise discarding.
+        object_type=object_type,
     )
 
     # Dynamic spawn patch: honors env._spawn_spec, which the curriculum

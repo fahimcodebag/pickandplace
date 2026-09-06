@@ -80,7 +80,7 @@ def _rterm_cols(inf):
 
 def _worker(remote, parent_remote, env_name, seed, spawn_level,
             require_lift=False, align_grip=False, reward_v2=False,
-            dense_align=False, builtin_reward=False):
+            dense_align=False, builtin_reward=False, object_type="bread"):
     parent_remote.close()
     env = GraspDiagnosticsWrapper(
         make_spawn_grasp_env(env_name, seed=seed, curriculum=False,
@@ -89,6 +89,7 @@ def _worker(remote, parent_remote, env_name, seed, spawn_level,
                              reward_v2=reward_v2,
                              dense_align=dense_align,
                              builtin_reward=builtin_reward,
+                             object_type=object_type,
                              level=spawn_level))
     while True:
         try:
@@ -113,7 +114,8 @@ def _worker(remote, parent_remote, env_name, seed, spawn_level,
 class SubprocVecEnv:
     def __init__(self, env_name, n_envs, spawn_level, seed0=0,
                  require_lift=False, align_grip=False, reward_v2=False,
-                 dense_align=False, builtin_reward=False):
+                 dense_align=False, builtin_reward=False,
+                 object_type="bread"):
         self.n_envs = n_envs
         self.closed = False
         ctx = mp.get_context("fork")
@@ -125,7 +127,7 @@ class SubprocVecEnv:
             p = ctx.Process(target=_worker,
                             args=(wr, r, env_name, seed0 + i, spawn_level,
                                   require_lift, align_grip, reward_v2,
-                                  dense_align, builtin_reward),
+                                  dense_align, builtin_reward, object_type),
                             daemon=True)
             p.start()
             wr.close()
@@ -291,7 +293,8 @@ def train(args):
                             align_grip=args.align_grip,
                             reward_v2=args.reward_v2,
                             dense_align=args.dense_align,
-                            builtin_reward=args.builtin_reward)
+                            builtin_reward=args.builtin_reward,
+                            object_type=args.object_type)
     agent = build_agent(args.algo, vec_env, chkpt_dir, args)
     # Weight-range regularisation for per-tensor INT8. See td3.Agent.
     # _clip_actor_weights: max/std IS the quantisation cost under one scale per
@@ -551,6 +554,12 @@ def parse_args(argv=None):
     p.add_argument("--episodes", type=int, default=10000)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--tag", default="phaseA")
+    p.add_argument("--object-type", default="bread",
+                   choices=["bread", "cereal", "can", "milk"],
+                   help="which PickPlace object to train on. The 46-D "
+                        "observation carries no shape or identity, so one "
+                        "policy cannot serve several objects -- train one "
+                        "each and select by AprilTag id at deployment.")
     p.add_argument("--spawn-level", type=float, default=1.0,
                    help="1.0 = full position box (Phase A); 2.0 = + rotation")
     p.add_argument("--updates-per-step", type=int, default=None,
