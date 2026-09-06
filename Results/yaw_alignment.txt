@@ -1,0 +1,50 @@
+DOES THE GRASP POLICY ALIGN GRIPPER YAW TO THE OBJECT?
+======================================================
+Model: checkpoints/td3_grasp_rand_td3_ln_c2m512_s1/best
+6 seeds x 50 episodes = 300 grasps, random spawn (includes z-rotation).
+Alignment error sampled at the moment _check_grasp first returns true, folded
+into [-45,45] deg because parallel jaws are symmetric under 90 deg:
+0 deg = jaws square to the object's faces, 45 deg = jaws on its corners.
+
+  |alignment error|  median 20.0   mean 20.9   p90 40.0   max 44.6 deg
+  a policy that IGNORES yaw gives mean 22.5 (uniform over 0-45)
+
+  histogram   0-9   9-18  18-27 27-36 36-45
+               76    59    57    57    51
+  chi2 vs uniform = 5.9 on 4 df (9.49 = p0.05) -> consistent with uniform
+
+THE POLICY DOES NOT ALIGN YAW. The distribution is statistically
+indistinguishable from ignoring object yaw entirely. There is a mild excess
+in the 0-9 deg bin (76 against 60 expected) but it does not reach
+significance at n=300.
+
+WHY THIS MATTERS
+The task geometry says yaw should not affect REACHABILITY: the bread is
+44x48 mm, diagonal 65 mm, inside the Panda's ~80 mm opening at any yaw. It
+should affect GRIP QUALITY -- jaws on two flat faces have a large contact
+patch, jaws on opposite corners have almost none. The policy nevertheless
+grasps at ~95%, so either grip quality matters less than expected for a
+near-cubic object, or the remaining failures are concentrated in the
+misaligned tail and nobody has looked.
+
+It also means the old 28% collapse under a flipped pose (apriltag_sim.py,
+the reason the upright prior exists) was NOT caused by losing yaw alignment
+-- there is none to lose. The likelier cause is the wrong quaternion pushing
+the actor off its training distribution, or corrupting obj_to_eef_quat.
+
+NOT MEASURED: whether misalignment predicts the mid-carry drops. Two
+attempts failed. The first counted a single ungrasped frame as a drop, which
+_check_grasp's flicker turns into ~80% nonsense. The second used the FSM's
+own 5-consecutive-frame rule and still reported 83%, because the harness
+drives the grasp policy ALONE with no FSM: after the grasp nothing takes
+over, so the policy acts past its job and releases. That question needs the
+full FSM loop (fsm_sim.py) and is still open.
+
+FOLLOW-UPS THIS OPENS
+  - An explicit yaw-alignment step before closing, in the FSM, is cheap and
+    currently unexploited. Whether it helps depends on the drop question
+    above.
+  - Since yaw is not used, feeding a CONSTANT canonical quaternion in place
+    of the detected one may cost nothing -- which would remove the two-fold
+    ambiguity disambiguation, the upright prior, and let the ~33% of
+    detections that min_up currently rejects be accepted instead.
