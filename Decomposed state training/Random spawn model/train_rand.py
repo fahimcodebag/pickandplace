@@ -311,8 +311,11 @@ def train(args):
         print(f"  Actor weight clip   : |w| <= {args.actor_wclip} * std(w) "
               f"per Linear tensor (bi_s0 baseline fc1 9.96 / fc2 10.82)")
 
-    status = warm_start(agent, args.algo, chkpt_dir, source_dir,
-                        actor_only=args.warm_start_actor_only)
+    if args.cold_start:
+        status = "cold"
+    else:
+        status = warm_start(agent, args.algo, chkpt_dir, source_dir,
+                            actor_only=args.warm_start_actor_only)
     print(f"Init: {status} (source: {source_dir})")
     if status != "scratch" and args.algo in ("td3", "td3_ln", "sac"):
         # A competent actor exists: skip random-action warmup, which would
@@ -579,6 +582,14 @@ def parse_args(argv=None):
     p.add_argument("--rollout-steps", type=int, default=512, help="PPO only")
     p.add_argument("--ppo-epochs", type=int, default=10, help="PPO only")
     p.add_argument("--target-success", type=float, default=0.85)
+    p.add_argument("--cold-start", action="store_true",
+                   help="skip warm starting entirely. --warm-start-from has a "
+                        "non-empty DEFAULT, so omitting it does NOT cold start "
+                        "-- it silently seeds from an old bread actor, whose "
+                        "64/32 critics also clash with a 512/256 critic. Needed "
+                        "for a new object: the bread policy sits in the basin "
+                        "that ignores yaw (Results/yaw_alignment.txt), which is "
+                        "the one thing cereal requires.")
     p.add_argument("--warm-start-from",
                    default="checkpoints/td3_grasp_rand_best_0355_backup",
                    help="checkpoint dir to seed the actor from. Default is the "

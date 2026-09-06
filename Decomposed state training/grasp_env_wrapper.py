@@ -224,6 +224,22 @@ class GraspRewardWrapper:
         self._grasp_hold_count = 0
         self._step_count = 0
         self._rterms = self._new_rterms()
+        # _GRIP_RANGE gates the "close the gripper" reward on distance to the
+        # object's CENTRE, and 0.06 was set for bread, whose centre is 24.8 mm
+        # below its top face. Cereal's centre is 75 mm down and milk's is 79 --
+        # both beyond the gate -- so on those objects the term never fires and
+        # a 55k-episode run trains against a silently dead reward. Scale it to
+        # the object instead, keeping bread's value as the floor so every
+        # result recorded before this stays reproducible.
+        self._grip_range = self._GRIP_RANGE
+        try:
+            m = self._rs_env.sim.model
+            bid = m.body_name2id(self._rs_env.objects[self._rs_env.object_id].root_body)
+            half = max(m.geom_size[g][:3].max()
+                       for g in range(m.ngeom) if m.geom_bodyid[g] == bid)
+            self._grip_range = max(self._GRIP_RANGE, float(half) + 0.02)
+        except Exception:
+            pass
 
     def _new_rterms(self):
         return {"reach": 0.0, "grip_close": 0.0, "idle": 0.0, "drop": 0.0,
@@ -480,7 +496,7 @@ class GraspRewardWrapper:
         r += _v; t["reach"] += _v
 
         # ---- Stage 2: Encourage gripper closing when very close ------------
-        if d_reach < self._GRIP_RANGE:
+        if d_reach < self._grip_range:
             aperture = self._gripper_aperture(obs_dict)
             _v = self.W_GRIP_CLOSE * (1.0 - aperture)  # reward closing
             r += _v; t["grip_close"] += _v
