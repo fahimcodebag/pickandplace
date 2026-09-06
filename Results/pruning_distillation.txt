@@ -1,0 +1,69 @@
+PRUNING AND DISTILLATION OF THE GRASP ACTOR
+===========================================
+Teacher: checkpoints/td3_grasp_rand_td3_ln_c2m512_s1/best, 64x32, 5,319
+params. Task success measured through the full FSM, --regrasp --rc-steps 60,
+random spawn, bread, 3 seeds x 50 episodes per cell (teacher: 6 seeds).
+
+SCOPE FIRST, SO THE NUMBERS ARE NOT OVERSOLD
+The grasp actor is 5.2 KB as INT8. The AprilTag detector needs 177 KB of
+RAM. Compressing the policy CANNOT relieve the memory pressure this project
+actually has -- it could not even fund the ~22 KB that restoring
+bits_corrected=1 would need, because the actor lives in flash and the
+detector's cost is heap. This is a compression study, not a deployment
+optimisation.
+
+STRUCTURED, NOT MASKED
+Pruning here removes whole hidden units and produces a smaller dense
+network. Unstructured magnitude masking saves nothing on this target:
+TFLite Micro has no sparse kernels, so the zeros still occupy the tensor.
+
+PRUNING ALONE DOES NOT SURVIVE
+Mean |action error| against the teacher on a [-1,1] action range,
+immediately after removing units, with no retraining:
+    48x24  0.5090     24x12  0.6288
+    32x16  0.6388     16x8   0.6276     12x6  0.7782
+Recovery training is not optional; it is the method.
+
+DISTILLATION (60,000 teacher-visited states, 60 epochs)
+States come from teacher rollouts through the deployed FSM, not from random
+sampling: the visited manifold is a vanishing fraction of a 46-D space.
+
+  size    params   INT8    action err          task success
+                           pruned  random    pruned    random
+  64x32    5,319  5.2 KB     --      --      95.67%      --    (teacher)
+  48x24    3,607  3.5 KB   0.0685  0.1255    90.67%    80.00%
+  32x16    2,151  2.1 KB   0.1262  0.1487    83.33%    57.33%
+  24x12    1,519  1.5 KB   0.1506  0.1724    66.00%    16.67%
+  16x8       951  0.9 KB   0.2194  0.1998     4.00%     2.00%
+
+PRUNED INITIALISATION IS WORTH A LOT, AND MORE THAN FIDELITY SUGGESTS
+At every size above the smallest, starting from the pruned teacher beats
+random init. The gap in ACTION ERROR looks modest (0.126 vs 0.149 at
+32x16); the gap in TASK SUCCESS is 26 points. At 24x12 it is 49 points
+against an action-error gap of 0.02.
+
+That divergence is the most useful thing here. Mean action error is a poor
+proxy for task success: a small average error concentrated at the moments
+that matter -- the approach and the closure -- costs far more than a larger
+error spread over the trajectory. Compression work that selects on
+fidelity alone will pick the wrong model.
+
+At 16x8 the ordering reverses (random 0.1998 beats pruned 0.2194) and both
+collapse to ~3%. Once 82% of the units are gone the inherited structure is
+a constraint rather than a head start, and neither network has the capacity
+for the task at all.
+
+WHERE THE CLIFF IS
+  48x24 (68% of params) costs 5 points -- a reasonable trade.
+  32x16 (40%) costs 12.
+  24x12 (29%) costs 30.
+  16x8  (18%) is not a policy.
+So roughly a third of the parameters can go for ~12 points, and below a
+quarter the task is lost. The teacher was already small; there was not much
+redundancy to find.
+
+WHAT THIS IS ACTUALLY USEFUL FOR
+Not saving RAM. The per-object deployment (Results/object_generalisation.txt
+-- one policy per object, selected by AprilTag id) needs FOUR actors instead
+of one. At 5.2 KB each that is ~21 KB of flash; at 48x24 distilled it is
+~14 KB for about 5 points per object. That is the trade this study informs.
