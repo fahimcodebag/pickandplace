@@ -133,7 +133,25 @@ class FSM:
         a[0] = np.clip(CARRY_GAIN * (BIN_X - s[OBJ_X]), -CARRY_CLIP, CARRY_CLIP)
         a[1] = np.clip(CARRY_GAIN * (BIN_Y - s[OBJ_Y]), -CARRY_CLIP, CARRY_CLIP)
 
+    # Ablation of the ORIENTATION half of what perception supplies. Of the 14
+    # object dims in the 46-D observation, 6 come from the object's position
+    # (obj_pos, obj_to_eef_pos) and 8 from its orientation (obj_quat at 3:7,
+    # obj_to_eef_quat at 10:14). Replacing the orientation dims with a
+    # constant identity quaternion asks whether the policy needs perception to
+    # estimate orientation at all, or only position.
+    ablate_quat = None        # None | "obj" | "both"
+
+    def _ablate(self, s):
+        if not self.ablate_quat:
+            return s
+        s = np.array(s, dtype=np.float32, copy=True)
+        s[3:7] = (0.0, 0.0, 0.0, 1.0)                  # obj_quat -> identity
+        if self.ablate_quat == "both":
+            s[10:14] = (0.0, 0.0, 0.0, 1.0)            # obj_to_eef_quat
+        return s
+
     def step(self, s, grasped, placed, grasp_actor, place_actor):
+        s = self._ablate(s)
         a = np.zeros(7, dtype=np.float32)
         p = self.phase
         if p == GRASP:
@@ -251,6 +269,13 @@ def main():
     p.add_argument("--grasp-ckpt", required=True)
     p.add_argument("--place-ckpt", required=True)
     p.add_argument("--episodes", type=int, default=100)
+    p.add_argument("--ablate-quat", default=None, choices=["obj","both"],
+
+                   help="replace the orientation dims perception supplies with an "
+
+                        "identity quaternion: obj = obj_quat only, both = also "
+
+                        "obj_to_eef_quat")
     p.add_argument("--seed", type=int, default=7)
     p.add_argument("--fixed-spawn", action="store_true",
                    help="Match hil_main.py's fixed pose. Default is native "
@@ -417,6 +442,7 @@ def main():
             fsm.regrasp_enabled = a.regrasp
             fsm.unjam_enabled = a.unjam
             fsm.pose_gate_enabled = a.pose_gate
+            fsm.ablate_quat = a.ablate_quat
             for _ in range(GRASP_CAP + TL_STEPS + 5):
                 gr, pl = flags()
                 act = fsm.step(np.asarray(obs, dtype=np.float32), gr, pl,

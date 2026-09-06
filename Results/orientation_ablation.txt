@@ -1,0 +1,60 @@
+WHAT DOES PERCEPTION'S ORIENTATION HALF ACTUALLY DO?
+====================================================
+Of the 46 observation dims, perception supplies 14 (the rest is
+proprioception the robot has without any camera):
+    obj_pos           [0:3]    from the object's POSITION
+    obj_quat          [3:7]    from its ORIENTATION
+    obj_to_eef_pos    [7:10]   position, in the gripper frame
+    obj_to_eef_quat  [10:14]   orientation, in the gripper frame
+
+Ablation: replace the orientation dims with an identity quaternion and
+re-run the full FSM. 6 seeds x 50 episodes, random spawn, --regrasp
+--rc-steps 60, grasp c2m512_s1/best, place td3_place/best.
+
+  configuration                              mean     paired vs baseline
+  baseline (true orientation)               95.67%    --
+  obj_quat -> identity                      94.67%    -1.00 pts,
+                                                      95% CI [-6.59, +4.59]
+  obj_quat AND obj_to_eef_quat -> identity  11.33%   -84.33 pts,
+                                                      95% CI [-90.89, -77.78]
+
+THE SPLIT IS SHARP. The object's orientation in the WORLD frame is worth
+about a point -- indistinguishable from noise. Its orientation in the
+GRIPPER frame is essential: remove it and the task collapses to 11%.
+
+That reconciles two results that looked contradictory. The yaw diagnostic
+(Results/yaw_alignment.txt) found the policy does NOT align jaws to the
+object -- alignment error is uniform, mean 20.9 deg against 22.5 for
+ignoring yaw entirely. So the policy does not use orientation as a target
+to null out. But obj_to_eef_quat is a RELATIVE quantity, and the policy
+leans on it as a servoing signal: how am I oriented with respect to the
+thing. Not aligning is not the same as not looking.
+
+It also explains the 28% collapse under a flipped pose (apriltag_sim.py,
+the reason the upright prior exists): a flipped pose corrupts the RELATIVE
+block, not only the absolute one.
+
+WHAT THIS MEANS FOR PERCEPTION
+  - Position alone is NOT sufficient. The two-fold ambiguity
+    disambiguation and the upright prior stay justified, now on a
+    measurement against a healthy baseline rather than an anecdote.
+  - min_up's rejections cannot be relaxed to raise the detection rate.
+  - But absolute world orientation is nearly free, so what perception must
+    get right is orientation RELATIVE to the gripper -- a weaker
+    requirement than full 6-DOF pose for a near-cubic object.
+  - A toppled tag stays a real failure: losing the detection loses the
+    relative block too.
+
+METHOD WARNING -- THIS ABLATION WAS RUN THREE TIMES
+The first two had broken baselines and gave the OPPOSITE conclusion for
+obj_quat:
+    baseline 57.67%  (missing --regrasp --rc-steps 60)  obj_quat -12.00 pts
+    baseline 59.00%  (--place-ckpt pointed at the parent directory, so
+                      load_actor silently took td3_place/actor_td3 instead
+                      of td3_place/best/actor_td3)      obj_quat -11.33 pts
+    baseline 95.67%  (correct)                          obj_quat  -1.00 pts
+A degraded control has no slack, so every perturbation looks catastrophic
+and an ablation reads as significant when it is not. An ablation is only
+interpretable against a control that matches the deployed system, and
+fsm_sim accepts a checkpoint directory that LOOKS valid while quietly
+loading a weaker policy.
