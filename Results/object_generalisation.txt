@@ -1,0 +1,51 @@
+ZERO-SHOT GENERALISATION TO UNSEEN OBJECTS
+==========================================
+The grasp and place policies were trained on BREAD only
+(single_object_mode=2, object_type="bread"). Here they are run unchanged on
+the other three PickPlace objects. 6 seeds x 50 episodes each, random spawn,
+full FSM, --regrasp --rc-steps 60, ground-truth pose (no perception).
+
+  object   dims (mm)     aspect      mean    median   vs bread (paired)
+  bread    40x48x50      1:1.2:1.2  95.67%   96.00%   --
+  can      50x50x81      1:1:1.6    71.67%   71.00%   -24.00, CI [-32.4,-15.6]
+  milk     40x40x158     1:1:4.0    44.00%   45.00%   -51.67, CI [-66.4,-37.0]
+  cereal   30x100x150    1:3.3:5.0  27.00%   25.00%   -68.67, CI [-75.9,-61.4]
+
+All three drops are significant. The policy does NOT transfer zero-shot.
+
+THE ORDERING IS THE RESULT, AND IT IS NOT ABOUT SIZE
+Success tracks how far the object departs from bread's near-cubic shape,
+not how big it is:
+  can     aspect 1:1:1.6  -> 71.7%   (isotropic in the horizontal plane)
+  milk    aspect 1:1:4.0  -> 44.0%   (isotropic horizontally, but tall)
+  cereal  aspect 1:3.3:5  -> 27.0%   (flat slab: 100 and 150 mm both EXCEED
+                                      the ~80 mm jaw opening, so only the
+                                      30 mm axis can be grasped at all)
+Can and milk share a circular/square horizontal cross-section, so any
+approach yaw works, and they lose 24 and 52 points. Cereal has exactly one
+graspable axis and loses 69.
+
+This is the prediction the orientation ablation makes
+(Results/orientation_ablation.txt): the policy leans on obj_to_eef_quat, the
+object's orientation IN THE GRIPPER FRAME, but the yaw diagnostic
+(Results/yaw_alignment.txt) shows it never learned to ALIGN the jaws --
+alignment error is uniform, mean 20.9 deg against 22.5 for ignoring yaw
+entirely. On a near-cube that costs nothing, because every yaw presents an
+equivalent face. On cereal it is fatal, because only one yaw works.
+
+So the three results are one story: the policy learned a grasp that is
+correct for an object where orientation does not matter, and it has no
+alignment behaviour to fall back on when it does.
+
+WHAT THIS MEANS
+  - The 95.67% headline is a BREAD number. It should be reported as such.
+  - Retraining per object, or multi-object training, is required for any
+    generalisation claim. Nothing here supports one.
+  - Cereal is the useful benchmark for future work: it is the case where
+    yaw alignment is forced, so it would show immediately whether an
+    explicit alignment step, or a policy trained with orientation-varied
+    objects, actually works.
+  - Perception was NOT involved (ground-truth pose throughout), so these
+    numbers isolate the POLICY's generalisation. Adding the tag pipeline
+    would require per-object tag geometry and a corrector refit, and would
+    only lower them further.

@@ -25,6 +25,9 @@ OBJ_X, OBJ_Y, OBJ_Z = 0, 1, 2
 # Object centre in the GRIPPER frame, straight out of the observation vector
 # (verified identical to R_eef^T (obj_pos - eef_pos)). Available on-device.
 OFF_X, OFF_Y, OFF_Z = 7, 8, 9
+# Bread's target bin. PickPlace gives every object its OWN bin, so these are
+# overwritten from the environment in main() -- hardcoding them would carry
+# cereal, can and milk to bread's bin and score every episode a failure.
 BIN_X, BIN_Y, BIN_Z = 0.1975, 0.1575, 0.80
 # Rule-layer values re-tuned for RANDOM spawn; these MIRROR
 # pick_and_place_INT8_FSM.ino. Keep the two in sync -- a default here that does
@@ -269,6 +272,11 @@ def main():
     p.add_argument("--grasp-ckpt", required=True)
     p.add_argument("--place-ckpt", required=True)
     p.add_argument("--episodes", type=int, default=100)
+    p.add_argument("--object-type", default="bread",
+                   choices=["bread", "cereal", "can", "milk"],
+                   help="the policies were trained on bread; the others are a "
+                        "zero-shot generalisation test. The target bin differs "
+                        "per object and is read from the env, not hardcoded.")
     p.add_argument("--ablate-quat", default=None, choices=["obj","both"],
 
                    help="replace the orientation dims perception supplies with an "
@@ -365,7 +373,14 @@ def main():
                          default_controller="OSC_POSE"),
                      has_renderer=False, has_offscreen_renderer=False,
                      use_camera_obs=False, horizon=700, reward_shaping=True,
-                     control_freq=20, single_object_mode=2, object_type="bread")
+                     control_freq=20, single_object_mode=2,
+                     object_type=a.object_type)
+    raw.reset()
+    global BIN_X, BIN_Y, BIN_Z
+    _tb = raw.target_bin_placements[raw.object_id]
+    BIN_X, BIN_Y, BIN_Z = float(_tb[0]), float(_tb[1]), float(_tb[2])
+    print(f"object {a.object_type!r} (id {raw.object_id}) -> bin "
+          f"({BIN_X:.4f}, {BIN_Y:.4f}, {BIN_Z:.4f})", flush=True)
     if a.fixed_spawn:
         _orig = raw._get_placement_initializer
 
