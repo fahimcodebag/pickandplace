@@ -210,8 +210,13 @@ def warm_start(agent, algo, chkpt_dir, source_dir, actor_only=False):
         try:
             agent.load_models()
             return "resumed"
-        except Exception:
-            pass
+        except Exception as e:
+            # Was a bare "except: pass". After a power cut this silently
+            # discarded 13k-24k trained episodes and restarted from the
+            # source checkpoint, reporting "warm-started" as if nothing had
+            # happened. If a resume fails, say why.
+            print(f"  RESUME FAILED from {chkpt_dir}: {type(e).__name__}: {e}",
+                  flush=True)
     src = os.path.join(source_dir, "actor_td3")
     if not os.path.exists(src):
         return "scratch"
@@ -312,7 +317,19 @@ def train(args):
               f"per Linear tensor (bi_s0 baseline fc1 9.96 / fc2 10.82)")
 
     if args.cold_start:
-        status = "cold"
+        # "Cold" means do not seed from source_dir. It must NOT disable
+        # RESUMING this run's own checkpoint -- warm_start's first branch is
+        # the resume path, so bypassing the whole function would restart from
+        # zero after a power cut and silently discard the episodes already
+        # trained.
+        if os.path.exists(os.path.join(chkpt_dir, "actor_td3")):
+            try:
+                agent.load_models()
+                status = "resumed (cold run)"
+            except Exception:
+                status = "cold"
+        else:
+            status = "cold"
     else:
         status = warm_start(agent, args.algo, chkpt_dir, source_dir,
                             actor_only=args.warm_start_actor_only)
