@@ -48,7 +48,11 @@ class GraspRewardWrapper:
 
     # --- termination ---
     N_GRASP_HOLD    = 5      # consecutive grasp-confirmed steps for success
-    GRASP_HORIZON   = 200    # max steps per episode (shorter than full task)
+    # Max steps per episode. 200 was set for bread; measured on cereal, the
+    # SLOWEST success takes 40 steps (median 26, p95 32, n=42), so everything
+    # past ~40 is failure tail that costs simulation and fills the buffer with
+    # timeout transitions. Overridable per run -- see --grasp-horizon.
+    GRASP_HORIZON   = 200
 
     # --- lift certification (require_lift=True) -----------------------------
     # The bare N_GRASP_HOLD criterion certifies momentary contact, not a grip
@@ -323,9 +327,17 @@ class GraspRewardWrapper:
             else:
                 info["grasp_success"] = True
 
-        # Timeout
+        # Timeout. done=True ends the episode, but this is a TIME LIMIT, not
+        # a real terminal state -- the world does not stop existing at the
+        # horizon. TD3's target is r + gamma*(1-done)*Q', so storing it as
+        # terminal teaches the critic that value collapses at the horizon.
+        # info["truncated"] lets the trainer store done=False for the buffer
+        # while still resetting the episode. The bias was mild at horizon 200
+        # where ~98% of bread episodes ended on a true success; it matters as
+        # soon as the horizon is shortened and timeouts become common.
         if self._step_count >= self.GRASP_HORIZON:
             done = True
+            info["truncated"] = True
             if "grasp_success" not in info:
                 info["grasp_success"] = False
 

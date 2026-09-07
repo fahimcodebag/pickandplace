@@ -80,7 +80,8 @@ def _rterm_cols(inf):
 
 def _worker(remote, parent_remote, env_name, seed, spawn_level,
             require_lift=False, align_grip=False, reward_v2=False,
-            dense_align=False, builtin_reward=False, object_type="bread"):
+            dense_align=False, builtin_reward=False, object_type="bread",
+            grasp_horizon=None):
     parent_remote.close()
     env = GraspDiagnosticsWrapper(
         make_spawn_grasp_env(env_name, seed=seed, curriculum=False,
@@ -90,6 +91,7 @@ def _worker(remote, parent_remote, env_name, seed, spawn_level,
                              dense_align=dense_align,
                              builtin_reward=builtin_reward,
                              object_type=object_type,
+                             grasp_horizon=grasp_horizon,
                              level=spawn_level))
     while True:
         try:
@@ -115,7 +117,7 @@ class SubprocVecEnv:
     def __init__(self, env_name, n_envs, spawn_level, seed0=0,
                  require_lift=False, align_grip=False, reward_v2=False,
                  dense_align=False, builtin_reward=False,
-                 object_type="bread"):
+                 object_type="bread", grasp_horizon=None):
         self.n_envs = n_envs
         self.closed = False
         ctx = mp.get_context("fork")
@@ -127,7 +129,8 @@ class SubprocVecEnv:
             p = ctx.Process(target=_worker,
                             args=(wr, r, env_name, seed0 + i, spawn_level,
                                   require_lift, align_grip, reward_v2,
-                                  dense_align, builtin_reward, object_type),
+                                  dense_align, builtin_reward, object_type,
+                                  grasp_horizon),
                             daemon=True)
             p.start()
             wr.close()
@@ -299,7 +302,8 @@ def train(args):
                             reward_v2=args.reward_v2,
                             dense_align=args.dense_align,
                             builtin_reward=args.builtin_reward,
-                            object_type=args.object_type)
+                            object_type=args.object_type,
+                            grasp_horizon=args.grasp_horizon)
     agent = build_agent(args.algo, vec_env, chkpt_dir, args)
     # Weight-range regularisation for per-tensor INT8. See td3.Agent.
     # _clip_actor_weights: max/std IS the quantisation cost under one scale per
@@ -405,12 +409,20 @@ def train(args):
         for i in range(args.n_envs):
             ep_scores[i] += rewards[i]
             ep_steps[i] += 1
+            # A horizon timeout ends the EPISODE but is not a terminal STATE.
+            # TD3's target is r + gamma*(1-done)*Q', so storing a truncation
+            # as terminal teaches the critic that value collapses at the
+            # horizon. Store done=False for it and let the episode still
+            # reset. Mild at horizon 200, where ~98% of bread episodes ended
+            # on a real success; it matters as soon as the horizon is short
+            # enough for timeouts to be common.
+            store_done = bool(dones[i]) and not infos[i].get("truncated", False)
             if args.algo == "ppo":
                 agent.remember(observations[i], actions[i], rewards[i],
-                               next_observations[i], dones[i], env_idx=i)
+                               next_observations[i], store_done, env_idx=i)
             else:
                 agent.remember(observations[i], actions[i], rewards[i],
-                               next_observations[i], dones[i])
+                               next_observations[i], store_done)
 
             if not dones[i]:
                 continue
@@ -599,6 +611,14 @@ def parse_args(argv=None):
     p.add_argument("--rollout-steps", type=int, default=512, help="PPO only")
     p.add_argument("--ppo-epochs", type=int, default=10, help="PPO only")
     p.add_argument("--target-success", type=float, default=0.85)
+    p.add_argument("--grasp-horizon", type=int, default=None,
+                   help="max steps per grasp episode (wrapper default 200). "
+                        "Measured on cereal, the slowest success takes 40 "
+                        "steps (median 26, p95 32), so 200 spends ~3x the "
+                        "simulation on failure tails. Pair with the "
+                        "truncation fix: a shorter horizon makes timeout "
+                        "transitions common, and storing them as terminal "
+                        "biases the critic.")
     p.add_argument("--cold-start", action="store_true",
                    help="skip warm starting entirely. --warm-start-from has a "
                         "non-empty DEFAULT, so omitting it does NOT cold start "
