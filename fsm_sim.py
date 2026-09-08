@@ -41,6 +41,9 @@ CARRY_GAIN, CARRY_CLIP = 6.0, 0.5
 # Fix C is ADOPTED, so 60 is the default rather than a flag. Every eval in
 # Results/ passed --rc-steps 60 explicitly, so no measured number changes.
 RC_STEPS, RC_TOL = 60, 0.03
+# Height to carry at, for --scripted-transport. Bin rim is BIN_Z=0.80; this
+# clears it without the 1.1-2.0 m the open-loop lift produces.
+CARRY_Z = 0.95
 DS_STEPS, DS_DZ, TOUCH_MARGIN = 30, -0.12, 0.02
 OP_STEPS, RT_STEPS, RT_DZ = 8, 12, 0.3
 MAX_GRASP_ATTEMPTS = 8            # hil_main.py
@@ -101,6 +104,7 @@ class FSM:
         self.tr_steps = self.over_bin = self.ph_steps = 0
         self.prev_z = 1e9
         self.lost = self.regrasps = 0
+        self.scripted_transport = False
         self.regrasp_enabled = False
         self.jam_buf = []
         self.unjams = self.unjam_left = 0
@@ -199,11 +203,25 @@ class FSM:
                 else:
                     self.phase, self.grasp_hold = GRASP, 0
         elif p == TRANSPORT:
-            with T.no_grad():
-                a[:] = place_actor(T.tensor(s, dtype=T.float).unsqueeze(0)).squeeze(0).numpy()
-            if not KEEP_ROTATION:
+            if self.scripted_transport:
+                # P control straight to the bin, plus a HEIGHT TARGET. The
+                # learned place actor was trained on bread; on cereal it
+                # carries the box for the full 300-step horizon without ever
+                # closing to NEAR_TARGET_XY (measured: min_xy 0.196-0.433
+                # against a 0.18 threshold, grip intact throughout). It also
+                # lifts to 1.1-2.0 m for a bin at 0.80, because TEST_LIFT is
+                # open-loop (+0.5 for 20 steps) and nothing commands z back
+                # down until DESCEND.
+                self.p_xy_to_bin(s, a)
+                a[2] = np.clip(CARRY_GAIN * (CARRY_Z - s[OBJ_Z]),
+                               -CARRY_CLIP, CARRY_CLIP)
                 a[3:6] = 0.0
-            a[0:3] *= TRANSLATE_SCALE
+            else:
+                with T.no_grad():
+                    a[:] = place_actor(T.tensor(s, dtype=T.float).unsqueeze(0)).squeeze(0).numpy()
+                if not KEEP_ROTATION:
+                    a[3:6] = 0.0
+                a[0:3] *= TRANSLATE_SCALE
             a[6] = 1.0
             self.tr_steps += 1
             if self.unjam_enabled:
@@ -272,6 +290,22 @@ def main():
     p.add_argument("--grasp-ckpt", required=True)
     p.add_argument("--place-ckpt", required=True)
     p.add_argument("--episodes", type=int, default=100)
+    p.add_argument("--carry-z", type=float, default=None,
+                   help="height target for --scripted-transport (default 0.95)")
+    p.add_argument("--scripted-transport", action="store_true",
+                   help="carry with P control to the bin plus a height "
+                        "target, instead of the learned place actor. The "
+                        "place actor is bread-trained and does not transfer.")
+    p.add_argument("--video", default=None,
+                   help="directory to write one MP4 per episode. Uses the "
+                        "offscreen renderer, so it costs time -- for "
+                        "diagnosis, not for scoring runs.")
+    p.add_argument("--video-cam", default="frontview",
+                   help="camera for --video (frontview, agentview, "
+                        "birdview, robot0_eye_in_hand)")
+    p.add_argument("--video-failures-only", action="store_true",
+                   help="keep only episodes that FAIL -- what you want when "
+                        "diagnosing why the task breaks after a good grasp")
     p.add_argument("--object-type", default="bread",
                    choices=["bread", "cereal", "can", "milk"],
                    help="the policies were trained on bread; the others are a "
@@ -358,6 +392,8 @@ def main():
 
     # Apply rule-layer overrides to the module constants the FSM reads.
     g = globals()
+    if a.carry_z is not None:
+        globals()["CARRY_Z"] = a.carry_z
     for k in ("NEAR_TARGET_XY", "RELEASE_TRIG_HOLD", "PLACE_HORIZON",
               "TRANSLATE_SCALE", "CARRY_GAIN", "CARRY_CLIP", "RC_STEPS",
               "RC_TOL", "DS_STEPS", "DS_DZ", "TOUCH_MARGIN", "RT_STEPS",
@@ -371,10 +407,13 @@ def main():
     raw = suite.make("PickPlace", robots="Panda",
                      controller_configs=suite.load_controller_config(
                          default_controller="OSC_POSE"),
-                     has_renderer=False, has_offscreen_renderer=False,
+                     has_renderer=False,
+                     has_offscreen_renderer=bool(a.video),
                      use_camera_obs=False, horizon=700, reward_shaping=True,
                      control_freq=20, single_object_mode=2,
-                     object_type=a.object_type)
+                     object_type=a.object_type,
+                     camera_names=[a.video_cam] if a.video else None,
+                     camera_heights=480, camera_widths=640)
     raw.reset()
     global BIN_X, BIN_Y, BIN_Z
     _tb = raw.target_bin_placements[raw.object_id]
@@ -452,17 +491,25 @@ def main():
     for ep in range(a.episodes):
         # --- handoff: respawn-and-retry until TRANSPORT (hil_main.do_handoff)
         obs, attempts, reached = None, 0, False
+        frames = [] if a.video else None
+        def _grab():
+            if frames is None:
+                return
+            im = raw.sim.render(width=640, height=480, camera_name=a.video_cam)
+            frames.append(im[::-1])          # MuJoCo renders bottom-up
         for attempt in range(1, MAX_GRASP_ATTEMPTS + 1):
             obs = env.reset(); fsm = FSM(); attempts = attempt
             fsm.regrasp_enabled = a.regrasp
             fsm.unjam_enabled = a.unjam
             fsm.pose_gate_enabled = a.pose_gate
             fsm.ablate_quat = a.ablate_quat
+            fsm.scripted_transport = a.scripted_transport
             for _ in range(GRASP_CAP + TL_STEPS + 5):
                 gr, pl = flags()
                 act = fsm.step(np.asarray(obs, dtype=np.float32), gr, pl,
                                g_actor, p_actor)
                 obs, _, done, _ = env.step(np.clip(act, lo, hi))
+                _grab()
                 if fsm.phase == TRANSPORT:
                     reached = True; break
                 if fsm.phase in (OK, FAIL) or done:
@@ -484,14 +531,30 @@ def main():
             act = fsm.step(np.asarray(obs, dtype=np.float32), gr, pl,
                            g_actor, p_actor)
             obs, _, done, _ = env.step(np.clip(act, lo, hi))
+            _grab()
             n += 1
             if fsm.phase in (OK, FAIL) or done:
                 break
+        ok = int(fsm.phase == OK)
         rows.append(dict(episode=ep, attempts=attempts,
-                         success=int(fsm.phase == OK),
+                         success=ok,
                          phase=NAMES[fsm.phase], steps=n, tag=a.tag,
                          regrasps=fsm.regrasps, unjams=fsm.unjams,
                          pose_rejects=fsm.pose_rejects))
+        if frames and not (a.video_failures_only and ok):
+            import cv2, os as _os
+            _os.makedirs(a.video, exist_ok=True)
+            # Name it with the outcome and the phase it died in, so the
+            # failures can be found without opening every file.
+            fn = _os.path.join(a.video,
+                               f"ep{ep:03d}_{'OK' if ok else 'FAIL'}_"
+                               f"{NAMES[fsm.phase]}.mp4")
+            vw = cv2.VideoWriter(fn, cv2.VideoWriter_fourcc(*"mp4v"), 20,
+                                 (frames[0].shape[1], frames[0].shape[0]))
+            for fr in frames:
+                vw.write(cv2.cvtColor(fr, cv2.COLOR_RGB2BGR))
+            vw.release()
+            print(f"  wrote {fn} ({len(frames)} frames)", flush=True)
         if (ep + 1) % 25 == 0:
             s = sum(r["success"] for r in rows)
             print(f"  {ep+1}/{a.episodes}  success {s/len(rows)*100:.1f}%", flush=True)

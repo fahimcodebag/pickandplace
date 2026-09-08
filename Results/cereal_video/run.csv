@@ -1,0 +1,16 @@
+episode,attempts,success,phase,steps,tag,regrasps,unjams,pose_rejects
+0,1,1,DONE_OK,193,,0,0,0
+1,1,1,DONE_OK,197,,0,0,0
+2,1,0,DONE_FAIL,300,,0,0,0
+3,1,0,DONE_FAIL,300,,0,0,0
+4,1,0,DONE_FAIL,300,,0,0,0
+5,1,1,DONE_OK,213,,1,0,0
+6,1,1,DONE_OK,145,,0,0,0
+7,1,1,DONE_OK,162,,0,0,0
+8,1,1,DONE_OK,153,,0,0,0
+9,1,1,DONE_OK,176,,0,0,0
+10,1,0,DONE_FAIL,197,,0,0,0
+11,1,1,DONE_OK,154,,0,0,0
+12,1,1,DONE_OK,213,,0,0,0
+13,1,1,DONE_OK,158,,0,0,0
+14,1,1,DONE_OK,149,,0,0,0

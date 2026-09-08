@@ -1,0 +1,54 @@
+WHY CEREAL FAILS AFTER A GOOD GRASP
+===================================
+Prompted by watching 15 rendered episodes (Results/cereal_video). Grasp
+policy alignwarm_s0 (grasp metric 1.000, task 64%), place policy = bread's.
+
+WHAT THE FAILURES ARE
+  15 episodes: 11 OK, 4 FAIL. All 4 failures:
+    phase DONE_FAIL, regrasps used 0, steps 300/300/300/197
+  Instrumented over 10 more episodes:
+    failures  grasped_frac 1.00  min_xy_to_bin 0.196 / 0.241 / 0.433
+    successes grasped_frac 1.00  min_xy_to_bin 0.151 - 0.175
+    threshold NEAR_TARGET_XY = 0.18
+The grip never fails. The arm holds the box for the full 300-step horizon
+and never closes the last few centimetres to the bin, so TRANSPORT never
+hands over to RECENTER and the descent never runs. The whole distribution
+straddles the 0.18 m threshold.
+
+TRANSPORT IS DRIVEN BY THE PLACE ACTOR, NOT THE P CONTROLLER
+p_xy_to_bin only runs in RECENTER and DESCEND, which these episodes never
+reach. The carry is the learned place policy -- trained on BREAD.
+
+CARRY HEIGHT IS DECISIVE, AND HIGHER IS BETTER
+Replacing the place actor with P control plus a height target, cereal,
+2-3 eval seeds x 50 episodes:
+    place actor (bread-trained)   64.0%
+    scripted P, carry_z 0.95      29.3%
+    scripted P, carry_z 1.10      55.0%
+    scripted P, carry_z 1.30      66.0%
+So the objects being carried to 1.1-2.0 m for a bin at 0.80 is NOT waste.
+Carrying low fails badly. At a high enough carry height simple P control
+matches the learned place actor (66.0 vs 64.0, n=2 vs n=3 -- a tie, not a
+win). The place actor is doing real work, and the open-loop TEST_LIFT that
+produces the height is serving a purpose nobody documented.
+
+The obstacle was NOT identified: only bin leg geoms are named in the model,
+so the wall height could not be measured. Candidates are bin walls or
+dividers, or better arm manipulability higher in the workspace. The height
+curve is measured; the explanation is a hypothesis.
+
+A SEPARATE LATENT BUG: TOUCHDOWN CAN NEVER FIRE
+  touched = s[OBJ_Z] <= BIN_Z + TOUCH_MARGIN     # 0.80 + 0.02 = 0.82
+OBJ_Z is the object's CENTRE, and a resting object's centre sits at the bin
+floor plus its half-height: bread 0.8248, cereal 0.875. Neither can reach
+0.82 without being pushed through the floor. DESCEND therefore always exits
+on `stalled` or the 30-step cap, never on detecting touchdown -- for every
+object, including bread. Same bug class as _GRIP_RANGE and BIN_X/BIN_Y:
+a constant fixed to one object's geometry.
+
+REFUTED ALONG THE WAY
+  - "The 12-step RETRACT window scores late-settling objects as failures."
+    Tested by simulating 120 extra steps after the FSM gave up: NONE of the
+    failures became successful. The objects genuinely never reach the bin.
+  - "The place actor is the bottleneck, so replace it with P control."
+    At my first carry height (0.95) that HALVED success, 64% -> 29%.
