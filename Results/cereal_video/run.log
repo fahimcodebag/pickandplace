@@ -1,0 +1,60 @@
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+object 'cereal' (id 2) -> bin (0.0025, 0.4025, 0.8000)
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+  wrote Results/cereal_video/ep000_OK_DONE_OK.mp4 (248 frames)
+  wrote Results/cereal_video/ep001_OK_DONE_OK.mp4 (247 frames)
+  wrote Results/cereal_video/ep002_FAIL_DONE_FAIL.mp4 (350 frames)
+  wrote Results/cereal_video/ep003_FAIL_DONE_FAIL.mp4 (348 frames)
+  wrote Results/cereal_video/ep004_FAIL_DONE_FAIL.mp4 (348 frames)
+  wrote Results/cereal_video/ep005_OK_DONE_OK.mp4 (267 frames)
+  wrote Results/cereal_video/ep006_OK_DONE_OK.mp4 (197 frames)
+  wrote Results/cereal_video/ep007_OK_DONE_OK.mp4 (210 frames)
+  wrote Results/cereal_video/ep008_OK_DONE_OK.mp4 (202 frames)
+  wrote Results/cereal_video/ep009_OK_DONE_OK.mp4 (227 frames)
+  wrote Results/cereal_video/ep010_FAIL_DONE_FAIL.mp4 (241 frames)
+  wrote Results/cereal_video/ep011_OK_DONE_OK.mp4 (202 frames)
+  wrote Results/cereal_video/ep012_OK_DONE_OK.mp4 (262 frames)
+  wrote Results/cereal_video/ep013_OK_DONE_OK.mp4 (209 frames)
+  wrote Results/cereal_video/ep014_OK_DONE_OK.mp4 (195 frames)
+
+FSM (FP32) 11/15 = 73.3%   -> Results/cereal_video/run.csv
+Exception ignored in: <function MjRenderContext.__del__ at 0x6ffcb09e4900>
+Traceback (most recent call last):
+  File "/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/utils/binding_utils.py", line 199, in __del__
+    self.gl_ctx.free()
+  File "/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/renderers/context/egl_context.py", line 150, in free
+    EGL.eglDestroyContext(EGL_DISPLAY, self._context)
+  File "/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/OpenGL/error.py", line 230, in glCheckError
+    raise self._errorClass(
+OpenGL.raw.EGL._errors.EGLError: EGLError(
+	err = EGL_NOT_INITIALIZED,
+	baseOperation = eglDestroyContext,
+	cArguments = (
+		<OpenGL._opaque.EGLDisplay_pointer object at 0x6ffb8edbccd0>,
+		<OpenGL._opaque.EGLContext_pointer object at 0x6ffb8ed833d0>,
+	),
+	result = 0
+)
+Exception ignored in: <function EGLGLContext.__del__ at 0x6ffcb09e47c0>
+Traceback (most recent call last):
+  File "/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/renderers/context/egl_context.py", line 155, in __del__
+    self.free()
+  File "/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/renderers/context/egl_context.py", line 150, in free
+    EGL.eglDestroyContext(EGL_DISPLAY, self._context)
+  File "/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/OpenGL/error.py", line 230, in glCheckError
+    raise self._errorClass(
+OpenGL.raw.EGL._errors.EGLError: EGLError(
+	err = EGL_NOT_INITIALIZED,
+	baseOperation = eglDestroyContext,
+	cArguments = (
+		<OpenGL._opaque.EGLDisplay_pointer object at 0x6ffb8edbccd0>,
+		<OpenGL._opaque.EGLContext_pointer object at 0x6ffb8ed833d0>,
+	),
+	result = 0
+)

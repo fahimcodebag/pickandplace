@@ -1,0 +1,16 @@
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+48x24 init=pruned: 3,607 params (3.5 KB INT8), mean |action delta| vs teacher 0.0685  -> Results/distill/d_48x24_pruned
+48x24 init=random: 3,607 params (3.5 KB INT8), mean |action delta| vs teacher 0.1255  -> Results/distill/d_48x24_random
+32x16 init=pruned: 2,151 params (2.1 KB INT8), mean |action delta| vs teacher 0.1262  -> Results/distill/d_32x16_pruned
+32x16 init=random: 2,151 params (2.1 KB INT8), mean |action delta| vs teacher 0.1487  -> Results/distill/d_32x16_random
+24x12 init=pruned: 1,519 params (1.5 KB INT8), mean |action delta| vs teacher 0.1506  -> Results/distill/d_24x12_pruned
+24x12 init=random: 1,519 params (1.5 KB INT8), mean |action delta| vs teacher 0.1724  -> Results/distill/d_24x12_random
+16x8 init=pruned: 951 params (0.9 KB INT8), mean |action delta| vs teacher 0.2194  -> Results/distill/d_16x8_pruned
+16x8 init=random: 951 params (0.9 KB INT8), mean |action delta| vs teacher 0.1998  -> Results/distill/d_16x8_random
