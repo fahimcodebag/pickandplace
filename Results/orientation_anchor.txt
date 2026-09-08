@@ -1,0 +1,211 @@
+================================================================================
+THE ORIENTATION ANCHOR -- a controller-interface defect, not a policy defect
+The "blocked at a joint limit" class was never fixable from the rule layer
+because it was never IN the rule layer.  One constant recovers it.
+================================================================================
+
+SUMMARY
+  cereal + waypoint transport   57.4% -> 82.3%  +24.92  t(11)=+24.3  12up/0down
+    + release radius 0.18->0.08 82.3% -> 89.2%  + 6.83  t(11)= +5.30 12up/0down
+  bread  + place actor (MAIN)   88.7% -> 91.4%  + 2.75  t(11)= +4.75 11up/1down
+  bread  + waypoint transport            92.8%  + 4.17  t(11)= +3.79 11up/1down
+All cells 12 seeds x 100 = 1200 episodes, paired on seed.
+
+--------------------------------------------------------------------------------
+THE MECHANISM
+--------------------------------------------------------------------------------
+robosuite/controllers/osc.py, set_goal():
+
+    bools = [0.0 if math.isclose(e, 0.0) else 1.0 for e in scaled_delta[3:]]
+    if sum(bools) > 0.0 or set_ori is not None:
+        self.goal_ori = set_goal_orientation(...)      # CONDITIONAL
+    self.goal_pos = set_goal_position(...)             # UNCONDITIONAL
+
+Position re-anchors to the measured eef every policy step (goal = current +
+delta).  Orientation updates ONLY when the rotational delta is nonzero.
+
+So `a[3:6] = 0.0` does not mean "no orientation command".  It freezes goal_ori
+at whatever absolute WORLD attitude was last commanded -- for the FSM, back in
+GRASP, i.e. whatever arbitrary yaw the object happened to be picked at -- and
+the orientation PD (kp=150) then fights to hold that world attitude across the
+entire 0.65 m traverse from pick bin (y=-0.25) to place bin (y=+0.28).
+
+Panda joint 5 absorbs the arc.  Its range is [-0.02, 3.75]; every other joint
+is +-2.9 or wider.  It saturates:
+
+  stalled carry windows   q5 = 3.753   against the 3.75 stop
+  limit proximity (0 = at a stop, normalised by range)
+        FAILED episodes   0.007        closest joint = j5 in 3670/4135 samples
+        SUCCESS episodes  0.070
+  motion achieved / commanded    failed 4.6%   success 15.5%
+  windows moving <5 mm in 12 steps   failed 67%   success 4%
+  contacts (arm or box vs bins)      NONE in either group
+
+Nothing in the loop bounds joint angles.  OSC consumes Cartesian deltas;
+nullspace_torques regulates posture toward initial_joint but never reads
+jnt_range.  The only thing stopping a joint is MuJoCo's mechanical stop.  The
+arm jams silently, still holding the object, commanding full scale, and the FSM
+reads the stall as convergence.
+
+WHY THE FIX IS 1e-6 AND NOT A ROTATION
+  1e-6 scales to ~5e-7 rad.  It moves nothing.  Its only effect is to flip the
+  isclose() branch so goal_ori re-anchors to the current attitude each step.
+  The ordering confirms the mechanism rather than the result:
+      KEEP_ROTATION=1 (large policy rotations)     -52.33
+      a[3:6] = 0      (frozen absolute goal_ori)   baseline
+      a[3:6] = 1e-3   (tiny rotation + re-anchor)  +18.3
+      a[3:6] = 1e-6   (re-anchor only, no motion)  +24.2
+  Less commanded rotation, more benefit.  KEEP_ROTATION stays REJECTED; it
+  masks a bad policy output channel and that finding is unchanged.
+
+--------------------------------------------------------------------------------
+THIS IS THE CLASS PART 3 COULD NOT FIX, AND THE ATTRIBUTION WAS CORRECT
+--------------------------------------------------------------------------------
+Results/transport_stall_diagnosis.txt measured the blocked class at 3.08% FP32,
+found joint 5 pinned in 76/88 cases, tried three open-loop escapes at 1200
+episodes each, and recovered exactly 0 from every one.  Its conclusion --
+"Once the arm reaches the stop, no open-loop rule-layer maneuver returns it to
+a workable configuration.  Removing it needs joint-limit-aware control, or a
+transport policy that does not drive itself there -- neither of which lives in
+the FSM" -- was right.
+
+The bread gain here is +2.75 against a 3.08% class.  The fix collects ~90% of
+exactly the failures that campaign isolated.  It is not a new capability; it is
+the same class, addressed one layer down.  Prevention, not escape.
+
+--------------------------------------------------------------------------------
+REFUTED ON THE WAY (all paired, all at protocol or better)
+--------------------------------------------------------------------------------
+  nullspace posture gain 10 -> 40 -> 100    33% -> 17% -> 10%, monotone worse
+  joint-limit-aware nullspace (Liegeois)    +3.3, 2/3 seeds EXACT ties, null;
+                                            pinned-episode rate 89 -> 88, i.e.
+                                            the mechanism did not engage
+  DESCEND touch margin 0.02 -> 0.12         bit-identical, 6/6 ties
+  DESCEND budget 30/-0.12 -> 80/-0.50       -25.00, 0up/6down
+  post-release window RT_STEPS 12->60->120  bit-identical, 6/6 ties
+
+WHY NO NULLSPACE METHOD CAN WORK HERE -- a structural result worth keeping.
+A 7-DOF arm against a 6-DOF task leaves exactly ONE nullspace dimension: the
+elbow swivel.  Joint 5 is wrist flexion, which DETERMINES the task orientation,
+so (I - Jbar J) projects out precisely the component that would move it.  This
+applies identically to posture regulation, to gradient-projection limit
+avoidance, and to CLIK's (I - J+J) q0 term.  Adding a PID integral does not
+help either: the steady-state error is a KINEMATIC constraint, not a
+disturbance, so integral action winds up and saturates against a mechanical
+stop.  The feedback path was never missing -- OSC is already a closed-loop
+task-space PD at kp=150, kv=2*sqrt(kp).
+
+The lever is not more redundancy, it is choosing which task dimensions to
+constrain.  Releasing the orientation task is what freed the wrist.
+
+--------------------------------------------------------------------------------
+WHAT THE FIX EXPOSED -- staging becomes real, and redundancy stops mattering
+--------------------------------------------------------------------------------
+                              before fix          after fix
+  leg1 exits by tolerance     50%                 70%
+  stage x                     +0.077 +- 0.042     +0.098 +- 0.019
+  stage y                     -0.086 +- 0.086     -0.050 +- 0.047
+  stage z                     +1.228 +- 0.103     +1.233 +- 0.067
+  per-seed spread (3 seeds)   62 / 75 / 40        85 / 82 / 82
+
+The staging pose was never common: legs time out (WP_LEG_CAP) and hand over
+from wherever the arm is, WP_TOL tests xy only, and a[2] is ascent-only so
+WP_Z is a floor.  Much of the outcome variance attributed to staging was
+actually the frozen goal_ori, which depended on the arbitrary grasp yaw.
+
+A PRESET JOINT CONFIGURATION AT STAGING IS NO LONGER WORTH IT.  Measured after
+the fix, 240 episodes, joint angles at leg-2 entry, success vs failure:
+    j0 d'=0.12   j1 d'=0.22   j2 d'=0.18   j3 d'=0.07
+    j4 d'=0.10   j5 d'=0.22   j6 d'=0.11
+No joint separates the classes.  The spread is still enormous (j4 sd 1.11 rad,
+j6 sd 0.87 rad) and the arm reaches the bin equally well from all of it.  j5
+now sits at 3.524 +- 0.219, ~0.23 rad clear of the stop, against 3.753 pinned
+before.  Driving to a fixed joint pose would standardise a variable that no
+longer predicts anything, at the cost of a controller swap (JOINT_POSITION
+needs its own IK, changes the closed-loop dynamics the grasp policy trained
+under, and re-characterises every OSC_POSE number in the results table).
+It WAS the right fix for the pre-fix regime.  It is not needed now.
+
+--------------------------------------------------------------------------------
+THE RESIDUAL ~10% IS A SCORING ARTIFACT, NOT A CONTROL FAILURE
+--------------------------------------------------------------------------------
+600 episodes at the fixed config, cereal.  robosuite scores 89.7%.  All 62
+failures fall in ONE class, "released, not placed", and:
+
+  where the box physically ends up (after 60 settle steps)
+      success  537 inside target compartment,  1 elsewhere
+      failure   60 inside target compartment,  2 elsewhere     <- 97% correct
+
+  release accuracy   success 0.0124 +- 0.0131   failure 0.0120 +- 0.0129
+  release height     success 1.211  +- 0.083    failure 1.214  +- 0.079
+
+Identical to four decimals.  What separates them is the criterion, from
+robosuite/environments/manipulation/pick_place.py, not_in_bin():
+
+    and self.bin2_pos[2] < obj_pos[2] < self.bin2_pos[2] + 0.1    # 0.80..0.90
+
+  final resting z    success 0.8914 +- 0.0123   failure 0.9053 +- 0.0036
+                     above 0.90:  17.5%                    95.2%
+
+A CEREAL BOX LYING FLAT ON THE BIN FLOOR RESTS AT EXACTLY 0.90 -- the exclusive
+upper bound.  It scores as placed only if it settles a few mm low or the check
+is sampled mid-bounce.  The whole success/failure split is ~1.4 cm of resting
+height at a boundary the object cannot reliably clear.  Bread rests at ~0.825
+and is unaffected, so every bread-vs-cereal comparison in this project is
+confounded by it.
+
+This also explains why RT_STEPS 12 -> 60 -> 120 was bit-identical, twice: the
+box is not still in transit, it has SETTLED above the window, permanently.
+Waiting cannot help.  Physical placement for cereal is 598/600 = 99.7%.
+
+--------------------------------------------------------------------------------
+ADOPTED
+--------------------------------------------------------------------------------
+  ROT_ANCHOR_EPS = 1e-6      fsm_sim.py, all four TRANSPORT sites (both the
+                             scripted paths and the place-actor path).
+                             --rot-anchor-eps 0.0 reproduces every pre-fix
+                             number.
+  --settle-steps N           dual-criterion scoring.  Reports robosuite's
+                             success AND whether the object came to REST in the
+                             target compartment, using robosuite's own xy
+                             bounds so the two differ in the z test alone.
+
+NOT adopted as a default:
+  NEAR_TARGET_XY 0.08        +6.83 on the cereal scripted path only.  It is a
+                             shared rule-layer constant and is UNTESTED on the
+                             place-actor path, so the default stays 0.18 and
+                             the scripted arm passes --near-target-xy 0.08.
+
+--------------------------------------------------------------------------------
+CAVEATS -- read before rewriting the headline table
+--------------------------------------------------------------------------------
+1. The bread baseline here reads 88.7%, against the 90.67% recorded for A+C.
+   Only --regrasp and --rc-steps 60 were applied, not necessarily every tuned
+   rule-layer constant from that campaign.  The PAIRED deltas are valid (both
+   arms ran the identical config) but the absolute cells must be re-measured
+   at the exact recorded configuration before the table is edited.
+2. INT8 is UNTESTED.  The blocked class was larger there (5.92% vs 3.08%), so
+   the gain may be larger, but that is a prediction, not a measurement.
+3. "Came to rest in the compartment" is OUR criterion, with a settle phase the
+   environment does not run.  Report both numbers and state the artifact; do
+   not silently substitute ours for robosuite's.
+4. NOT mirrored to pick_and_place_INT8_FSM.ino.  The .ino zeroes rotation the
+   same way.  Whether it matters on hardware depends on the real controller's
+   goal handling -- the isclose() branch is robosuite-specific, but holding a
+   fixed world attitude through a large arc is a physical error and a real
+   Panda's joint 5 has the same one-sided range.  check_fsm_sync.py must gain
+   ROT_ANCHOR_EPS when that mirror happens.
+
+--------------------------------------------------------------------------------
+METHOD NOTE
+--------------------------------------------------------------------------------
+Five refutations against two adopted fixes.  The failure statistics pointed at
+none of it -- every hypothesis drawn from the failure distribution (reach,
+collision, carry height, release height, settle window, staging pose, nullspace
+posture, limit-aware nullspace) was refuted.  The mechanism was found by
+reading osc.py after the nullspace theory collapsed.
+
+Sweeps here run as one process per (arm, seed) under xargs -P 28.  MuJoCo will
+not parallelise a single environment, but seeds are embarrassingly parallel:
+3400 episodes finished in the wall time one 100-episode job takes.  The earlier
+sequential form of the same sweep would have run ~2.5 hours at 3% CPU.

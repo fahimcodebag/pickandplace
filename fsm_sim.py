@@ -73,6 +73,35 @@ UNJAM_WIN, UNJAM_EPS, UNJAM_STEPS, UNJAM_DZ, MAX_UNJAM = 12, 0.006, 15, -0.6, 3
 # that can move a pinned wrist joint. UNJAM_MODE tests the alternatives.
 UNJAM_MODE = "descend"          # descend | retract | rotate
 KEEP_ROTATION = 0               # 1 = do not zero a[3:6] during TRANSPORT
+# ROT_ANCHOR_EPS -- the value TRANSPORT writes into a[3:6] instead of exactly
+# 0.0.  This is NOT a rotation command; 1e-6 scales to ~5e-7 rad and moves
+# nothing.  It exists to flip a branch in robosuite's controller:
+#     osc.py:259   bools = [0.0 if math.isclose(e, 0.0) else 1.0 for e in d[3:]]
+#                  if sum(bools) > 0.0 or set_ori is not None:
+#                      self.goal_ori = set_goal_orientation(...)
+#                  self.goal_pos = set_goal_position(...)   # UNCONDITIONAL
+# Position re-anchors to the measured eef every step; orientation only updates
+# when the rotational delta is nonzero.  So a[3:6] = 0.0 does NOT mean "no
+# orientation command" -- it freezes goal_ori at whatever absolute WORLD
+# attitude was last commanded (back in GRASP), and the PD then fights to hold
+# that attitude across the whole 0.65 m traverse from pick bin to place bin.
+# Panda joint 5 has a one-sided range [-0.02, 3.75] (every other joint is
+# +-2.9) and absorbs the arc until it saturates: stalled carries sit at
+# q5 = 3.753 against the 3.75 stop, commanding full scale and achieving 4.6%
+# of it.  Nothing in the loop bounds joint angles -- OSC takes Cartesian
+# deltas and nullspace_torques never reads jnt_range -- so the arm jams
+# silently and the FSM reads the stall as convergence.
+# MEASURED, 12 seeds x 100 per cell, paired (Results/orientation_anchor.txt):
+#   cereal + waypoint transport   57.4% -> 82.3%   +24.92  t(11)=+24.3  12u/0d
+#   bread  + place actor (main)   88.7% -> 91.4%   + 2.75  t(11)= +4.75 11u/1d
+# The bread gain matches the 3.08% "blocked at a joint limit" class that
+# Results/transport_stall_diagnosis.txt Part 3 isolated and correctly found
+# unfixable from the rule layer -- three escape maneuvers recovered 0/88.  It
+# was never a rule-layer defect; it was the controller interface.
+# Set to 0.0 to reproduce every number recorded before this was found.
+# NOTE: distinct from KEEP_ROTATION=1, which passes the place policy's LARGE
+# rotational outputs through and costs -52.33 points.  That stays rejected.
+ROT_ANCHOR_EPS = 1e-6
 # Fix D -- pose gate at handoff. Results/handoff_carry: the object's pose in the
 # gripper predicts whether the carry survives (AUC 0.915 FP32, 0.826 INT8), and
 # the INT8 pose shift accounts for 57% of its excess drop rate. A durable grip
@@ -87,6 +116,30 @@ MAX_POSE_REJECT, REGRIP_DOWN, REGRIP_OPEN = 2, 8, 8
 GRASP, TEST_LIFT, TRANSPORT, RECENTER, DESCEND, OPEN, RETRACT, OK, FAIL = range(9)
 NAMES = ["GRASP", "TEST_LIFT", "TRANSPORT", "RECENTER", "DESCEND",
          "OPEN", "RETRACT", "DONE_OK", "DONE_FAIL"]
+
+
+def rests_in_bin(raw, settle_steps):
+    """Step physics `settle_steps` times, then report whether the object has
+    come to REST inside its target compartment.
+
+    Uses robosuite's own xy bounds (pick_place.not_in_bin) so this differs from
+    _check_success in the z test alone.  robosuite requires
+    bin_z < obj_z < bin_z + 0.1; a cereal box lying flat rests at exactly 0.90,
+    the exclusive upper bound, so it scores placed only if it settles a few mm
+    low or is sampled mid-bounce.  Measured: 60 of 62 scored failures come to
+    rest inside the correct compartment (Results/orientation_anchor.txt)."""
+    for _ in range(settle_steps):
+        raw.sim.step()
+    bid = raw.obj_body_id[raw.objects[raw.object_id].name]
+    pos = raw.sim.data.body_xpos[bid]
+    b = raw.object_id
+    x_lo = raw.bin2_pos[0] - (raw.bin_size[0] / 2 if b in (0, 2) else 0.0)
+    y_lo = raw.bin2_pos[1] - (raw.bin_size[1] / 2 if b < 2 else 0.0)
+    in_xy = (x_lo < pos[0] < x_lo + raw.bin_size[0] / 2
+             and y_lo < pos[1] < y_lo + raw.bin_size[1] / 2)
+    # resting IN the bin: above the floor, below the rim + a box height.
+    in_z = raw.bin2_pos[2] < pos[2] < raw.bin2_pos[2] + 0.25
+    return bool(in_xy and in_z), float(pos[2])
 
 
 def load_actor(d, fc1=64, fc2=32):
@@ -120,6 +173,10 @@ class FSM:
         self.unjam_enabled = False
         self.pose_rejects = self.regrip_left = 0
         self.pose_gate_enabled = False
+        # staging instrumentation: how leg 1 handed over, and where the
+        # object actually was when it did.
+        self.stage_exit = ""
+        self.stage_pos = (0.0, 0.0, 0.0)
 
     def _pose_ok(self, s):
         """Is the object seated well enough to survive a 300-step carry?"""
@@ -248,11 +305,15 @@ class FSM:
                     a[0:2] = np.clip(CARRY_GAIN * d, -CARRY_CLIP, CARRY_CLIP)
                     a[2] = np.clip(CARRY_GAIN * dz, 0.0, CARRY_CLIP)
                     if np.linalg.norm(d) <= WP_TOL or self.leg_steps >= WP_LEG_CAP:
+                        self.stage_exit = ("tol" if np.linalg.norm(d) <= WP_TOL
+                                           else "timeout")
+                        self.stage_pos = (float(s[OBJ_X]), float(s[OBJ_Y]),
+                                          float(s[OBJ_Z]))
                         self.carry_stage = 2; self.leg_steps = 0
                 else:
                     self.p_xy_to_bin(s, a)
                     a[2] = np.clip(CARRY_GAIN * dz, 0.0, CARRY_CLIP)
-                a[3:6] = 0.0
+                a[3:6] = ROT_ANCHOR_EPS
             elif self.scripted_transport == "staged":
                 # Standard pick-and-place waypoint pattern, which the first
                 # scripted attempt did NOT do: it drove x, y and z at once so
@@ -276,7 +337,7 @@ class FSM:
                 if self.carry_stage == 1:
                     self.p_xy_to_bin(s, a)
                     a[2] = np.clip(CARRY_GAIN * dz, 0.0, CARRY_CLIP)
-                a[3:6] = 0.0
+                a[3:6] = ROT_ANCHOR_EPS
             elif self.scripted_transport:
                 # P control straight to the bin, plus a HEIGHT TARGET. The
                 # learned place actor was trained on bread; on cereal it
@@ -289,12 +350,12 @@ class FSM:
                 self.p_xy_to_bin(s, a)
                 a[2] = np.clip(CARRY_GAIN * (CARRY_Z - s[OBJ_Z]),
                                -CARRY_CLIP, CARRY_CLIP)
-                a[3:6] = 0.0
+                a[3:6] = ROT_ANCHOR_EPS
             else:
                 with T.no_grad():
                     a[:] = place_actor(T.tensor(s, dtype=T.float).unsqueeze(0)).squeeze(0).numpy()
                 if not KEEP_ROTATION:
-                    a[3:6] = 0.0
+                    a[3:6] = ROT_ANCHOR_EPS
                 a[0:3] *= TRANSLATE_SCALE
                 # Optional ceiling: the actor climbs to 1.1-2.0 m for a bin at
                 # 0.80. Height is PROTECTIVE below ~1.3 (0.95 -> 29%,
@@ -439,6 +500,16 @@ def main():
     p.add_argument("--ds-dz", type=float, default=DS_DZ)
     p.add_argument("--touch-margin", type=float, default=TOUCH_MARGIN)
     p.add_argument("--rt-steps", type=int, default=RT_STEPS)
+    p.add_argument("--rot-anchor-eps", type=float, default=ROT_ANCHOR_EPS,
+                   help="value written to a[3:6] during TRANSPORT. 0.0 freezes "
+                        "goal_ori (pre-fix behaviour); 1e-6 re-anchors it.")
+    p.add_argument("--settle-steps", type=int, default=0,
+                   help="after each episode step physics this many times and "
+                        "record whether the object came to REST inside the "
+                        "target bin compartment. robosuite needs "
+                        "bin_z < obj_z < bin_z+0.1, and a cereal box resting "
+                        "flat sits at exactly 0.90 = the exclusive upper "
+                        "bound. 0 = off.")
     p.add_argument("--rt-dz", type=float, default=RT_DZ)
     p.add_argument("--grasp-cap", type=int, default=GRASP_CAP)
     p.add_argument("--regrasp", action="store_true",
@@ -499,7 +570,8 @@ def main():
               "RC_TOL", "DS_STEPS", "DS_DZ", "TOUCH_MARGIN", "RT_STEPS",
               "RT_DZ", "GRASP_CAP", "LOST_GRIP_STEPS", "MAX_REGRASP",
               "UNJAM_WIN", "UNJAM_EPS", "UNJAM_STEPS", "UNJAM_DZ", "MAX_UNJAM",
-              "UNJAM_MODE", "KEEP_ROTATION", "POSE_OFF_X_MIN",
+              "UNJAM_MODE", "KEEP_ROTATION", "ROT_ANCHOR_EPS",
+              "POSE_OFF_X_MIN",
               "POSE_OFF_Z_MAX", "MAX_POSE_REJECT"):
         g[k] = getattr(a, k.lower())
 
@@ -623,7 +695,11 @@ def main():
             rows.append(dict(episode=ep, attempts=attempts, success=0,
                              phase="handoff_failed", steps=0, tag=a.tag,
                              regrasps=fsm.regrasps, unjams=fsm.unjams,
-                             pose_rejects=fsm.pose_rejects))
+                             pose_rejects=fsm.pose_rejects,
+                         stage_exit=fsm.stage_exit,
+                         stage_x=round(fsm.stage_pos[0], 4),
+                         stage_y=round(fsm.stage_pos[1], 4),
+                         stage_z=round(fsm.stage_pos[2], 4)))
             continue
         # --- scored portion
         n = 0
@@ -639,11 +715,20 @@ def main():
             if fsm.phase in (OK, FAIL) or done:
                 break
         ok = int(fsm.phase == OK)
+        rested, rest_z = (None, None)
+        if a.settle_steps:
+            rested, rest_z = rests_in_bin(raw, a.settle_steps)
         rows.append(dict(episode=ep, attempts=attempts,
                          success=ok,
+                         rested=("" if rested is None else int(rested)),
+                         rest_z=("" if rest_z is None else round(rest_z, 4)),
                          phase=NAMES[fsm.phase], steps=n, tag=a.tag,
                          regrasps=fsm.regrasps, unjams=fsm.unjams,
-                         pose_rejects=fsm.pose_rejects))
+                         pose_rejects=fsm.pose_rejects,
+                         stage_exit=fsm.stage_exit,
+                         stage_x=round(fsm.stage_pos[0], 4),
+                         stage_y=round(fsm.stage_pos[1], 4),
+                         stage_z=round(fsm.stage_pos[2], 4)))
         if frames and not (a.video_failures_only and ok):
             import cv2, os as _os
             _os.makedirs(a.video, exist_ok=True)
@@ -673,6 +758,12 @@ def main():
         w.writeheader(); w.writerows(rows)
     s = sum(r["success"] for r in rows)
     print(f"\nFSM (FP32) {s}/{len(rows)} = {s/len(rows)*100:.1f}%   -> {a.out}")
+    if a.settle_steps:
+        r_ = sum(int(x["rested"]) for x in rows if x["rested"] != "")
+        print(f"  came to REST in the target compartment: "
+              f"{r_}/{len(rows)} = {r_/len(rows)*100:.1f}%"
+              f"   (robosuite scores {s/len(rows)*100:.1f}%; the gap is the "
+              f"bin_z+0.1 z-window, not a placement failure)")
 
 
 if __name__ == "__main__":
