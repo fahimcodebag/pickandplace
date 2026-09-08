@@ -1,0 +1,61 @@
+PER-OBJECT TRAINING ON CEREAL
+=============================
+The grasp policy was retrained for cereal (30x100x150 mm, aspect 1:3.3:5 --
+two dimensions exceed the ~80 mm jaws, so exactly ONE approach axis works).
+Recipe = the bread winner (2M buffer, batch 1024, wclip 8, in-loop QAT,
+critic 512/256, 55k episodes), warm-started from the bread actor, with
+--align-grip as the varied arm. Horizon 70 with the truncation fix.
+
+The PLACE policy was NOT retrained. It is still bread's.
+
+GRASP STAGE -- SOLVED
+  arm         best metric (4 seeds)           mean    sd
+  alignwarm   1.000, 0.995, 0.990, 0.965     0.988   0.016
+  basewarm    0.965, 0.890, 0.995, 0.930     0.945   0.046
+  align cold  0.910, 0.520                   0.715
+  base cold   0.865, 0.000                   0.433
+Cereal reaches 96.5-100% grasp against 27% zero-shot, matching bread's
+~95%. Per-object training works, and warm-starting from bread beats a cold
+start decisively.
+
+END-TO-END TASK SUCCESS -- AND THE ORDER REVERSES
+3 eval seeds x 50 episodes per run, full FSM, ground-truth pose:
+  alignwarm   64.0, 59.3, 64.0, 63.3   ->  62.67%  (sd 2.24)
+  basewarm    70.0, 88.7, 68.7, 83.3   ->  77.67%  (sd 9.88)
+  align - base: -15.00 pts, SE 5.07, t=-2.96
+  (zero-shot bread policy on cereal: 27.00%)
+
+THE GRASP METRIC IS ANTI-CORRELATED WITH THE TASK, r = -0.918
+  grasp 1.000 -> task 64.0      grasp 0.965 -> task 70.0
+  grasp 0.995 -> task 59.3      grasp 0.930 -> task 83.3
+  grasp 0.995 -> task 68.7      grasp 0.890 -> task 88.7
+  grasp 0.990 -> task 64.0
+The run with the WORST grasp metric (0.890) has the BEST task success
+(88.7%); the run with a perfect 1.000 sits at 64.0%.
+
+WHAT THIS MEANS
+Optimising the grasp stage harder makes the whole task WORSE. The stages
+are trained against separate objectives and only the grasp one was
+improved: a grasp that scores well on "8-step hold plus a 3 cm lift" can
+hand the place stage an object pose it cannot work with, and the place
+policy here is BREAD's, never retrained for a 150 mm box.
+
+--align-grip is the clearest case. It was refuted on bread
+(Results/wrist_alignment_negative.txt), and it was re-tested here because
+bread is a near-cube where yaw cannot affect whether a grasp is possible,
+while cereal has one graspable axis. It duly improved the grasp -- and cost
+15 points of task success, because aligning the wrist changes what the
+place stage receives.
+
+This is a concrete cost of the decomposition itself. Stage-local metrics
+can move opposite to the task, so a decomposed system must be selected on
+end-to-end success, never on the stage metric being trained. Everything in
+this campaign that was selected on grasp certification alone should be
+re-read with that in mind.
+
+STILL OPEN
+  - Retrain the PLACE policy for cereal. The end-to-end number is currently
+    capped by a place policy built for a 50 mm cube.
+  - Re-run with both stages trained per object, which is the fair test of
+    the per-object deployment.
+  - can and milk remain untrained.
