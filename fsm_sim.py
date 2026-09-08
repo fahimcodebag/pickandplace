@@ -105,6 +105,7 @@ class FSM:
         self.prev_z = 1e9
         self.lost = self.regrasps = 0
         self.scripted_transport = False
+        self.carry_ceiling = 0.0
         self.regrasp_enabled = False
         self.jam_buf = []
         self.unjams = self.unjam_left = 0
@@ -222,6 +223,14 @@ class FSM:
                 if not KEEP_ROTATION:
                     a[3:6] = 0.0
                 a[0:3] *= TRANSLATE_SCALE
+                # Optional ceiling: the actor climbs to 1.1-2.0 m for a bin at
+                # 0.80. Height is PROTECTIVE below ~1.3 (0.95 -> 29%,
+                # 1.30 -> 66%), so this only trims the excursion ABOVE the
+                # useful range -- it never pushes the object down into the
+                # region that fails. Bounds the actor rather than replacing
+                # it, so whatever path shape it learned is preserved.
+                if self.carry_ceiling and s[OBJ_Z] > self.carry_ceiling:
+                    a[2] = min(a[2], 0.0)
             a[6] = 1.0
             self.tr_steps += 1
             if self.unjam_enabled:
@@ -290,6 +299,10 @@ def main():
     p.add_argument("--grasp-ckpt", required=True)
     p.add_argument("--place-ckpt", required=True)
     p.add_argument("--episodes", type=int, default=100)
+    p.add_argument("--carry-ceiling", type=float, default=0.0,
+                   help="stop the place actor commanding further ascent once "
+                        "the object is above this height. 0 = off. Bounds the "
+                        "actor without replacing it.")
     p.add_argument("--carry-z", type=float, default=None,
                    help="height target for --scripted-transport (default 0.95)")
     p.add_argument("--scripted-transport", action="store_true",
@@ -504,6 +517,7 @@ def main():
             fsm.pose_gate_enabled = a.pose_gate
             fsm.ablate_quat = a.ablate_quat
             fsm.scripted_transport = a.scripted_transport
+            fsm.carry_ceiling = a.carry_ceiling
             for _ in range(GRASP_CAP + TL_STEPS + 5):
                 gr, pl = flags()
                 act = fsm.step(np.asarray(obs, dtype=np.float32), gr, pl,

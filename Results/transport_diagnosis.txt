@@ -52,3 +52,34 @@ REFUTED ALONG THE WAY
     failures became successful. The objects genuinely never reach the bin.
   - "The place actor is the bottleneck, so replace it with P control."
     At my first carry height (0.95) that HALVED success, 64% -> 29%.
+
+THE HIGH CARRY IS FUNCTIONAL: FOUR INTERVENTIONS, ALL WORSE
+-----------------------------------------------------------
+Watching the videos suggested objects are carried needlessly high (1.1-2.0 m
+for a bin at 0.80). Every attempt to lower it cost success:
+
+  intervention                          success   mean steps
+  baseline (place actor, unbounded)      64.0%       166
+  scripted P control, carry_z 0.95       29.3%
+  scripted P control, carry_z 1.10       55.0%
+  carry ceiling 1.20 (bounds the actor)  38.7%       164
+  carry ceiling 1.40 (bounds the actor)  54.0%       155
+  scripted P control, carry_z 1.30       66.0%
+Only the variant that carries HIGH matches the baseline. The height is
+load-bearing, not waste.
+
+TWO METHOD NOTES WORTH KEEPING
+1. The scripted controller was NOT a fair test of scripted transport. It
+   commanded x, y and z simultaneously from wherever the grasp ended --
+   no waypoint, no staging. So the object descends toward carry_z WHILE
+   translating, sweeping diagonally through the bin region. That is why
+   0.95 was catastrophic and why 1.30 recovered: the diagonal simply
+   passed above the obstacles. A properly staged controller (lift
+   vertically, traverse at constant height, descend over the target) is
+   the standard pick-and-place pattern and remains UNTESTED. The earlier
+   claim that "P control ties the learned actor" should read: a naive
+   unstaged controller ties it.
+2. Clamping a learned policy's output puts it OFF-DISTRIBUTION. The
+   ceiling at 1.20 cost 25 points while saving zero steps: the actor never
+   saw states where its ascent command was silently suppressed, so it does
+   not compensate. Bounding outputs is not a free safety measure.
