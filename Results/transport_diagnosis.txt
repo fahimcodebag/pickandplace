@@ -83,3 +83,43 @@ TWO METHOD NOTES WORTH KEEPING
    ceiling at 1.20 cost 25 points while saving zero steps: the actor never
    saw states where its ascent command was silently suppressed, so it does
    not compensate. Bounding outputs is not a free safety measure.
+
+WHY THE PLACE ACTOR STALLS: A 9-SIGMA INPUT SHIFT
+--------------------------------------------------
+The horizontal non-convergence is measured on BASELINE runs -- no capping,
+no scripting, the place actor in full control -- so it is not an artifact
+of any intervention here. Comparing transport states, bread vs cereal:
+
+  dim           bread mean +- sd    cereal mean   z-score
+  obj_to_eef_z   0.002 +- 0.006        0.057        9.0
+  obj_y         -0.075 +- 0.103        0.142        2.1
+  cereal transport states outside bread's observed range: 100.0%
+
+obj_to_eef_z is the object's centre relative to the gripper -- exactly the
+input encoding what is being held and where. Cereal is a 150 mm box grasped
+near its top, so its centre hangs 57 mm below the hand; bread's centre is
+effectively at the hand. Nine sigma, on every transport step. The policy is
+extrapolating from step one, which is also why it still succeeds 64% of the
+time: off-distribution is not random, it is untested.
+
+SCRIPTED TRANSPORT: PATH RIGIDITY MONOTONICALLY HURTS
+  flat P, diagonal, carry_z 1.30        66.0%
+  place actor (learned, baseline)       64.0%
+  staged: climb in place, then traverse 48.7%
+  waypoint: 3 legs via a common pose    31.3% (1.20) / 37.3% (1.45)
+
+The canonical pick-and-place pattern -- lift to a common staging pose,
+traverse at height, descend -- performs WORST. The step budget explains it:
+PLACE_HORIZON is 300, successes take 147-166 steps, and 74-81% of all
+failures hit the cap. Every extra leg spends budget on a detour, and
+routing an object that is already near the bin out to a fixed waypoint
+wastes the most. Continuous correction toward the goal beats leg-by-leg
+scripting when the horizon is this tight.
+
+Only the diagonal flat controller matches the learned actor, and only at
+a high carry height. That is a tie, not a win, at n=2 vs n=3.
+
+CONCLUSION
+The learned place actor -- used 9 sigma outside its training distribution,
+on an object it has never seen -- still beats every scripted controller
+tried except a tie. Retraining it on cereal is the fix. Replacing it is not.

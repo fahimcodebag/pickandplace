@@ -44,6 +44,10 @@ RC_STEPS, RC_TOL = 60, 0.03
 # Height to carry at, for --scripted-transport. Bin rim is BIN_Z=0.80; this
 # clears it without the 1.1-2.0 m the open-loop lift produces.
 CARRY_Z = 0.95
+# Common staging pose for --waypoint-transport. The pick region sits at
+# y ~ -0.175 and the target bins at y +0.158..+0.402, so this sits between
+# them at a height clear of the bin structure.
+WP_X, WP_Y, WP_Z, WP_TOL = 0.10, 0.00, 1.20, 0.05
 DS_STEPS, DS_DZ, TOUCH_MARGIN = 30, -0.12, 0.02
 OP_STEPS, RT_STEPS, RT_DZ = 8, 12, 0.3
 MAX_GRASP_ATTEMPTS = 8            # hil_main.py
@@ -106,6 +110,7 @@ class FSM:
         self.lost = self.regrasps = 0
         self.scripted_transport = False
         self.carry_ceiling = 0.0
+        self.carry_stage = 0
         self.regrasp_enabled = False
         self.jam_buf = []
         self.unjams = self.unjam_left = 0
@@ -204,7 +209,51 @@ class FSM:
                 else:
                     self.phase, self.grasp_hold = GRASP, 0
         elif p == TRANSPORT:
-            if self.scripted_transport:
+            if self.scripted_transport == "waypoint":
+                # Canonical three-leg transport:
+                #   leg 0  move to ONE common staging pose (WP_X, WP_Y, WP_Z)
+                #   leg 1  traverse to above the bin, holding that height
+                #   then  hand over to RECENTER/DESCEND (the P releaser)
+                # Every episode passes through the same pose, so the path from
+                # staging to the bin is identical regardless of where the
+                # grasp happened. OSC_POSE handles the IK; these are Cartesian
+                # setpoints.
+                if self.carry_stage == 0:
+                    d = np.array([WP_X - s[OBJ_X], WP_Y - s[OBJ_Y],
+                                  WP_Z - s[OBJ_Z]])
+                    a[0:3] = np.clip(CARRY_GAIN * d, -CARRY_CLIP, CARRY_CLIP)
+                    if np.linalg.norm(d) <= WP_TOL:
+                        self.carry_stage = 1
+                else:
+                    self.p_xy_to_bin(s, a)
+                    a[2] = np.clip(CARRY_GAIN * (WP_Z - s[OBJ_Z]),
+                                   -CARRY_CLIP, CARRY_CLIP)
+                a[3:6] = 0.0
+            elif self.scripted_transport == "staged":
+                # Standard pick-and-place waypoint pattern, which the first
+                # scripted attempt did NOT do: it drove x, y and z at once so
+                # the object descended WHILE translating and swept diagonally
+                # through the bin region.
+                #   stage 0  lift straight up to CARRY_Z, no horizontal motion
+                #   stage 1  traverse at constant height until over the bin
+                #   then hand over to RECENTER/DESCEND as usual
+                # CARRY_Z is a FLOOR, not a target. TEST_LIFT already leaves
+                # the object at 1.3-2.0 m, so driving z toward CARRY_Z made
+                # stage 0 DESCEND before traversing -- giving up the altitude
+                # that the four earlier experiments showed is protective.
+                # Climb only if below; never trade height for nothing.
+                dz = CARRY_Z - s[OBJ_Z]
+                if self.carry_stage == 0:
+                    if dz <= 0.02:
+                        self.carry_stage = 1          # already high enough
+                    else:
+                        a[0] = a[1] = 0.0
+                        a[2] = np.clip(CARRY_GAIN * dz, 0.0, CARRY_CLIP)
+                if self.carry_stage == 1:
+                    self.p_xy_to_bin(s, a)
+                    a[2] = np.clip(CARRY_GAIN * dz, 0.0, CARRY_CLIP)
+                a[3:6] = 0.0
+            elif self.scripted_transport:
                 # P control straight to the bin, plus a HEIGHT TARGET. The
                 # learned place actor was trained on bread; on cereal it
                 # carries the box for the full 300-step horizon without ever
@@ -305,6 +354,17 @@ def main():
                         "actor without replacing it.")
     p.add_argument("--carry-z", type=float, default=None,
                    help="height target for --scripted-transport (default 0.95)")
+    p.add_argument("--waypoint-transport", action="store_true",
+                   help="three-leg transport through ONE common staging pose: "
+                        "move to (WP_X,WP_Y,WP_Z), traverse to above the bin "
+                        "at that height, then hand to the P releaser.")
+    p.add_argument("--wp", default=None,
+                   help="override the staging pose as x,y,z")
+    p.add_argument("--staged-transport", action="store_true",
+                   help="scripted transport as a WAYPOINT sequence: lift "
+                        "vertically to carry-z, traverse at constant height, "
+                        "then descend. The standard pattern; the flat "
+                        "--scripted-transport drives all three axes at once.")
     p.add_argument("--scripted-transport", action="store_true",
                    help="carry with P control to the bin plus a height "
                         "target, instead of the learned place actor. The "
@@ -405,6 +465,9 @@ def main():
 
     # Apply rule-layer overrides to the module constants the FSM reads.
     g = globals()
+    if a.wp:
+        _v = [float(x) for x in a.wp.split(",")]
+        globals()["WP_X"], globals()["WP_Y"], globals()["WP_Z"] = _v
     if a.carry_z is not None:
         globals()["CARRY_Z"] = a.carry_z
     for k in ("NEAR_TARGET_XY", "RELEASE_TRIG_HOLD", "PLACE_HORIZON",
@@ -516,7 +579,9 @@ def main():
             fsm.unjam_enabled = a.unjam
             fsm.pose_gate_enabled = a.pose_gate
             fsm.ablate_quat = a.ablate_quat
-            fsm.scripted_transport = a.scripted_transport
+            fsm.scripted_transport = ("waypoint" if a.waypoint_transport
+                                      else "staged" if a.staged_transport
+                                      else a.scripted_transport)
             fsm.carry_ceiling = a.carry_ceiling
             for _ in range(GRASP_CAP + TL_STEPS + 5):
                 gr, pl = flags()
