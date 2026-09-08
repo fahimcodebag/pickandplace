@@ -123,3 +123,45 @@ CONCLUSION
 The learned place actor -- used 9 sigma outside its training distribution,
 on an object it has never seen -- still beats every scripted controller
 tried except a tie. Retraining it on cereal is the fix. Replacing it is not.
+
+WAYPOINT TRANSPORT: THREE OF MY BUGS, NOT THREE FLAWS IN THE DESIGN
+-------------------------------------------------------------------
+The canonical three-leg pattern (lift to a common staging pose, traverse at
+height, hand to the P releaser) initially scored 31.3% and looked refuted.
+It was my implementation. Fixing it in three steps:
+
+  v1  staging pose at y=0.00, all legs diagonal          31.3%
+  v2  + pose moved to y=0.13, leg 0 lift-only            49.3%
+  v3  + per-leg timeout and stall detection              60.0%
+  ---------------------------------------------------------------
+  place actor (learned, baseline)                        64.0%
+  flat P, single diagonal, carry_z 1.30                  66.0%
+
+Each bug, and what it cost:
+  1. STAGING POSE INSIDE THE ENTRY SPREAD. Objects enter transport at
+     y -0.320..+0.118 and the bins sit at y +0.158..+0.402. A waypoint at
+     y=0.00 is a BACKWARD detour for every episode entering at positive y.
+  2. DIAGONAL LEGS. Leg 0 drove all three axes at once, so with WP_Z=1.20
+     the 5-of-15 episodes entering above it were pulled back DOWN while
+     translating -- the third time in this diagnosis a controller of mine
+     traded away the protective altitude.
+  3. NO LEG TIMEOUT. Leg 0 lifted until z >= WP_Z. At the edge of the
+     workspace (x ~ -0.3, y ~ -0.2) the arm CANNOT reach 1.25 m, so it
+     climbed forever. A scripted leg must always be able to give up.
+
+THE STEP-BUDGET EXPLANATION WAS WRONG
+I claimed across several messages that the waypoint deficit was the 300-step
+horizon, citing "74-81% of failures hit the cap". Doubling PLACE_HORIZON to
+600 settled it:
+    place actor       64.0% -> 67.3%   (+3.3)
+    waypoint (v2)     49.3% -> 49.3%   (+0.0)
+Exactly zero. The controller was DEADLOCKED, not slow, and a deadlocked
+controller hits any cap you give it. "Hit the cap" is consistent with both
+explanations and I did not distinguish them until the horizon test.
+
+WHERE IT LANDS
+At v3 the scripted controller is within noise of the learned actor (60.0%
+vs 64.0%, seeds 78/44/58 vs 68/64/60 -- overlapping). Scripted transport is
+viable here; it is not clearly better. The learned actor still holds its
+edge while operating 9 sigma outside its training distribution, which
+remains the more interesting fact.

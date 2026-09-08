@@ -48,6 +48,7 @@ CARRY_Z = 0.95
 # y ~ -0.175 and the target bins at y +0.158..+0.402, so this sits between
 # them at a height clear of the bin structure.
 WP_X, WP_Y, WP_Z, WP_TOL = 0.10, 0.00, 1.20, 0.05
+WP_LEG_CAP = 40          # max steps per leg -- a leg must be able to give up
 DS_STEPS, DS_DZ, TOUCH_MARGIN = 30, -0.12, 0.02
 OP_STEPS, RT_STEPS, RT_DZ = 8, 12, 0.3
 MAX_GRASP_ATTEMPTS = 8            # hil_main.py
@@ -111,6 +112,8 @@ class FSM:
         self.scripted_transport = False
         self.carry_ceiling = 0.0
         self.carry_stage = 0
+        self.leg_steps = 0
+        self.leg_prev_z = 1e9
         self.regrasp_enabled = False
         self.jam_buf = []
         self.unjams = self.unjam_left = 0
@@ -218,16 +221,37 @@ class FSM:
                 # staging to the bin is identical regardless of where the
                 # grasp happened. OSC_POSE handles the IK; these are Cartesian
                 # setpoints.
+                # leg 0 is LIFT-ONLY when below the staging height. Moving
+                # all three axes at once made this a diagonal, and with
+                # 5 of 15 episodes entering transport above WP_Z it drove
+                # them back DOWN while translating -- the same mistake as the
+                # first staged attempt. WP_Z is a floor here, never a target.
+                # EVERY leg needs a timeout and a stall check. Without them
+                # leg 0 deadlocks: it lifts until z >= WP_Z, but at the edge
+                # of the workspace (x ~ -0.3, y ~ -0.2) the arm CANNOT reach
+                # 1.25 m, so it climbs forever and no amount of horizon helps.
+                # That is why doubling PLACE_HORIZON moved this controller by
+                # exactly 0.0 points. A scripted leg must always be able to
+                # give up.
+                dz = WP_Z - s[OBJ_Z]
+                self.leg_steps += 1
+                stalled = abs(s[OBJ_Z] - self.leg_prev_z) < 1e-4
+                self.leg_prev_z = s[OBJ_Z]
                 if self.carry_stage == 0:
-                    d = np.array([WP_X - s[OBJ_X], WP_Y - s[OBJ_Y],
-                                  WP_Z - s[OBJ_Z]])
-                    a[0:3] = np.clip(CARRY_GAIN * d, -CARRY_CLIP, CARRY_CLIP)
-                    if np.linalg.norm(d) <= WP_TOL:
-                        self.carry_stage = 1
+                    if dz > 0.02 and self.leg_steps < WP_LEG_CAP and not stalled:
+                        a[0] = a[1] = 0.0
+                        a[2] = np.clip(CARRY_GAIN * dz, 0.0, CARRY_CLIP)
+                    else:
+                        self.carry_stage = 1; self.leg_steps = 0
+                elif self.carry_stage == 1:
+                    d = np.array([WP_X - s[OBJ_X], WP_Y - s[OBJ_Y]])
+                    a[0:2] = np.clip(CARRY_GAIN * d, -CARRY_CLIP, CARRY_CLIP)
+                    a[2] = np.clip(CARRY_GAIN * dz, 0.0, CARRY_CLIP)
+                    if np.linalg.norm(d) <= WP_TOL or self.leg_steps >= WP_LEG_CAP:
+                        self.carry_stage = 2; self.leg_steps = 0
                 else:
                     self.p_xy_to_bin(s, a)
-                    a[2] = np.clip(CARRY_GAIN * (WP_Z - s[OBJ_Z]),
-                                   -CARRY_CLIP, CARRY_CLIP)
+                    a[2] = np.clip(CARRY_GAIN * dz, 0.0, CARRY_CLIP)
                 a[3:6] = 0.0
             elif self.scripted_transport == "staged":
                 # Standard pick-and-place waypoint pattern, which the first
