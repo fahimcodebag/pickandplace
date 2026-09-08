@@ -7,15 +7,26 @@
 > generalization to randomized object spawns, and the current deployed
 > INT8 pipeline.
 >
-> **START HERE if resuming work: §9.4 (current status) and §9.16 (what is open
-> and the methodological rules).** Sections 7, 8.4 and 9.1–9.3 record earlier
-> states of the project and are explicitly superseded where §9.4 onward says so.
+> **START HERE if resuming work: §9.4 (current status), §9.16 (what is open and
+> the methodological rules), and §9.17 (a controller-interface defect that
+> revises the random-spawn numbers upward).** Sections 7, 8.4 and 9.1–9.3 record
+> earlier states of the project and are explicitly superseded where §9.4 onward
+> says so.
+>
+> **For "where is X?" read `REPOSITORY_MAP.md`** — an index of every directory,
+> script, checkpoint family and results file, with the checkpoint naming
+> convention decoded. This file answers "why is it like this"; that one answers
+> "where is it"; `Results/*.txt` answers "what is the number".
 >
 > Current headline: **FP32 100.0% fixed / 89.6% random spawn; INT8 96.6% fixed /
 > 76.1% random**, two 7.9 KB actors, evaluated through a replica of the deployed
 > FSM at 1200 episodes per cell (12 eval seeds x 100).
+> **The random-spawn cells are under revision** — §9.17 measured +2.75 on the
+> FP32 random pipeline from a one-constant controller fix, and INT8 is untested.
+> Do not quote the random cells as final until they are re-measured at the exact
+> tuned rule-layer configuration.
 >
-> Last updated: 2026-08-29
+> Last updated: 2026-09-09
 
 ---
 
@@ -1003,6 +1014,15 @@ by instrumenting `fsm_sim.py`. `Results/int8_deployment.txt`.
   (144 / 57 / 44 per 400 vs 30). Treat as a property of this pipeline.
 * **Critic resets on the place stage** (§9.6).
 
+**A trap in the second of these — read before concluding "rotation: settled".**
+`KEEP_ROTATION=1` is rejected at **−52.33 points** because it passes the place
+policy's *large* rotational outputs through, and the rule layer is what makes
+that channel survivable. That result stands. It says nothing about writing a
+*numerically negligible* value into `a[3:6]`, which is a different intervention
+with the opposite sign (**+24.9 / +2.75**, §9.17). The two are easy to conflate
+and the conflation is expensive: it is why the joint-limit stall class sat
+"unfixable" for a full campaign.
+
 ### 9.14 Perception sweep — measured, and the input to the AprilTag work
 
 `sweep_perception.py` degrades the object-pose channel and re-runs the pipeline.
@@ -1096,9 +1116,15 @@ grasp actor, whose weight dynamic range is the widest of the three models.
 
 ### 9.16 Where things stand for a fresh session
 
+**Read `REPOSITORY_MAP.md` first** for where anything lives — scripts,
+checkpoint naming, which results file answers which question.
+
 **Done and validated:** grasp stage (87.1% certified), transport (original,
 never retrained), FSM in FP32 (100.0% fixed / 89.6% random), INT8 conversion
 (96.6% fixed / 76.1% random), rule-layer tuning, perception sweep.
+**The two random-spawn cells are stale** — §9.17 moves FP32 random up by +2.75
+(paired, t(11)=+4.75) and INT8 is unmeasured. Re-measure both at the exact
+tuned configuration before quoting them.
 
 **Open:**
 
@@ -1111,6 +1137,15 @@ never retrained), FSM in FP32 (100.0% fixed / 89.6% random), INT8 conversion
    a different model, fixed spawn, 10 episodes.
 3. `train_place.py` still uses a 50-episode best-window (§9.7).
 4. Deployed `.tflite` files in the repo root are stale (§9.4).
+5. **Re-measure FP32/INT8 random spawn with `ROT_ANCHOR_EPS`** at the exact
+   A+C configuration (§9.17 caveat 1). INT8 is the larger unknown — its blocked
+   class was 5.92% against FP32's 3.08%.
+6. **Mirror `ROT_ANCHOR_EPS` to `pick_and_place_INT8_FSM.ino`** and add it to
+   `check_fsm_sync.py` (§9.17 caveat 4).
+7. **Decide how cereal is scored.** The environment's z-window makes physical
+   placement (99.7%) and scored success (89.7%) diverge by ~10 points for
+   cereal alone, confounding every bread-vs-cereal comparison (§9.17).
+8. `can` and `milk` per-object policies are untrained.
 
 **Methodological rules earned the hard way in this campaign:**
 
@@ -1126,6 +1161,132 @@ never retrained), FSM in FP32 (100.0% fixed / 89.6% random), INT8 conversion
 * Check `.tflite` **tensor dtypes**, never exit status — a prior conversion
   reported a perfect 0.00000 diff while silently remaining FP32.
 * Evaluations are embarrassingly parallel; shard ~28-wide on this 32-core host.
+  One process per (arm, seed) under `xargs -P 28`, one core each
+  (`OMP_NUM_THREADS=1`, `torch.set_num_threads(1)`). MuJoCo will not
+  parallelise a single environment, so a sequential sweep sits at ~3% CPU.
+* **When a failure class survives every rule-layer remedy, suspect the layer
+  below.** Five hypotheses drawn from the failure distribution were refuted
+  before the mechanism was found by reading the controller source (§9.17).
+* **A finding recorded only in `Results/` gets re-derived.** The joint-5 stall
+  was documented in `fsm_sim.py` *and* `transport_stall_diagnosis.txt` and was
+  still rediscovered from scratch months later. It must be reachable from this
+  section, or from `REPOSITORY_MAP.md`, to count as recorded.
+
+### 9.17 The orientation anchor — a controller-interface defect
+
+`Results/orientation_anchor.txt`. Supersedes the disposition (not the analysis)
+of `Results/transport_stall_diagnosis.txt` Part 3.
+
+**The mechanism.** robosuite's OSC updates the position goal unconditionally but
+the orientation goal only when the rotational delta is nonzero
+(`controllers/osc.py:259`):
+
+```python
+bools = [0.0 if math.isclose(e, 0.0) else 1.0 for e in scaled_delta[3:]]
+if sum(bools) > 0.0 or set_ori is not None:
+    self.goal_ori = set_goal_orientation(...)      # CONDITIONAL
+self.goal_pos = set_goal_position(...)             # UNCONDITIONAL
+```
+
+So `a[3:6] = 0.0` — which TRANSPORT executes every step, on both the scripted
+paths and the place-actor path — does **not** mean "no orientation command". It
+freezes `goal_ori` at whatever absolute *world* attitude was last commanded,
+back in GRASP, i.e. whatever arbitrary yaw the object happened to be picked at.
+The orientation PD (kp=150) then fights to hold that attitude across the whole
+0.65 m traverse from pick bin to place bin. Panda joint 5 absorbs the arc; its
+range is one-sided, `[-0.02, 3.75]`, where every other joint is ±2.9 or wider.
+It saturates.
+
+| | stalled windows | successful windows |
+|---|---|---|
+| q5 | **3.753** (limit 3.75) | 3.541 |
+| limit proximity (0 = at a stop) | 0.007 | 0.070 |
+| motion achieved / commanded | 4.6% | 15.5% |
+| windows moving <5 mm in 12 steps | 67% | 4% |
+| contacts (arm or box vs bins) | none | none |
+
+Nothing in the loop bounds joint angles: OSC consumes Cartesian deltas, and
+`nullspace_torques` regulates posture toward `initial_joint` but never reads
+`jnt_range`. The only thing stopping a joint is MuJoCo's mechanical stop. The
+arm jams silently, still holding the object, commanding full scale — and the FSM
+reads the stall as convergence.
+
+**The fix.** `ROT_ANCHOR_EPS = 1e-6` in `fsm_sim.py`, written into `a[3:6]`
+instead of exactly 0.0. It scales to ~5e-7 rad and moves nothing; its only
+effect is to flip the `isclose()` branch so `goal_ori` re-anchors each step.
+`--rot-anchor-eps 0.0` reproduces every number recorded before this was found.
+
+| cell (12 seeds × 100, paired) | before | after | Δ | t(11) | seeds |
+|---|---|---|---|---|---|
+| cereal + waypoint transport | 57.4% | 82.3% | **+24.92** | +24.3 | 12u/0d |
+| ↳ + release radius 0.18→0.08 | 82.3% | **89.2%** | +6.83 | +5.30 | 12u/0d |
+| bread + place actor (**main pipeline**) | 88.7% | **91.4%** | **+2.75** | +4.75 | 11u/1d |
+| bread + waypoint transport | 88.7% | **92.8%** | +4.17 | +3.79 | 11u/1d |
+
+**This is the class §9.15's campaign could not fix, and its attribution was
+correct.** `transport_stall_diagnosis.txt` measured the blocked class at 3.08%
+FP32, found joint 5 pinned in 76/88 cases, tried three open-loop escapes at 1200
+episodes each and recovered **0** from every one. Its conclusion — *"no
+open-loop rule-layer maneuver returns it to a workable configuration; removing
+it needs joint-limit-aware control… neither of which lives in the FSM"* — was
+right. The bread gain here is +2.75 against that 3.08% class: it collects ~90%
+of exactly those failures. Not a new capability; the same class, addressed one
+layer down. **Prevention, not escape.**
+
+**A structural result worth keeping.** A 7-DOF arm against a 6-DOF task leaves
+exactly **one** nullspace dimension — the elbow swivel. Joint 5 is wrist
+flexion, which *determines* the task orientation, so `(I − J̄J)` projects out
+precisely the component that would move it. This holds identically for posture
+regulation, for gradient-projection joint-limit avoidance, and for CLIK's
+`(I − J⁺J)q̇₀`. A PID integral does not help either: the steady-state error is a
+*kinematic constraint*, not a disturbance, so integral action winds up and
+saturates against a mechanical stop. The feedback path was never missing — OSC
+is already a closed-loop task-space PD. **The lever is not more redundancy; it
+is choosing which task dimensions to constrain.**
+
+A preset joint configuration at staging — the intuitive fix — would have worked
+*before* this. After it, joint angles at staging separate success from failure
+at d′ ≤ 0.22 on all seven joints, with j5 now 0.23 rad clear of the stop. It
+would standardise a variable that no longer predicts anything, at the cost of a
+controller swap. Recorded so it is not re-proposed.
+
+**Five refutations on the way** (all paired, at protocol or better): nullspace
+posture gain (monotonically worse, 33→17→10%), joint-limit-aware nullspace
+(null; the pinned-episode rate did not move), DESCEND touch margin
+(bit-identical), DESCEND budget (−25.0, 0u/6d), post-release window
+`RT_STEPS` 12→60→120 (bit-identical, twice). Every hypothesis drawn from the
+failure *distribution* was wrong. The mechanism was found by reading `osc.py`.
+
+**The cereal scoring artifact.** `pick_place.not_in_bin()` requires
+`bin_z < obj_z < bin_z + 0.1`, i.e. `0.80 < z < 0.90`. **A cereal box lying flat
+on the bin floor rests at exactly 0.90** — the exclusive upper bound. Of 62
+scored failures, **60 come to rest inside the correct compartment**; release
+accuracy (0.0120 vs 0.0124) and height (1.214 vs 1.211) are identical between
+classes. What separates them is 1.4 cm of resting height at a boundary the
+object cannot reliably clear. Physical placement is 598/600 = **99.7%** against
+a scored 89.7%. Bread rests at ~0.825 and is unaffected, so **every
+bread-vs-cereal comparison in this project is confounded by it.** This also
+explains why `RT_STEPS` was inert twice: the box has settled *above* the window,
+permanently — waiting cannot help. `fsm_sim.py --settle-steps N` now reports
+both criteria; report both, do not substitute ours.
+
+**Caveats — read before rewriting the headline table.**
+1. The bread baseline here reads 88.7% against the 90.67% recorded for A+C.
+   Only `--regrasp` and `--rc-steps 60` were applied, not necessarily every
+   tuned constant. The **paired deltas are valid**; the absolute cells are not,
+   and must be re-measured at the exact recorded configuration.
+2. **INT8 is untested.** Its blocked class was larger (5.92% vs 3.08%), so the
+   gain may be larger — but that is a prediction.
+3. `NEAR_TARGET_XY 0.08` (+6.83) was measured on the **cereal scripted path
+   only**. It is a shared rule-layer constant, so the default stays 0.18 and the
+   scripted arm passes the flag.
+4. Not mirrored to `pick_and_place_INT8_FSM.ino`; `check_fsm_sync.py` must gain
+   `ROT_ANCHOR_EPS` when it is. The `isclose()` branch is robosuite-specific,
+   but holding a fixed world attitude through a large arc is a physical error
+   and a real Panda's joint 5 has the same one-sided range.
+
+**Scripted transport now beats the learned place policy on both objects**
+(bread 92.8% vs 88.7%; cereal 89.2% vs 64.0%), which bears on §10.
 
 ---
 
@@ -1138,6 +1299,8 @@ never retrained), FSM in FP32 (100.0% fixed / 89.6% random), INT8 conversion
 | Sub-policies fit and run on a commodity MCU in real time | **Demonstrated** | 15.8 KB total (2 × 7.9 KB), 9.49 ms/cycle vs 50 ms budget (§7–8) |
 | Quantized deployment preserves task behavior | **Demonstrated** | INT8 96.6% vs FP32 100.0% fixed spawn, 1200 episodes — above the 92% FP32 Python baseline (§9.12, §9.15) |
 | Decomposition confines spawn randomness to the grasp stage | **Demonstrated** | Grasp stage absorbed the randomness (79.2% → 87.1%); the transport policy was **never retrained** and the two attempts to retrain it both lost (§9.9, §9.13) |
+| A learned transport policy is not required for these tasks | **Demonstrated** | A scripted three-leg transport beats the learned place actor on both objects at full protocol: bread 92.8% vs 88.7%, cereal 89.2% vs 64.0% (§9.17). Strengthens the row above: the stage is replaceable, not merely retrain-resistant |
+| Failure classes that resist the rule layer are defects one layer down | **Demonstrated** | The 3.08% "blocked at a joint limit" class survived three open-loop escapes at 1200 episodes each (0/88 recovered) and was recovered by a one-constant change to the controller interface (§9.17) |
 | The stage interface is the dominant design variable | **Demonstrated** | Aligning stage-1 certification with stage-2 handoff: 13% → 82% end-to-end, no architecture change (§9.5) |
 | Plasticity-loss remedies transfer across stages | **Falsified** | Critic resets: +20 to +30 on grasp, −30 on transport (§9.6) |
 | Reward shaping can direct fine-grained grasp geometry | **Falsified** | Four interventions failed; the critic never represents the axis (corr −0.004 across six critics) (§9.8) |

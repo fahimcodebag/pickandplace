@@ -211,6 +211,16 @@ This is a genuine limitation, not a missing patch. Removing it needs
 joint-limit-aware control, or a transport policy that does not drive itself
 there -- neither of which lives in the FSM.
 
+  *** SUPERSEDED IN DISPOSITION, NOT IN ANALYSIS -- see orientation_anchor.txt.
+  *** The analysis above is correct and the escapes were correctly rejected.
+  *** The class was later recovered by preventing the jam instead of escaping
+  *** it: TRANSPORT's `a[3:6] = 0.0` freezes robosuite's goal_ori at an
+  *** absolute world attitude, and joint 5 saturates holding it through the
+  *** traverse.  ROT_ANCHOR_EPS = 1e-6 re-anchors it.  +2.75 on this exact
+  *** FP32 arm (12 seeds x 100, t(11)=+4.75), against the 3.08% class size.
+  *** "Neither of which lives in the FSM" was right -- it lived one layer
+  *** down, in the controller interface.
+
 FINDING 2 -- `a[3:6] = 0.0` IS LOAD-BEARING, NOT LEGACY  (hypothesis refuted)
 The reasoning was: a pinned WRIST joint can only be freed by rotational
 actuation, TRANSPORT discards every rotational command, and that line dates

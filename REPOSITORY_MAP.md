@@ -17,7 +17,7 @@ Last surveyed: 2026-09-08 · 118 commits · branch `main`
 | File | Role | When to read it |
 |---|---|---|
 | `REPOSITORY_MAP.md` (this) | **Index.** Where everything is. | "Where is X?" / new to the repo |
-| `thesis_context.md` (1147 ln) | **Narrative.** What was tried, what failed, what superseded what. §9.16 is the fresh-session entry point; §10 is the claim-status table. | "Why is it like this?" / resuming work |
+| `thesis_context.md` (1310 ln) | **Narrative.** What was tried, what failed, what superseded what. §9.16 is the fresh-session entry point, §9.17 the newest finding; §10 is the claim-status table. | "Why is it like this?" / resuming work |
 | `Results/*.txt` (39 files) | **Evidence.** Measured tables at protocol, with method and caveats. | "What is the number, and how solid?" |
 
 `PROJECT_CONTEXT.md` (281 ln, last updated 2026-06-30) is an **older** context
@@ -28,7 +28,11 @@ everything after Stage-2 decomposition. Keep for history; do not cite.
 re-derived. The joint-5 joint-limit stall was recorded in both
 `fsm_sim.py` and `Results/transport_stall_diagnosis.txt` and was still
 rediscovered from scratch months later. A finding must be reachable from
-`thesis_context.md` §9.16 or it is effectively lost.
+`thesis_context.md` §9.16 or from this file, or it is effectively lost.
+
+**Currently under revision:** the FP32/INT8 **random-spawn** headline cells.
+`thesis_context.md` §9.17 moves FP32 random up by +2.75 and INT8 is unmeasured.
+Do not quote the random cells as final.
 
 ---
 
@@ -151,9 +155,9 @@ vs `_rs_control_*` (critic-reset ablation), `*_backup` (manual saves).
 | `builtin_reward_results.txt`, `reward_v2_results.txt` | Reward shaping; robosuite's own shaped reward. |
 | `capacity_experiments.txt`, `critic_capacity_2m.txt`, `buffer_size.txt`, `weight_range_regularisation.txt`, `qat_in_training.txt` | Capacity, buffer, weight-clipping, in-loop QAT. |
 | `fsm_fp32_validation.txt`, `fsm_rule_layer_sweep.txt` | The FSM replica matches the eval harness; rule-layer tuning. |
-| `transport_stall_diagnosis.txt` | **Central.** Three failure causes; Fix A/C adopted, Fix B/D rejected. Part 3's "blocked class is unfixable from the rule layer" is correct *as scoped* — see `orientation_anchor.txt`. |
-| `transport_retrain_negative.txt`, `wrist_alignment_negative.txt` | Settled negatives — do not retry. |
-| `orientation_anchor.txt` | **Newest.** `a[3:6]=0` freezes `goal_ori` in robosuite's OSC → joint 5 saturates. Recovers the blocked class. Also: the cereal scoring artifact. |
+| `transport_stall_diagnosis.txt` | **Central.** Three failure causes; Fix A/C adopted, Fix B/D rejected. Part 3's "blocked class is unfixable from the rule layer" is correct *as scoped*, and carries a forward pointer — superseded in **disposition**, not analysis, by `orientation_anchor.txt`. |
+| `transport_retrain_negative.txt`, `wrist_alignment_negative.txt` | Settled negatives — do not retry. `KEEP_ROTATION=1` (−52 pts) is also settled, but do **not** read it as "rotation: closed" — see `thesis_context.md` §9.13. |
+| `orientation_anchor.txt` | **Newest** (`thesis_context.md` §9.17). `a[3:6]=0` freezes `goal_ori` in robosuite's OSC → joint 5 saturates against its one-sided range. `ROT_ANCHOR_EPS=1e-6` recovers the blocked class: cereal 57.4→89.2%, bread main pipeline 88.7→91.4%. Also documents the cereal scoring artifact (physical 99.7% vs scored 89.7%) that confounds bread-vs-cereal comparisons. |
 | `object_generalisation.txt`, `cereal_per_object.txt`, `orientation_ablation.txt`, `yaw_alignment.txt` | Beyond bread; per-object policies; ablations. |
 | `pruning_distillation.txt` | Parameter reduction vs accuracy. |
 | `int8_deployment.txt`, `validated_90_model.txt` | INT8 conversion and the validated model. |
@@ -175,6 +179,8 @@ vs `_rs_control_*` (critic-reset ablation), `*_backup` (manual saves).
 * **Two virtualenvs:** `../venv` (torch + robosuite), `../convert_venv` (TF).
 * **Quantization acceptance is behavioural**, never output diff — the two were
   anti-correlated (`thesis_context.md` §9.12).
+* **When a failure class survives every rule-layer remedy, suspect the layer
+  below** (`thesis_context.md` §9.17).
 
 ### What is actually in git (checked 2026-09-08)
 
