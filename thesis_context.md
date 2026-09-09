@@ -1019,7 +1019,7 @@ by instrumenting `fsm_sim.py`. `Results/int8_deployment.txt`.
 policy's *large* rotational outputs through, and the rule layer is what makes
 that channel survivable. That result stands. It says nothing about writing a
 *numerically negligible* value into `a[3:6]`, which is a different intervention
-with the opposite sign (**+24.9 / +2.75**, §9.17). The two are easy to conflate
+with the opposite sign (**+24.9 / +2.92**, §9.17). The two are easy to conflate
 and the conflation is expensive: it is why the joint-limit stall class sat
 "unfixable" for a full campaign.
 
@@ -1224,13 +1224,15 @@ effect is to flip the `isclose()` branch so `goal_ori` re-anchors each step.
 | ↳ + release radius 0.18→0.08 | 82.3% | **89.2%** | +6.83 | +5.30 | 12u/0d |
 | **FP32** + place actor (**main pipeline**) | 90.67% | **93.58%** | **+2.92** | +5.12 | 11u/1d |
 | **INT8** + place actor (**main pipeline**) | 78.33% | **83.58%** | **+5.25** | +8.19 | 12u/0d |
-| bread + waypoint transport | 88.7%* | 92.8%* | +4.17 | +3.79 | 11u/1d |
+| bread + waypoint transport (CLI) | 93.58% | **95.50%** | +1.92 | +2.87 | 9u/2d/1t |
+| cereal + waypoint transport (CLI) | 73.17%† | **89.17%** | +16.00 | +9.61 | 12u/0d |
 
 Both main-pipeline baselines reproduce the recorded A+C figures **to the
 episode** (1088/1200 and 940/1200), so both cells are directly quotable. Each
 precision recovers ~90% of its own blocked class — 2.92/3.08 and 5.25/5.92 —
 on classes differing by 1.9×. **Quantization cost on random spawn: 12.33 →
-10.00.** (*cells marked \* are on the no-retry harness, see caveat 1.)
+10.00.** († the cereal "before" column is the **bread** place policy transferred; no
+cereal place policy exists, so that row is cost-matched, not scripted-vs-trained.)
 
 **This is the class §9.15's campaign could not fix, and its attribution was
 correct.** `transport_stall_diagnosis.txt` measured the blocked class at 3.08%
@@ -1238,7 +1240,7 @@ FP32, found joint 5 pinned in 76/88 cases, tried three open-loop escapes at 1200
 episodes each and recovered **0** from every one. Its conclusion — *"no
 open-loop rule-layer maneuver returns it to a workable configuration; removing
 it needs joint-limit-aware control… neither of which lives in the FSM"* — was
-right. The bread gain here is +2.75 against that 3.08% class: it collects ~90%
+right. The bread gain here is +2.92 against that 3.08% class: it collects ~95%
 of exactly those failures. Not a new capability; the same class, addressed one
 layer down. **Prevention, not escape.**
 
@@ -1298,8 +1300,8 @@ both criteria; report both, do not substitute ours.
    t(11)=+8.19, 12u/0d. Its baseline reproduced the recorded A+C figure
    *exactly* (940/1200), so unlike caveat 1 this cell **is** directly
    comparable to the headline table. The recovery fraction is identical on
-   both precisions — +5.25 of a 5.92% class and +2.75 of a 3.08% class, 89%
-   each — which is strong evidence the mechanism is the same one on class
+   both precisions — +5.25 of a 5.92% class (89%) and +2.92 of a 3.08% class
+   (95%) — which is strong evidence the mechanism is the same one on class
    sizes differing by 1.9×. INT8 random spawn now reads
    **76.08% (base) → 78.33% (A+C) → 83.58% (A+C + anchor)**.
    The *quantization cost* cannot yet be restated: FP32 at the exact recorded
@@ -1312,8 +1314,16 @@ both criteria; report both, do not substitute ours.
    but holding a fixed world attitude through a large arc is a physical error
    and a real Panda's joint 5 has the same one-sided range.
 
-**Scripted transport now beats the learned place policy on both objects**
-(bread 92.8% vs 88.7%; cereal 89.2% vs 64.0%), which bears on §10.
+**Scripted transport beats the learned place policy, by less than first
+reported.** Measured through the CLI at 12×100: bread **95.50% vs 93.58%**
+(+1.92, t(11)=+2.87), cereal **89.17% vs 73.17%** (+16.00, t(11)=+9.61). The
+first pass claimed +4.17 and +25.2 from the no-retry worker; the retry loop
+lifts the *learned* arms far more than the scripted ones, because retries only
+fire when the grasp fails to hand off — cereal's grasp is 96.5–100% and almost
+never retries, bread's `bi_s0` is 87.1% certified and often does.
+**On cereal the "learned" arm is the bread policy transferred** — no cereal
+place policy has ever been trained — so that row is cost-matched (zero training
+either way), not evidence that a trained cereal policy would lose. Bears on §10.
 
 ---
 
@@ -1326,7 +1336,7 @@ both criteria; report both, do not substitute ours.
 | Sub-policies fit and run on a commodity MCU in real time | **Demonstrated** | 15.8 KB total (2 × 7.9 KB), 9.49 ms/cycle vs 50 ms budget (§7–8) |
 | Quantized deployment preserves task behavior | **Demonstrated** | INT8 96.6% vs FP32 100.0% fixed spawn, 1200 episodes — above the 92% FP32 Python baseline (§9.12, §9.15) |
 | Decomposition confines spawn randomness to the grasp stage | **Demonstrated** | Grasp stage absorbed the randomness (79.2% → 87.1%); the transport policy was **never retrained** and the two attempts to retrain it both lost (§9.9, §9.13) |
-| A learned transport policy is not required for these tasks | **Demonstrated** | A scripted three-leg transport beats the learned place actor on both objects at full protocol: bread 92.8% vs 88.7%, cereal 89.2% vs 64.0% (§9.17). Strengthens the row above: the stage is replaceable, not merely retrain-resistant |
+| A learned transport policy is not required for these tasks | **Demonstrated, modestly** | Scripted three-leg transport vs the learned place actor, both through `fsm_sim.py` at 12×100: **bread 95.50% vs 93.58%, +1.92, t(11)=+2.87** (9u/2d/1t) — the fair test, since that actor was trained on bread. On **cereal** the learned arm is the bread policy *transferred* (no cereal place policy has ever been trained), so **89.17% vs 73.17%, +16.00** is a *cost-matched* claim — scripting and transfer both cost zero training — not scripted-vs-trained. The stage is replaceable; the bread margin is small |
 | Failure classes that resist the rule layer are defects one layer down | **Demonstrated** | The 3.08% "blocked at a joint limit" class survived three open-loop escapes at 1200 episodes each (0/88 recovered) and was recovered by a one-constant change to the controller interface (§9.17) |
 | The stage interface is the dominant design variable | **Demonstrated** | Aligning stage-1 certification with stage-2 handoff: 13% → 82% end-to-end, no architecture change (§9.5) |
 | Plasticity-loss remedies transfer across stages | **Falsified** | Critic resets: +20 to +30 on grasp, −30 on transport (§9.6) |

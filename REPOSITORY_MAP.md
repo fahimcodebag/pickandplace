@@ -161,7 +161,7 @@ vs `_rs_control_*` (critic-reset ablation), `*_backup` (manual saves).
 | `fsm_fp32_validation.txt`, `fsm_rule_layer_sweep.txt` | The FSM replica matches the eval harness; rule-layer tuning. |
 | `transport_stall_diagnosis.txt` | **Central.** Three failure causes; Fix A/C adopted, Fix B/D rejected. Part 3's "blocked class is unfixable from the rule layer" is correct *as scoped*, and carries a forward pointer — superseded in **disposition**, not analysis, by `orientation_anchor.txt`. |
 | `transport_retrain_negative.txt`, `wrist_alignment_negative.txt` | Settled negatives — do not retry. `KEEP_ROTATION=1` (−52 pts) is also settled, but do **not** read it as "rotation: closed" — see `thesis_context.md` §9.13. |
-| `orientation_anchor.txt` | **Newest** (`thesis_context.md` §9.17). `a[3:6]=0` freezes `goal_ori` in robosuite's OSC → joint 5 saturates against its one-sided range. `ROT_ANCHOR_EPS=1e-6` recovers the blocked class: cereal 57.4→89.2%, bread main pipeline 88.7→91.4%. Also documents the cereal scoring artifact (physical 99.7% vs scored 89.7%) that confounds bread-vs-cereal comparisons. |
+| `orientation_anchor.txt` | **Newest** (`thesis_context.md` §9.17). `a[3:6]=0` freezes `goal_ori` in robosuite's OSC → joint 5 saturates against its one-sided range. `ROT_ANCHOR_EPS=1e-6` recovers the blocked class: FP32 random 90.67→93.58%, INT8 random 78.33→83.58%, quantization cost 12.33→10.00. Also documents the cereal scoring artifact (physical 99.7% vs scored 89.7%) that confounds bread-vs-cereal comparisons. |
 | `object_generalisation.txt`, `cereal_per_object.txt`, `orientation_ablation.txt`, `yaw_alignment.txt` | Beyond bread; per-object policies; ablations. |
 | `pruning_distillation.txt` | Parameter reduction vs accuracy. |
 | `int8_deployment.txt`, `validated_90_model.txt` | INT8 conversion and the validated model. |
@@ -207,6 +207,8 @@ meant to survive this host, those are the two gaps to close first.
 * `.tflite` in repo root — stale (§9.4).
 * `PROJECT_CONTEXT.md` — June, monolithic era.
 * `ROT_ANCHOR_EPS` not mirrored to `.ino`; `check_fsm_sync.py` must gain it when it is.
-* INT8 arm untested against `orientation_anchor.txt`.
+* Fixed-spawn cells not re-measured with `ROT_ANCHOR_EPS`.
+* No **cereal** place policy has ever been trained; the cereal "learned"
+  baseline is the bread policy transferred.
 * `hil_main.py` fixed-spawn hard-code (§9.16 item 2).
 * `train_place.py` 50-episode best-window (§9.7).

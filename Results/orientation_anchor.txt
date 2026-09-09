@@ -9,7 +9,11 @@ SUMMARY
     + release radius 0.18->0.08 82.3% -> 89.2%  + 6.83  t(11)= +5.30 12up/0down
   FP32   + place actor (MAIN)   90.67%-> 93.58% + 2.92  t(11)= +5.12 11up/1down
   INT8   + place actor (MAIN)   78.33%-> 83.58% + 5.25  t(11)= +8.19 12up/0down
-  bread  + waypoint transport            92.8%  + 4.17  t(11)= +3.79 11up/1down
+  bread  + waypoint transport   93.58%-> 95.50% + 1.92  t(11)= +2.87  9up/2down
+  cereal + waypoint transport   73.17%-> 89.17% +16.00  t(11)= +9.61 12up/0down
+    (the cereal "before" is the BREAD place policy TRANSFERRED -- no cereal
+     place policy has ever been trained, so that row is cost-matched, zero
+     training either way, NOT scripted-vs-trained.)
 Both MAIN baselines reproduce the recorded A+C figures TO THE EPISODE
 (1088/1200 and 940/1200), so both cells are directly quotable.
 
