@@ -21,10 +21,12 @@
 > Current headline: **FP32 100.0% fixed / 89.6% random spawn; INT8 96.6% fixed /
 > 76.1% random**, two 7.9 KB actors, evaluated through a replica of the deployed
 > FSM at 1200 episodes per cell (12 eval seeds x 100).
-> **The random-spawn cells are under revision** — §9.17 measured +2.75 on the
-> FP32 random pipeline from a one-constant controller fix, and INT8 is untested.
-> Do not quote the random cells as final until they are re-measured at the exact
-> tuned rule-layer configuration.
+> **The random-spawn cells are under revision** (§9.17, a one-constant
+> controller fix). **INT8 random is settled: 78.33% → 83.58%**, +5.25,
+> t(11)=+8.19, 12/12 seeds, baseline reproduced exactly. **FP32 random is not** —
+> the +2.75 measured there sits on a baseline 2 points below the recorded one,
+> so it must be re-run at the exact tuned configuration before the cell, or the
+> quantization cost, is quoted.
 >
 > Last updated: 2026-09-09
 
@@ -1137,9 +1139,10 @@ tuned configuration before quoting them.
    a different model, fixed spawn, 10 episodes.
 3. `train_place.py` still uses a 50-episode best-window (§9.7).
 4. Deployed `.tflite` files in the repo root are stale (§9.4).
-5. **Re-measure FP32/INT8 random spawn with `ROT_ANCHOR_EPS`** at the exact
-   A+C configuration (§9.17 caveat 1). INT8 is the larger unknown — its blocked
-   class was 5.92% against FP32's 3.08%.
+5. **Re-measure FP32 random spawn with `ROT_ANCHOR_EPS`** at the exact A+C
+   configuration (§9.17 caveat 1). INT8 is **done** — 78.33% → 83.58% — and
+   reproduced its recorded baseline exactly; FP32 is the one still outstanding,
+   and until it lands the quantization cost cannot be restated.
 6. **Mirror `ROT_ANCHOR_EPS` to `pick_and_place_INT8_FSM.ino`** and add it to
    `check_fsm_sync.py` (§9.17 caveat 4).
 7. **Decide how cereal is scored.** The environment's z-window makes physical
@@ -1222,6 +1225,7 @@ effect is to flip the `isclose()` branch so `goal_ori` re-anchors each step.
 | ↳ + release radius 0.18→0.08 | 82.3% | **89.2%** | +6.83 | +5.30 | 12u/0d |
 | bread + place actor (**main pipeline**) | 88.7% | **91.4%** | **+2.75** | +4.75 | 11u/1d |
 | bread + waypoint transport | 88.7% | **92.8%** | +4.17 | +3.79 | 11u/1d |
+| **INT8** + place actor (main pipeline) | 78.33% | **83.58%** | **+5.25** | +8.19 | 12u/0d |
 
 **This is the class §9.15's campaign could not fix, and its attribution was
 correct.** `transport_stall_diagnosis.txt` measured the blocked class at 3.08%
@@ -1275,8 +1279,16 @@ both criteria; report both, do not substitute ours.
    Only `--regrasp` and `--rc-steps 60` were applied, not necessarily every
    tuned constant. The **paired deltas are valid**; the absolute cells are not,
    and must be re-measured at the exact recorded configuration.
-2. **INT8 is untested.** Its blocked class was larger (5.92% vs 3.08%), so the
-   gain may be larger — but that is a prediction.
+2. **INT8 measured, and the prediction held.** 78.33% → **83.58%**, +5.25,
+   t(11)=+8.19, 12u/0d. Its baseline reproduced the recorded A+C figure
+   *exactly* (940/1200), so unlike caveat 1 this cell **is** directly
+   comparable to the headline table. The recovery fraction is identical on
+   both precisions — +5.25 of a 5.92% class and +2.75 of a 3.08% class, 89%
+   each — which is strong evidence the mechanism is the same one on class
+   sizes differing by 1.9×. INT8 random spawn now reads
+   **76.08% (base) → 78.33% (A+C) → 83.58% (A+C + anchor)**.
+   The *quantization cost* cannot yet be restated: FP32 at the exact recorded
+   configuration remains unmeasured (caveat 1).
 3. `NEAR_TARGET_XY 0.08` (+6.83) was measured on the **cereal scripted path
    only**. It is a shared rule-layer constant, so the default stays 0.18 and the
    scripted arm passes the flag.

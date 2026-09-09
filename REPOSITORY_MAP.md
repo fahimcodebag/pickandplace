@@ -30,9 +30,10 @@ re-derived. The joint-5 joint-limit stall was recorded in both
 rediscovered from scratch months later. A finding must be reachable from
 `thesis_context.md` §9.16 or from this file, or it is effectively lost.
 
-**Currently under revision:** the FP32/INT8 **random-spawn** headline cells.
-`thesis_context.md` §9.17 moves FP32 random up by +2.75 and INT8 is unmeasured.
-Do not quote the random cells as final.
+**Currently under revision:** the **random-spawn** headline cells
+(`thesis_context.md` §9.17). INT8 is settled at **83.58%** (from 78.33%);
+FP32 still needs a re-run at the exact tuned configuration, so the quantization
+cost cannot be quoted yet.
 
 ---
 
