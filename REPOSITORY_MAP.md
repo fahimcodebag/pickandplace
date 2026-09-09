@@ -30,10 +30,13 @@ re-derived. The joint-5 joint-limit stall was recorded in both
 rediscovered from scratch months later. A finding must be reachable from
 `thesis_context.md` §9.16 or from this file, or it is effectively lost.
 
-**Currently under revision:** the **random-spawn** headline cells
-(`thesis_context.md` §9.17). INT8 is settled at **83.58%** (from 78.33%);
-FP32 still needs a re-run at the exact tuned configuration, so the quantization
-cost cannot be quoted yet.
+**Recently revised:** the **random-spawn** headline cells (`thesis_context.md`
+§9.17) — FP32 90.67 → **93.58%**, INT8 78.33 → **83.58%**, quantization cost
+12.33 → **10.00**. Fixed-spawn cells are unchanged and un-re-measured.
+
+**Harness note:** measure through `fsm_sim.py` itself, not a reimplementation.
+`main()` runs a respawn-and-retry handoff loop that a custom driver will miss,
+and it is worth ~2 points.
 
 ---
 

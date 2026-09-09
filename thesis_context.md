@@ -18,15 +18,13 @@
 > convention decoded. This file answers "why is it like this"; that one answers
 > "where is it"; `Results/*.txt` answers "what is the number".
 >
-> Current headline: **FP32 100.0% fixed / 89.6% random spawn; INT8 96.6% fixed /
-> 76.1% random**, two 7.9 KB actors, evaluated through a replica of the deployed
+> Current headline: **FP32 100.0% fixed / 93.58% random spawn; INT8 96.6% fixed /
+> 83.58% random**, two 7.9 KB actors, evaluated through a replica of the deployed
 > FSM at 1200 episodes per cell (12 eval seeds x 100).
-> **The random-spawn cells are under revision** (§9.17, a one-constant
-> controller fix). **INT8 random is settled: 78.33% → 83.58%**, +5.25,
-> t(11)=+8.19, 12/12 seeds, baseline reproduced exactly. **FP32 random is not** —
-> the +2.75 measured there sits on a baseline 2 points below the recorded one,
-> so it must be re-run at the exact tuned configuration before the cell, or the
-> quantization cost, is quoted.
+> The random-spawn cells were raised by §9.17's one-constant controller fix
+> (FP32 90.67 → 93.58, INT8 78.33 → 83.58; both pre-fix baselines reproduced to
+> the episode). **Quantization cost on random spawn falls 12.33 → 10.00.**
+> Fixed-spawn cells have not been re-measured with the anchor.
 >
 > Last updated: 2026-09-09
 
@@ -1124,9 +1122,9 @@ checkpoint naming, which results file answers which question.
 **Done and validated:** grasp stage (87.1% certified), transport (original,
 never retrained), FSM in FP32 (100.0% fixed / 89.6% random), INT8 conversion
 (96.6% fixed / 76.1% random), rule-layer tuning, perception sweep.
-**The two random-spawn cells are stale** — §9.17 moves FP32 random up by +2.75
-(paired, t(11)=+4.75) and INT8 is unmeasured. Re-measure both at the exact
-tuned configuration before quoting them.
+**Both random-spawn cells were re-measured** with `ROT_ANCHOR_EPS` (§9.17):
+FP32 90.67 → **93.58%**, INT8 78.33 → **83.58%**, quantization cost 12.33 →
+**10.00**. The *fixed*-spawn cells have not been.
 
 **Open:**
 
@@ -1139,10 +1137,11 @@ tuned configuration before quoting them.
    a different model, fixed spawn, 10 episodes.
 3. `train_place.py` still uses a 50-episode best-window (§9.7).
 4. Deployed `.tflite` files in the repo root are stale (§9.4).
-5. **Re-measure FP32 random spawn with `ROT_ANCHOR_EPS`** at the exact A+C
-   configuration (§9.17 caveat 1). INT8 is **done** — 78.33% → 83.58% — and
-   reproduced its recorded baseline exactly; FP32 is the one still outstanding,
-   and until it lands the quantization cost cannot be restated.
+5. **Done.** Both random-spawn cells re-measured with `ROT_ANCHOR_EPS`, both
+   baselines reproduced to the episode: FP32 90.67 → **93.58**, INT8 78.33 →
+   **83.58**, quantization cost 12.33 → **10.00**. Remaining: the *fixed*-spawn
+   cells have not been re-measured, and the **cereal** cells need re-running
+   through the CLI rather than the no-retry worker (§9.17 caveat 1).
 6. **Mirror `ROT_ANCHOR_EPS` to `pick_and_place_INT8_FSM.ino`** and add it to
    `check_fsm_sync.py` (§9.17 caveat 4).
 7. **Decide how cereal is scored.** The environment's z-window makes physical
@@ -1223,9 +1222,15 @@ effect is to flip the `isclose()` branch so `goal_ori` re-anchors each step.
 |---|---|---|---|---|---|
 | cereal + waypoint transport | 57.4% | 82.3% | **+24.92** | +24.3 | 12u/0d |
 | ↳ + release radius 0.18→0.08 | 82.3% | **89.2%** | +6.83 | +5.30 | 12u/0d |
-| bread + place actor (**main pipeline**) | 88.7% | **91.4%** | **+2.75** | +4.75 | 11u/1d |
-| bread + waypoint transport | 88.7% | **92.8%** | +4.17 | +3.79 | 11u/1d |
-| **INT8** + place actor (main pipeline) | 78.33% | **83.58%** | **+5.25** | +8.19 | 12u/0d |
+| **FP32** + place actor (**main pipeline**) | 90.67% | **93.58%** | **+2.92** | +5.12 | 11u/1d |
+| **INT8** + place actor (**main pipeline**) | 78.33% | **83.58%** | **+5.25** | +8.19 | 12u/0d |
+| bread + waypoint transport | 88.7%* | 92.8%* | +4.17 | +3.79 | 11u/1d |
+
+Both main-pipeline baselines reproduce the recorded A+C figures **to the
+episode** (1088/1200 and 940/1200), so both cells are directly quotable. Each
+precision recovers ~90% of its own blocked class — 2.92/3.08 and 5.25/5.92 —
+on classes differing by 1.9×. **Quantization cost on random spawn: 12.33 →
+10.00.** (*cells marked \* are on the no-retry harness, see caveat 1.)
 
 **This is the class §9.15's campaign could not fix, and its attribution was
 correct.** `transport_stall_diagnosis.txt` measured the blocked class at 3.08%
@@ -1275,10 +1280,20 @@ permanently — waiting cannot help. `fsm_sim.py --settle-steps N` now reports
 both criteria; report both, do not substitute ours.
 
 **Caveats — read before rewriting the headline table.**
-1. The bread baseline here reads 88.7% against the 90.67% recorded for A+C.
-   Only `--regrasp` and `--rc-steps 60` were applied, not necessarily every
-   tuned constant. The **paired deltas are valid**; the absolute cells are not,
-   and must be re-measured at the exact recorded configuration.
+1. **Resolved — and the cause was the harness, not the configuration.** The
+   first FP32 pass read 88.7%. `fsm_sim.py:main()` wraps every episode in a
+   **respawn-and-retry handoff loop** — reset until the FSM reaches TRANSPORT
+   (up to `MAX_GRASP_ATTEMPTS`), score only after handoff, and record episodes
+   that never hand off as `handoff_failed`. The custom worker used for that
+   pass ran one episode straight through with no retry: strictly harsher, worth
+   ~2 points. Through the real CLI the baseline reproduces exactly and the fix
+   measures **+2.92**. The *delta* was robust to the protocol; the *absolute*
+   was not — which is also why the INT8 grid, run through the CLI from the
+   start, reproduced on the first attempt.
+   **Consequence:** the cereal cells (57.4 / 82.3 / 89.2%) came from the
+   no-retry worker. Their paired deltas stand, their absolutes do not; a CLI
+   spot-check of the fixed configuration returned 19/20 = 95%. Re-run them
+   through `fsm_sim.py` before quoting.
 2. **INT8 measured, and the prediction held.** 78.33% → **83.58%**, +5.25,
    t(11)=+8.19, 12u/0d. Its baseline reproduced the recorded A+C figure
    *exactly* (940/1200), so unlike caveat 1 this cell **is** directly

@@ -7,9 +7,17 @@ because it was never IN the rule layer.  One constant recovers it.
 SUMMARY
   cereal + waypoint transport   57.4% -> 82.3%  +24.92  t(11)=+24.3  12up/0down
     + release radius 0.18->0.08 82.3% -> 89.2%  + 6.83  t(11)= +5.30 12up/0down
-  bread  + place actor (MAIN)   88.7% -> 91.4%  + 2.75  t(11)= +4.75 11up/1down
-  bread  + waypoint transport            92.8%  + 4.17  t(11)= +3.79 11up/1down
+  FP32   + place actor (MAIN)   90.67%-> 93.58% + 2.92  t(11)= +5.12 11up/1down
   INT8   + place actor (MAIN)   78.33%-> 83.58% + 5.25  t(11)= +8.19 12up/0down
+  bread  + waypoint transport            92.8%  + 4.17  t(11)= +3.79 11up/1down
+Both MAIN baselines reproduce the recorded A+C figures TO THE EPISODE
+(1088/1200 and 940/1200), so both cells are directly quotable.
+
+  QUANTIZATION COST, RANDOM SPAWN   FP32 - INT8
+    before the anchor   90.67 - 78.33 = 12.33
+    after  the anchor   93.58 - 83.58 = 10.00
+Fixed-spawn cells are UNTESTED with the anchor; the blocked class is small
+there (FP32 is already 100.0%), so little is expected, but that is untested.
 All cells 12 seeds x 100 = 1200 episodes, paired on seed.
 
 --------------------------------------------------------------------------------
@@ -180,11 +188,21 @@ NOT adopted as a default:
 --------------------------------------------------------------------------------
 CAVEATS -- read before rewriting the headline table
 --------------------------------------------------------------------------------
-1. The bread baseline here reads 88.7%, against the 90.67% recorded for A+C.
-   Only --regrasp and --rc-steps 60 were applied, not necessarily every tuned
-   rule-layer constant from that campaign.  The PAIRED deltas are valid (both
-   arms ran the identical config) but the absolute cells must be re-measured
-   at the exact recorded configuration before the table is edited.
+1. RESOLVED -- and the cause was the HARNESS, not the configuration.
+   The first FP32 pass read 88.7% against the recorded 90.67%.  fsm_sim.py
+   main() wraps every episode in a respawn-and-retry handoff loop: reset until
+   the FSM reaches TRANSPORT, up to MAX_GRASP_ATTEMPTS, scoring only after the
+   handoff, with episodes that never hand off recorded as `handoff_failed`.
+   The custom worker used for the first pass ran one episode straight through
+   with no retry -- strictly harsher, and worth ~2 points.  Re-run through the
+   real CLI the baseline reproduces exactly (1088/1200 = 90.67%) and the fix
+   measures +2.92 rather than +2.75.  The DELTA was robust to the protocol;
+   the ABSOLUTE was not.  This is also why the INT8 grid, which went through
+   the CLI from the start, reproduced its baseline on the first attempt.
+   CONSEQUENCE FOR THE CEREAL CELLS ABOVE: 57.4 / 82.3 / 89.2% were all
+   measured with the no-retry worker.  Their paired deltas stand; their
+   absolutes do not.  A CLI spot-check of the fixed configuration returned
+   19/20 = 95%.  Re-run them through fsm_sim.py before quoting.
 2. INT8 MEASURED AND THE PREDICTION HELD.  78.33% -> 83.58%, +5.25,
    t(11)=+8.19, 12up/0down, through fsm_sim.py --int8 with the shipped
    artifacts.  The baseline reproduced the recorded A+C figure EXACTLY
@@ -194,8 +212,9 @@ CAVEATS -- read before rewriting the headline table
    blocked class (89%), +2.75 of a 3.08% class (89%).  Same mechanism, same
    proportion, class sizes differing by 1.9x.  The chain for INT8 random is
    76.08% (base) -> 78.33% (A+C) -> 83.58% (A+C + anchor).
-   The quantization cost CANNOT yet be restated: FP32 at the exact recorded
-   configuration is still unmeasured (caveat 1).
+   The recovery fraction on FP32 is 2.92 / 3.08 = 95%.  Both precisions
+   recover ~90% of their own blocked class, on classes differing by 1.9x.
+   Quantization cost on random spawn falls 12.33 -> 10.00.
 3. "Came to rest in the compartment" is OUR criterion, with a settle phase the
    environment does not run.  Report both numbers and state the artifact; do
    not silently substitute ours for robosuite's.
