@@ -142,6 +142,20 @@ def rests_in_bin(raw, settle_steps):
     return bool(in_xy and in_z), float(pos[2])
 
 
+def placed_now(raw, criterion):
+    """Placement test used for the OK transition.
+
+    "robosuite" is PickPlace._check_success verbatim -- reproduces every number
+    recorded before bin_success.py existed.  "object-aware" widens only the z
+    upper bound, and only for objects tall enough to need it: bread and can are
+    bit-identical, cereal's resting centre (0.900) sits exactly on robosuite's
+    exclusive upper bound and is otherwise unscoreable."""
+    if criterion == "robosuite":
+        return bool(raw._check_success())
+    from bin_success import check_success
+    return check_success(raw)
+
+
 def load_actor(d, fc1=64, fc2=32):
     """fc1/fc2 default to the deployed 64/32. A Net2WiderNet actor
     (Results/widen) is 128/64 while its critics stay 64/32, so the width has
@@ -503,6 +517,13 @@ def main():
     p.add_argument("--rot-anchor-eps", type=float, default=ROT_ANCHOR_EPS,
                    help="value written to a[3:6] during TRANSPORT. 0.0 freezes "
                         "goal_ori (pre-fix behaviour); 1e-6 re-anchors it.")
+    p.add_argument("--success-criterion", choices=("robosuite", "object-aware"),
+                   default="robosuite",
+                   help="'robosuite' reproduces every previously recorded "
+                        "number and is bit-identical to 'object-aware' for "
+                        "bread and can. Use 'object-aware' for cereal and "
+                        "milk, whose resting height sits at or above "
+                        "robosuite's constant z bound (see bin_success.py).")
     p.add_argument("--settle-steps", type=int, default=0,
                    help="after each episode step physics this many times and "
                         "record whether the object came to REST inside the "
@@ -653,7 +674,7 @@ def main():
         except Exception:
             pass
         try:
-            pl = bool(raw._check_success())
+            pl = placed_now(raw, a.success_criterion)
         except Exception:
             pass
         return gr, pl

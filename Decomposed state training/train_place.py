@@ -41,7 +41,7 @@ from place_env_wrapper import PlaceGymWrapper
 # ---------------------------------------------------------------------------
 
 def make_place_env(env_name="PickPlace", seed=None, grasp_chkpt_dir=None,
-                   random_spawn=False):
+                   random_spawn=False, object_type="bread"):
     """Create a single robosuite environment with place-only reward."""
     if grasp_chkpt_dir is None:
         grasp_chkpt_dir = os.path.join(
@@ -66,7 +66,7 @@ def make_place_env(env_name="PickPlace", seed=None, grasp_chkpt_dir=None,
         reward_shaping=False,
         control_freq=20,
         single_object_mode=2,
-        object_type="bread",
+        object_type=object_type,
     )
     # Spawn. The original training pinned this to a constant, matching the
     # fixed-spawn grasp model of the time. A transport policy trained that way
@@ -109,7 +109,8 @@ def _worker(remote, parent_remote, env_name, seed):
     """Worker loop that runs in a child process."""
     parent_remote.close()
     env = make_place_env(env_name, seed=seed, grasp_chkpt_dir=_GRASP_CHKPT_DIR,
-                         random_spawn=_RANDOM_SPAWN)
+                         random_spawn=_RANDOM_SPAWN,
+                         object_type=_OBJECT_TYPE)
     while True:
         try:
             cmd, data = remote.recv()
@@ -324,6 +325,7 @@ def _drop_summary(diag, window):
 
 def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
           grasp_chkpt_dir=None, random_spawn=False, place_chkpt_dir=None,
+          object_type="bread",
           warm_start_from=None, critic_reset_every=0, layer_norm=False):
     """
     Train the Place sub-policy using TD3 with subprocess-parallel envs.
@@ -341,6 +343,7 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     )
     _GRASP_CHKPT_DIR = grasp_chkpt_dir
     _RANDOM_SPAWN = bool(random_spawn)
+    globals()["_OBJECT_TYPE"] = object_type
 
     print("=" * 70)
     print(f"PLACE MODEL TRAINING: {env_name}")
@@ -350,6 +353,7 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     print(f"Network:        64 → 32 (actor & critic)")
     print(f"Grasp model:    {grasp_chkpt_dir}")
     print(f"Spawn:          {'NATIVE random (position + rotation)' if random_spawn else 'fixed'}")
+    print(f"Object:         {object_type}")
     print(f"Checkpoints:    {place_chkpt_dir}")
     print("=" * 70 + "\n")
 
@@ -637,6 +641,13 @@ if __name__ == "__main__":
     _p.add_argument("--grasp-chkpt-dir", default=None,
                     help="Grasp stage to train transport against. Was "
                          "hardcoded to checkpoints/td3_grasp.")
+    _p.add_argument("--object-type", default="bread",
+                    choices=("bread", "cereal", "can", "milk"),
+                    help="object this place policy is trained for. The reward "
+                         "uses bin_success.check_success, which is object-aware "
+                         "-- robosuite's constant z window is unscoreable for "
+                         "cereal (resting centre 0.900 = its exclusive upper "
+                         "bound). See bin_success.py.")
     _p.add_argument("--random-spawn", action="store_true",
                     help="Native robosuite spawn (position + rotation) instead "
                          "of the fixed pose the original training used.")
@@ -670,4 +681,5 @@ if __name__ == "__main__":
                   place_chkpt_dir=_a.place_chkpt_dir,
                   warm_start_from=_a.warm_start_from,
                   critic_reset_every=_a.critic_reset_every,
-                  layer_norm=_a.layer_norm)
+                  layer_norm=_a.layer_norm,
+                  object_type=_a.object_type)

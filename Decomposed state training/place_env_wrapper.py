@@ -25,6 +25,13 @@ import torch as T
 
 # Add parent directory for shared modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+# Object-aware placement criterion.  robosuite's own _check_success uses a
+# constant z window (bin_z .. bin_z+0.1) that a CEREAL box resting flat sits
+# exactly on top of, so a physically perfect placement scores zero about half
+# the time.  Training a reward on that teaches the policy to exploit the
+# miscalibration rather than to place the box.  bin_success is bit-identical
+# to robosuite for bread and can; see Results/orientation_anchor.txt.
+from bin_success import check_success as _bin_check_success
 
 
 class PlaceGymWrapper:
@@ -589,7 +596,7 @@ class PlaceGymWrapper:
             obs, _, done_raw, _ = self._gym_env.step(a)
             self._maybe_render()
             try:
-                if self._raw_env._check_success():
+                if _bin_check_success(self._raw_env):
                     placed = True
                     break
             except Exception:
@@ -876,7 +883,7 @@ class PlaceGymWrapper:
         # --- One-time success bonus -----------------------------------------
         if not self._success_given:
             try:
-                if self._raw_env._check_success():
+                if _bin_check_success(self._raw_env):
                     r += self.W_SUCCESS
                     self._success_given = True
             except Exception:
