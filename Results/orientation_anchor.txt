@@ -82,7 +82,7 @@ a workable configuration.  Removing it needs joint-limit-aware control, or a
 transport policy that does not drive itself there -- neither of which lives in
 the FSM" -- was right.
 
-The bread gain here is +2.75 against a 3.08% class.  The fix collects ~90% of
+The FP32 gain here is +2.92 against a 3.08% class.  The fix collects ~95% of
 exactly the failures that campaign isolated.  It is not a new capability; it is
 the same class, addressed one layer down.  Prevention, not escape.
 
@@ -213,7 +213,7 @@ CAVEATS -- read before rewriting the headline table
    (940/1200 = 78.33%), so this cell is directly comparable to the headline
    table -- unlike the FP32 cell in caveat 1.
    The recovery fraction is the same on both precisions: +5.25 of a 5.92%
-   blocked class (89%), +2.75 of a 3.08% class (89%).  Same mechanism, same
+   blocked class (89%), +2.92 of a 3.08% class (95%).  Same mechanism, same
    proportion, class sizes differing by 1.9x.  The chain for INT8 random is
    76.08% (base) -> 78.33% (A+C) -> 83.58% (A+C + anchor).
    The recovery fraction on FP32 is 2.92 / 3.08 = 95%.  Both precisions
