@@ -143,6 +143,12 @@ INCIDENT 2026-09-12 00:23 -- OUT OF MEMORY, ALL RUNS LOST, RESTARTED
   are archived under checkpoints/, logs/ and Results/_interrupted_20260912/.
   RESTART PLAN: batch A alone first and measure its memory; then B' alongside it if
   the measured footprint allows; C' when A's early stopping frees capacity.
+  MEASURED: batch A (6 runs) uses ~42 GB after 3 minutes (free), ~7 GB per run;
+  summed RSS reads 63 GB because forked workers share copy-on-write pages.  Each
+  evaluator adds ~1 GB.  A + B' + evaluators would reach ~96 of 98 GB, so B' does not
+  run beside A.  run_place_queue.sh keeps at most 6 place runs alive and needs 20 GB
+  available before each launch: B' then C' start as batch A's runs finish, with their
+  scoring-only watchers already waiting.
 
 RESULTS
   Batch A launched 2026-09-12 (td3_place_cerES_{scr,warm}_s{10,11,12}, es_watch.py

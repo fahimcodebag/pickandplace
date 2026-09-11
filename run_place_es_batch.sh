@@ -23,6 +23,7 @@
 set -u
 cd "$(dirname "$0")"
 BATCH=${1:?A, B or C}
+ONLY=${2:-}   # optional single run, e.g. scr_s10: launch only that run, start no watcher
 PY=/home/fahim/Thesis_fahim/venv/bin/python
 case $BATCH in
   A) TAG=cerES;   RM="--reward-mode custom" ;;
@@ -37,6 +38,7 @@ cd "Decomposed state training"
 for kind in scr warm; do
   for SD in 10 11 12; do
     NAME=td3_place_${TAG}_${kind}_s$SD
+    [ -n "$ONLY" ] && [ "${kind}_s$SD" != "$ONLY" ] && continue
     [ -e ../checkpoints/$NAME ] && { echo "exists, not relaunching: $NAME"; continue; }
     EXTRA=""; [ $kind = warm ] && EXTRA="$WARM"
     STOP=""; [ $BATCH = A ] && STOP="--stop-file ../checkpoints/$NAME/STOP"
@@ -48,7 +50,7 @@ for kind in scr warm; do
 done
 cd ..
 echo "launched batch $BATCH:$RUNS"
-if [ -n "$RUNS" ]; then
+if [ -n "$RUNS" ] && [ -z "$ONLY" ]; then
   sleep 60
   if [ $BATCH = A ]; then
     nohup $PY -u es_watch.py --runs $RUNS --out Results/place_es > Results/place_es_watch.log 2>&1 &
