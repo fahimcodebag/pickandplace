@@ -1,0 +1,127 @@
+Curriculum pair: training metric vs end-to-end success -- generated 2026-09-11 15:32:01
+eval rows: 384
+
+
+=== FIXED spawn ===
+  curF_s0   ep  time_step  state      frac50 place50 metric | end-to-end  actor
+            250       1280  init       0.20  100.0  0.200 |    0.5% n=200 5e4aca9d
+            500       3624  init       0.30   94.0  0.282 |    0.5% n=200 5e4aca9d
+            750       8384  learning   0.35   84.0  0.294 |   15.5% n=200 13a06514
+           1000      16168  acting     0.38   26.0  0.099 |    8.5% n=200 60c36489
+           1250      24336  acting     0.38   42.0  0.161 |    6.5% n=200 6ba4c862
+           1500      36664  acting     0.40   94.0  0.376 |   39.0% n=200 c9691cb2
+           1750      44976  acting     0.45  100.0  0.450 |   45.5% n=200 63a926be
+           2000      50680  acting     0.50   98.0  0.490 |   55.5% n=200 9784e28e
+           2250      56960  acting     0.53  100.0  0.530 |   73.5% n=200 50eb1a8d
+           2500      65104  acting     0.55   84.0  0.464 |   85.0% n=200 92714bfe
+           2750      74744  acting     0.60   84.0  0.504 |   85.0% n=200 0c698417
+           3000      84976  acting     0.65   80.0  0.520 |   56.5% n=200 77294aa4
+           3250      94752  acting     0.69  100.0  0.693 |   51.0% n=200 4e7b2045
+           3500     103600  acting     0.71  100.0  0.713 |   32.5% n=200 017216e5
+           3750     115704  acting     0.76   54.0  0.408 |   18.5% n=200 230ec056
+           4000     139352  acting     0.77   16.0  0.123 |   24.5% n=200 8e0c5036
+    within curF_s0 (n=14) Spearman vs end-to-end: place50 +0.47  frac50 +0.29  metric +0.68  time_step +0.29
+  curF_s1   ep  time_step  state      frac50 place50 metric | end-to-end  actor
+            250       1280  init       0.20  100.0  0.200 |   18.5% n=200 86a5d2d7
+            500       3984  init       0.30   96.0  0.288 |   18.5% n=200 86a5d2d7
+            750       9456  learning   0.35   78.0  0.273 |    0.5% n=200 fc3d93b4
+           1000      16080  acting     0.36   78.0  0.281 |    4.0% n=200 53905a76
+           1250      26360  acting     0.40   16.0  0.064 |   15.5% n=200 2cd56c19
+           1500      39864  acting     0.38   44.0  0.165 |   11.0% n=200 82c0c2d8
+           1750      47024  acting     0.35   64.0  0.226 |   15.0% n=200 869f3976
+           2000      54832  acting     0.39   62.0  0.240 |   16.5% n=200 febceaab
+           2250      61720  acting     0.40   64.0  0.256 |   16.5% n=200 46b4f039
+           2500      69880  acting     0.43   76.0  0.328 |   22.0% n=200 d73b61c4
+           2750      81024  acting     0.46   28.0  0.127 |   21.5% n=200 930e9a43
+           3000      93864  acting     0.46   28.0  0.127 |   24.5% n=200 fa9c9bcb
+           3250     102624  acting     0.45   74.0  0.333 |   24.0% n=200 b3d69854
+           3500     111264  acting     0.49   64.0  0.314 |   25.5% n=200 ccfb5f81
+           3750     123584  acting     0.49   24.0  0.118 |   32.0% n=200 01ceb867
+           4000     136784  acting     0.49   20.0  0.098 |   34.5% n=200 a6bd01f3
+    within curF_s1 (n=14) Spearman vs end-to-end: place50 -0.47  frac50 +0.95  metric -0.18  time_step +0.98
+  curF_s2   ep  time_step  state      frac50 place50 metric | end-to-end  actor
+            250       1280  init       0.20  100.0  0.200 |    1.0% n=200 d10b5634
+            500       3592  init       0.30  100.0  0.300 |    1.0% n=200 d10b5634
+            750       8288  learning   0.35   72.0  0.252 |   13.0% n=200 fdb8d26a
+           1000      13632  acting     0.38  100.0  0.383 |   26.5% n=200 ba329068
+           1250      18904  acting     0.40   40.0  0.161 |    6.0% n=200 672cc046
+           1500      32704  acting     0.45   10.0  0.045 |    4.5% n=200 7ec0c629
+           1750      47144  acting     0.41   18.0  0.074 |    2.5% n=200 d8d1b393
+           2000      60192  acting     0.40   12.0  0.048 |    2.0% n=200 bb82860a
+           2250      72280  acting     0.38   42.0  0.158 |    3.0% n=200 6c238699
+           2500      79160  acting     0.37   58.0  0.216 |    2.0% n=200 27392a24
+           2750      91024  acting     0.39   32.0  0.124 |    2.0% n=200 c5b284a5
+           3000     100400  acting     0.38   46.0  0.173 |    2.0% n=200 af51ab3c
+           3250     109432  acting     0.40   26.0  0.104 |    2.5% n=200 2e4417c0
+           3500     121272  acting     0.39   34.0  0.132 |    1.5% n=200 18abd3e7
+           3750     130952  acting     0.36   36.0  0.131 |    1.0% n=200 27d41dbe
+           4000     138944  acting     0.36   64.0  0.230 |    1.0% n=200 50c2d712
+    within curF_s2 (n=14) Spearman vs end-to-end: place50 +0.15  frac50 +0.31  metric +0.17  time_step -0.90
+  POOLED over seeds (n=42)
+    place50   vs end-to-end   Spearman +0.50   Pearson +0.57
+    frac50    vs end-to-end   Spearman +0.73   Pearson +0.58
+    metric    vs end-to-end   Spearman +0.59   Pearson +0.71
+    time_step vs end-to-end   Spearman +0.06   Pearson +0.06
+  latest scored snapshot per seed: curF_s0@ep4000 24.5% (frac 0.77)   curF_s1@ep4000 34.5% (frac 0.49)   curF_s2@ep4000 1.0% (frac 0.36)   mean 20.0%
+
+=== RANDOM spawn ===
+  curR_s0   ep  time_step  state      frac50 place50 metric | end-to-end  actor
+            250       5248  learning   0.20   76.0  0.152 |    0.5% n=200 56f6e2c1
+            500      10912  acting     0.29   96.0  0.276 |   14.5% n=200 c6767acf
+            750      14792  acting     0.33   86.0  0.280 |   20.0% n=200 49669c8d
+           1000      22104  acting     0.36   62.0  0.220 |   16.0% n=200 519bb97f
+           1250      33104  acting     0.38   66.0  0.249 |    7.5% n=200 d3dde445
+           1500      42752  acting     0.39   78.0  0.301 |    4.5% n=200 663c0234
+           1750      55952  acting     0.40   44.0  0.178 |    2.0% n=200 113ddb94
+           2000      67800  acting     0.41   58.0  0.237 |    4.5% n=200 eecd3bb0
+           2250      79344  acting     0.42   66.0  0.278 |   12.0% n=200 1485e1c0
+           2500      91456  acting     0.45   44.0  0.198 |    9.0% n=200 ac74da59
+           2750     106608  acting     0.45   32.0  0.144 |    5.0% n=200 fab37939
+           3000     122240  acting     0.45   18.0  0.081 |    7.5% n=200 4e5ee442
+           3250     136824  acting     0.45   28.0  0.126 |    7.0% n=200 bf81bb09
+           3500     150848  acting     0.45   30.0  0.135 |    8.0% n=200 73c7aff5
+           3750     165136  acting     0.45   66.0  0.297 |   44.0% n=200 dfa111ca
+           4000     176368  acting     0.46   78.0  0.356 |   38.5% n=200 3ca4ed6c
+    within curR_s0 (n=16) Spearman vs end-to-end: place50 +0.34  frac50 +0.22  metric +0.50  time_step +0.27
+  curR_s1   ep  time_step  state      frac50 place50 metric | end-to-end  actor
+            250       4880  init       0.20   78.0  0.159 |   18.5% n=200 86a5d2d7
+            500      11616  acting     0.30   94.0  0.282 |   64.0% n=200 41694d0a
+            750      20840  acting     0.30   72.0  0.216 |   85.5% n=200 c1314efd
+           1000      26448  acting     0.35   84.0  0.291 |   79.0% n=200 1f007e8f
+           1250      32608  acting     0.37   90.0  0.333 |   47.0% n=200 ff088e61
+           1500      41824  acting     0.40   94.0  0.380 |   43.5% n=200 d710abf7
+           1750      48736  acting     0.45   90.0  0.403 |   41.0% n=200 b71cce76
+           2000      56856  acting     0.49   84.0  0.409 |   43.5% n=200 22df67d7
+           2250      66440  acting     0.53   86.0  0.452 |   47.5% n=200 6f5ff5f0
+           2500      78712  acting     0.56   42.0  0.234 |    2.5% n=200 781cc343
+           2750      92616  acting     0.56   10.0  0.056 |    4.5% n=200 8ed50354
+           3000     109232  acting     0.52   24.0  0.124 |    3.5% n=200 86c2308e
+           3250     124040  acting     0.50   20.0  0.099 |    3.5% n=200 fadf5e8e
+           3500     138888  acting     0.47   22.0  0.104 |    5.0% n=200 adca19b9
+           3750     154376  acting     0.46   30.0  0.139 |    4.5% n=200 e932638c
+           4000     170504  acting     0.45   20.0  0.089 |    3.5% n=200 9eacb175
+    within curR_s1 (n=15) Spearman vs end-to-end: place50 +0.66  frac50 -0.69  metric +0.57  time_step -0.82
+  curR_s2   ep  time_step  state      frac50 place50 metric | end-to-end  actor
+            250       5080  init       0.21   78.0  0.164 |    1.0% n=200 d10b5634
+            500      13112  acting     0.28   24.0  0.068 |    0.5% n=200 2a0faa68
+            750      20600  acting     0.28   74.0  0.209 |   16.0% n=200 d0795b29
+           1000      29024  acting     0.31   76.0  0.236 |   23.0% n=200 46069765
+           1250      36800  acting     0.36   82.0  0.295 |   22.0% n=200 cc345fda
+           1500      46976  acting     0.39   68.0  0.266 |   24.5% n=200 d9f0178a
+           1750      58440  acting     0.40   62.0  0.246 |   34.0% n=200 bfb33e34
+           2000      69752  acting     0.42   50.0  0.208 |   14.0% n=200 cee8b3f9
+           2250      81352  acting     0.42   24.0  0.100 |    3.5% n=200 a70d1ef1
+           2500      93896  acting     0.41   24.0  0.099 |    0.5% n=200 aa99113a
+           2750     103816  acting     0.40   54.0  0.218 |    4.0% n=200 4f673c48
+           3000     112224  acting     0.41   68.0  0.276 |   10.5% n=200 e4213b51
+           3250     120744  acting     0.44   60.0  0.262 |   13.0% n=200 8c0b4eec
+           3500     128856  acting     0.46   82.0  0.373 |   31.0% n=200 169b8af2
+           3750     138464  acting     0.49   82.0  0.404 |   27.0% n=200 642de1fc
+           4000     149568  acting     0.53   54.0  0.285 |    5.0% n=200 149b784e
+    within curR_s2 (n=15) Spearman vs end-to-end: place50 +0.80  frac50 +0.02  metric +0.65  time_step +0.02
+  POOLED over seeds (n=46)
+    place50   vs end-to-end   Spearman +0.75   Pearson +0.65
+    frac50    vs end-to-end   Spearman -0.17   Pearson -0.21
+    metric    vs end-to-end   Spearman +0.73   Pearson +0.60
+    time_step vs end-to-end   Spearman -0.23   Pearson -0.30
+  latest scored snapshot per seed: curR_s0@ep4000 38.5% (frac 0.46)   curR_s1@ep4000 3.5% (frac 0.45)   curR_s2@ep4000 5.0% (frac 0.53)   mean 15.7%

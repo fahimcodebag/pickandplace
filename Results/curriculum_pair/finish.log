@@ -1,3 +1,5 @@
 2026-09-11 12:48:11 waiting for 66 trainer processes
 2026-09-11 14:15:25 trainers finished; draining in-flight evaluation
 2026-09-11 14:15:25 final evaluation pass
+2026-09-11 15:32:01 writing report
+2026-09-11 15:32:02 done -> Results/curriculum_pair/correlation_report.txt
