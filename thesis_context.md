@@ -1526,9 +1526,12 @@ cell with **0 episode mismatches**, and the prediction was committed before the 
 at most +0.4 was predicted. The anchor did recover that class (4 of 5, 1 of 2), but
 released-not-placed failures rose 41 → 73.
 
-**Mechanism.** With `a[3:6] = 0` the OSC keeps restoring the grasp-time attitude; with the anchor
-the goal follows the measured attitude, so attitude error is no longer corrected. Steep grasps drift
-(misses: 6° → 13° over TRANSPORT, 75° → 82° at OPEN) and RECENTER releases them ~0.16 m off target.
+**Mechanism.** With `a[3:6] = 0` the OSC keeps restoring the grasp-time attitude. The anchor is
+written only in TRANSPORT, and there the goal follows the measured attitude, so attitude error is no
+longer corrected. RECENTER, DESCEND, OPEN and RETRACT still write exact zeros (`FSM.step` starts every
+action from `np.zeros`), so they freeze whatever attitude TRANSPORT ended with. Steep grasps drift
+during the carry (misses: 6° → 13° over TRANSPORT, 75° → 82° at OPEN), that drifted attitude is held
+through the release, and RECENTER releases them ~0.16 m off target.
 The loss is entirely in grasps handed off at ≥ 60° from vertical (19% of episodes): failures
 44 → 77; below 60°, 17 → 17. `bi_s0` pinned joint 5 in 3.2% of episodes and `c2m512_s1` in 0.4%, so
 the trade that paid for `bi_s0` loses for `c2m512_s1`. (Tilt is read from the grip-site frame, which
@@ -1537,7 +1540,7 @@ equals the controller's `ee_ori_mat` and reads 9.8° at the initial pose.)
 **Consequences.** The headline stands: it is the anchor-off configuration the firmware runs. Do not
 mirror the anchor to the `.ino` for `c2m512_s1`. `fsm_sim.py` defaults to `ROT_ANCHOR_EPS = 1e-6`, so
 pass `--rot-anchor-eps 0` for any `c2m512_s1` evaluation. Untested candidate: re-anchor only while
-joint 5 is near its stop.
+joint 5 is near its stop, which leaves every carry that never approaches the stop unchanged.
 
 ### 9.18 Random-spawn place training — what fails, and what does not
 

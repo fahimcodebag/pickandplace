@@ -84,13 +84,17 @@ of run_fixed_c2m.sh.  --rot-anchor-eps 0 vs 1e-6, paired on seed.
   The whole loss is in steeply tilted grasps.
 
   READING.  With a[3:6] = 0 the OSC orientation goal stays at the grasp-time
-  attitude and the PD keeps pulling the gripper back to it.  With the anchor the
-  goal is reset to the measured attitude every step, so attitude error is never
-  corrected: a steep grasp drifts further (13 vs 6 deg), and RECENTER, which servos
-  position only, releases the box ~0.16 m off target.  On bi_s0 the same freedom
+  attitude and the PD keeps pulling the gripper back to it.  The anchor is written
+  ONLY in TRANSPORT: there the goal is reset to the measured attitude every step, so
+  attitude error is never corrected and a steep grasp drifts further (13 vs 6 deg).
+  RECENTER, DESCEND, OPEN and RETRACT still write exact zeros (FSM.step starts every
+  action from np.zeros), so they freeze whatever attitude TRANSPORT ended with: the
+  drifted attitude is held through the release, and RECENTER, which servos position
+  only, releases the box ~0.16 m off target.  On bi_s0 the same freedom
   paid because holding the grasp attitude drove joint 5 into its stop in 3.2% of
   episodes; c2m512_s1 pins in 0.4% but hands off at >= 60 deg in 19%.
-  UNTESTED CANDIDATE: re-anchor only while joint 5 is near its stop.
+  UNTESTED CANDIDATE: re-anchor only while joint 5 is near its stop.  Carries that
+  never approach the stop would then be unchanged.
 
 CONSEQUENCES
   * The headline stands as recorded: random INT8 95.33 / FP32 94.92, fixed INT8
