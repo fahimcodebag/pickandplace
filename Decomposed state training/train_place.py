@@ -141,7 +141,7 @@ class SubprocVecEnv:
     grasp rollout during reset().
     """
 
-    def __init__(self, env_name, n_envs=8):
+    def __init__(self, env_name, n_envs=8, seed_base=0):
         self.n_envs = n_envs
         self.closed = False
 
@@ -160,7 +160,7 @@ class SubprocVecEnv:
             print(f"  Spawning env {i + 1}/{n_envs}...", end=" ", flush=True)
             p = ctx.Process(
                 target=_worker,
-                args=(work_remote, remote, env_name, i),
+                args=(work_remote, remote, env_name, seed_base * 1000 + i),
                 daemon=True,
             )
             p.start()
@@ -325,8 +325,11 @@ def _drop_summary(diag, window):
 
 def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
           grasp_chkpt_dir=None, random_spawn=False, place_chkpt_dir=None,
-          object_type="bread",
-          warm_start_from=None, critic_reset_every=0, layer_norm=False):
+          object_type="bread", seed=0,
+          batch_size_override=None, buffer_size_override=None,
+          critic_fc1=None, critic_fc2=None,
+          warm_start_from=None, critic_reset_every=0, layer_norm=False,
+          warm_start_critics=False, skip_warmup=False, snapshot_every=0):
     """
     Train the Place sub-policy using TD3 with subprocess-parallel envs.
 
@@ -344,6 +347,9 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     _GRASP_CHKPT_DIR = grasp_chkpt_dir
     _RANDOM_SPAWN = bool(random_spawn)
     globals()["_OBJECT_TYPE"] = object_type
+    # Seed every stochastic source. Without this, concurrent runs differ only
+    # by scheduling nondeterminism, which is not a seed protocol.
+    np.random.seed(seed); torch.manual_seed(seed)
 
     print("=" * 70)
     print(f"PLACE MODEL TRAINING: {env_name}")
@@ -354,6 +360,7 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     print(f"Grasp model:    {grasp_chkpt_dir}")
     print(f"Spawn:          {'NATIVE random (position + rotation)' if random_spawn else 'fixed'}")
     print(f"Object:         {object_type}")
+    print(f"Seed:           {seed}")
     print(f"Checkpoints:    {place_chkpt_dir}")
     print("=" * 70 + "\n")
 
@@ -365,17 +372,34 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
         return None
 
     # --- Create environments ------------------------------------------------
-    vec_env = SubprocVecEnv(env_name, n_envs)
+    vec_env = SubprocVecEnv(env_name, n_envs, seed_base=seed)
 
     # --- Hyperparameters ----------------------------------------------------
     actor_lr = 0.0003
     critic_lr = 0.0003
-    batch_size = 512
-    layer1_size = 64
-    layer2_size = 32
+    # Both introduced in 7add567 and never changed since, so the BREAD place
+    # model (checkpoints/td3_place) was trained with exactly these values.
+    # Keep them for any run meant to be compared against bread; override only
+    # as an explicit ablation arm.
+    # NOTE on buffer size: the place stage produces ~38 transitions/episode
+    # (measured), so an 8000-episode run generates ~304k transitions and 200k
+    # already retains the last ~66%.  This is NOT the situation that made 2M
+    # worth +15.17 on the GRASP stage, where a run produces ~3.85M transitions
+    # and 200k holds ~5%.  A bigger buffer here also retains more of the
+    # "hold -> small negative" poison this wrapper documents at line ~196.
+    batch_size = batch_size_override if batch_size_override else 512
+    # Actor stays 64/32 -- it is the thing that deploys to the ESP32.
+    # The CRITIC is free: it never ships (Sec 7), and the grasp campaign
+    # measured critic 512/256 at +3.12 INT8 / +6.04 FP32.  td3.py takes the
+    # two independently (actor_layer1/2 vs layer1_size/2).
+    actor1_size, actor2_size = 64, 32
+    layer1_size = critic_fc1 if critic_fc1 else 64
+    layer2_size = critic_fc2 if critic_fc2 else 32
     tau = 0.005
     warmup = 10000
-    max_buffer_size = 200000
+    max_buffer_size = buffer_size_override if buffer_size_override else 200000
+    print(f"Batch/buffer:   {batch_size} / {max_buffer_size:,}")
+    print(f"Actor/critic:   {actor1_size}x{actor2_size} / {layer1_size}x{layer2_size}")
     noise = 0.1
 
     input_dims = vec_env.observation_space.shape
@@ -403,6 +427,8 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
         n_actions=n_actions,
         layer1_size=layer1_size,
         layer2_size=layer2_size,
+        actor_layer1=actor1_size,
+        actor_layer2=actor2_size,
         batch_size=batch_size,
         max_size=max_buffer_size,
         warmup=warmup,
@@ -424,7 +450,49 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
         sd = {k: v for k, v in sd.items() if not k.startswith("log_std")}
         agent.actor.load_state_dict(sd)
         agent.target_actor.load_state_dict(sd)
-        print(f"Warm-started actor from {warm_start_from} (critics fresh).")
+        loaded = ["actor"]
+        # --- WHY THE CRITICS MATTER HERE ------------------------------------
+        # Loading the actor alone gives a WARM ACTOR + COLD CRITIC.  In TD3 the
+        # actor's only gradient is dQ/da from the critic, so a randomly
+        # initialised critic actively drags a good policy away from itself.
+        # Measured: every actor-only warm start ended BELOW its own starting
+        # point --
+        #     bread->cereal   73.33% -> 67.77%   (200k/512/64x32)
+        #     cereal s2       85.33% -> 39.33%   (200k/1024/512x256)
+        #     cereal s2       85.33% -> 35.22%   (2M  /1024/512x256)
+        # -- and a WIDER critic made it worse and more consistent (sd 2.03),
+        # i.e. it formed a stronger wrong opinion faster.  The fixed-spawn
+        # model that does work was trained from scratch, so its actor and
+        # critic co-evolved as a matched pair; fine-tuning broke the pair.
+        if warm_start_critics:
+            for net, tgt, fn in (
+                    (agent.critic_1, agent.target_critic_1, "critic_1_td3"),
+                    (agent.critic_2, agent.target_critic_2, "critic_2_td3")):
+                cp = os.path.join(warm_start_from, fn)
+                if not os.path.exists(cp):
+                    print(f"  critic warm start skipped, missing {fn}")
+                    break
+                try:
+                    csd = _T.load(cp, map_location="cpu")
+                    net.load_state_dict(csd)
+                    tgt.load_state_dict(csd)
+                except Exception as e:
+                    # Width mismatch is the expected failure (--critic-fc1/2
+                    # differing from the source). Say so rather than silently
+                    # continuing with a cold critic, which is the bug this
+                    # whole block exists to fix.
+                    print(f"  CRITIC WARM START FAILED ({fn}): "
+                          f"{type(e).__name__}: {e}")
+                    break
+            else:
+                loaded.append("critics")
+        # Skip the random-action warmup: 10,000 steps of uniform exploration
+        # would fill the buffer with data the warm-started policy never
+        # produces, and train the critic on it.
+        if skip_warmup:
+            agent.time_step = agent.warmup
+            loaded.append("no-random-warmup")
+        print(f"Warm-started from {warm_start_from} [{', '.join(loaded)}].")
     else:
         try:
             agent.load_models()
@@ -565,6 +633,36 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
                     print(f"    curriculum frac (50): min={min(_recent_fracs):.2f} "
                           f"mean={np.mean(_recent_fracs):.2f} max={max(_recent_fracs):.2f}")
 
+                # Snapshot series for the training-metric vs end-to-end
+                # correlation.  save_models() writes FIXED filenames, so the
+                # periodic checkpoint overwrites itself and no series survives
+                # a run -- which is why this exists.  Actor only (all that
+                # fsm_sim.load_actor reads) plus the training metrics at this
+                # instant.  Written to ep_XXXXX.tmp then renamed, so an
+                # evaluator never reads a half-written snapshot.
+                if snapshot_every and total_episodes % snapshot_every == 0:
+                    import json as _json, collections as _col, shutil as _sh
+                    _dst = os.path.join(place_chkpt_dir, "snapshots",
+                                        f"ep_{total_episodes:05d}")
+                    _tmp = _dst + ".tmp"
+                    os.makedirs(_tmp, exist_ok=True)
+                    torch.save(agent.actor.state_dict(),
+                               os.path.join(_tmp, "actor_td3"))
+                    _f50 = float(np.mean(curric_fracs[-50:]))
+                    _p50 = float(np.mean(place_successes[-50:]))
+                    with open(os.path.join(_tmp, "meta.json"), "w") as _fh:
+                        _json.dump(dict(
+                            episode=int(total_episodes), frac50=_f50,
+                            place50=_p50, metric=_f50 * _p50,
+                            best_metric=float(best_metric),
+                            avg_score100=float(avg_score),
+                            reasons50=dict(_col.Counter(done_reasons[-50:])),
+                            time_step=int(agent.time_step),
+                            mem_cntr=int(agent.memory.mem_cntr)), _fh, indent=1)
+                    if os.path.isdir(_dst):
+                        _sh.rmtree(_dst)
+                    os.replace(_tmp, _dst)
+
                 # Periodic checkpoint
                 if total_episodes % 500 == 0:
                     agent.save_models()
@@ -656,6 +754,40 @@ if __name__ == "__main__":
                     help="Reinitialise critic output layers every N updates "
                          "(Nikishin et al.). The place stage shows the same "
                          "decay as the grasp stage: 79%% at ep 1500, 8%% by 2500.")
+    _p.add_argument("--seed", type=int, default=0,
+                    help="seeds numpy, torch and the per-worker env seeds "
+                         "(worker i gets seed*1000 + i). Required for a real "
+                         "multi-seed protocol: without it concurrent runs "
+                         "differ only by scheduling nondeterminism.")
+    _p.add_argument("--batch-size", type=int, default=None,
+                    help="override the batch size (default 512, the value the "
+                         "bread place model was trained with).")
+    _p.add_argument("--buffer-size", type=int, default=None,
+                    help="override the replay capacity (default 200000, as "
+                         "bread). The place stage makes ~38 transitions per "
+                         "episode, so 200k already holds ~66%% of an "
+                         "8000-episode run -- this is not the grasp stage.")
+    _p.add_argument("--snapshot-every", type=int, default=0,
+                    help="save an actor snapshot + training metrics every N "
+                         "episodes to <place-chkpt-dir>/snapshots/ep_XXXXX/. "
+                         "0 = off. Required for any training-vs-evaluation "
+                         "correlation: the periodic checkpoint overwrites itself.")
+    _p.add_argument("--warm-start-critics", action="store_true",
+                    help="also load critic_1/critic_2 (and their targets) from "
+                         "--warm-start-from. Without this the actor is warm and "
+                         "the critic is cold, and every measured actor-only "
+                         "warm start ended BELOW its starting point.")
+    _p.add_argument("--skip-warmup", action="store_true",
+                    help="skip the 10,000-step random-action warmup. Only "
+                         "meaningful with --warm-start-from: the random data "
+                         "trains the critic on behaviour the warm policy never "
+                         "produces.")
+    _p.add_argument("--critic-fc1", type=int, default=None,
+                    help="critic hidden 1 (default 64, as bread). The critic "
+                         "never deploys, so widening it costs nothing at "
+                         "inference; measured +3.12 INT8 on the grasp stage.")
+    _p.add_argument("--critic-fc2", type=int, default=None,
+                    help="critic hidden 2 (default 32, as bread).")
     _p.add_argument("--layer-norm", action="store_true")
     _p.add_argument("--warm-start-from", default=None,
                     help="Place checkpoint dir to seed the actor from.")
@@ -682,4 +814,11 @@ if __name__ == "__main__":
                   warm_start_from=_a.warm_start_from,
                   critic_reset_every=_a.critic_reset_every,
                   layer_norm=_a.layer_norm,
-                  object_type=_a.object_type)
+                  object_type=_a.object_type,
+                  seed=_a.seed,
+                  batch_size_override=_a.batch_size,
+                  buffer_size_override=_a.buffer_size,
+                  critic_fc1=_a.critic_fc1, critic_fc2=_a.critic_fc2,
+                  warm_start_critics=_a.warm_start_critics,
+                  skip_warmup=_a.skip_warmup,
+                  snapshot_every=_a.snapshot_every)

@@ -101,7 +101,11 @@ KEEP_ROTATION = 0               # 1 = do not zero a[3:6] during TRANSPORT
 # Set to 0.0 to reproduce every number recorded before this was found.
 # NOTE: distinct from KEEP_ROTATION=1, which passes the place policy's LARGE
 # rotational outputs through and costs -52.33 points.  That stays rejected.
-ROT_ANCHOR_EPS = 1e-6
+# Defined in osc_anchor.py so the TRAINING environment
+# ("Decomposed state training/place_env_wrapper.py") uses the same value --
+# a policy trained with a[3:6]=0.0 learns around a pinned wrist and would then
+# be evaluated in an environment that does not pin it.
+from osc_anchor import ROT_ANCHOR_EPS
 # Fix D -- pose gate at handoff. Results/handoff_carry: the object's pose in the
 # gripper predicts whether the carry survives (AUC 0.915 FP32, 0.826 INT8), and
 # the INT8 pose shift accounts for 57% of its excess drop rate. A durable grip

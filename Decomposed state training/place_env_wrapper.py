@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 # miscalibration rather than to place the box.  bin_success is bit-identical
 # to robosuite for bread and can; see Results/orientation_anchor.txt.
 from bin_success import check_success as _bin_check_success
+from osc_anchor import ROT_ANCHOR_EPS
 
 
 class PlaceGymWrapper:
@@ -242,7 +243,24 @@ class PlaceGymWrapper:
     _RELEASE_RETRACT_DZ    = 0.3  # per-step +z retract command (gripper empty)
 
     # --- grasp rollout ---
-    _GRASP_HORIZON   = 200    # max steps for grasp rollout in reset()
+    # 200 -> 50.  The grasp campaign measured the longest SUCCESSFUL grasp at
+    # 40 steps, which is why train_rand.py adopted --grasp-horizon 70; this
+    # wrapper's own cap was never updated to match and sat at 200.  Every
+    # failing rollout therefore burned 200 steps before the retry loop
+    # (_MAX_GRASP_ATTEMPTS=8) got another attempt -- pure wall-clock cost, and
+    # up to 1600 wasted steps per episode in the worst case.
+    # NOTE the asymmetry this leaves: the grasp policy being rolled out here
+    # was TRAINED with a 70-step budget, so a grasp needing 51-70 steps is now
+    # truncated.  That is deliberate -- with 8 retries available, failing fast
+    # and resampling beats spending 4x the steps on a slow attempt -- but it
+    # does mean this cap is tighter than the one the policy learned under.
+    # 50 -> 70, matching train_rand.py's --grasp-horizon, i.e. the budget the
+    # grasp policy was actually TRAINED under.  50 was tighter than that and
+    # truncated any grasp needing 51-70 steps; measured handoff tries did not
+    # rise (avg 1.02-1.10, unchanged), so the truncation was not biting, but
+    # there is no reason for the rollout cap to be tighter than the policy's
+    # own training budget.  Still far below the original 200.
+    _GRASP_HORIZON   = 70     # max steps for grasp rollout in reset()
     _GRASP_HOLD      = 8      # consecutive grasp steps to confirm stable grasp
     _MAX_GRASP_ATTEMPTS = 8   # retry resets if grasp fails / fails test-lift
 
@@ -658,7 +676,11 @@ class PlaceGymWrapper:
         so the training loop stores the same action the environment saw.
         """
         action = np.asarray(action, dtype=np.float32).copy()
-        action[3:6] = 0.0                                   # freeze orientation
+        # NOT 0.0: robosuite only updates goal_ori when the rotational delta
+        # is nonzero, so exact zero freezes an absolute world attitude and
+        # joint 5 saturates holding it through the carry -- which shows up
+        # here as transport_stall.  See osc_anchor.py.
+        action[3:6] = ROT_ANCHOR_EPS                        # freeze orientation
         action[0:3] *= self._TRANSLATE_SCALE                # gentle translation
         action[-1] = self._action_space_high[-1]            # gripper scripted closed
 
