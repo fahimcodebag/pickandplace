@@ -13,6 +13,8 @@ of TRANSPORT while still holding the object, commanding motion (act_tail > 0.5)
 that produces almost none (object path over the last 50 TRANSPORT steps
 < 0.02 m).  PINNED: blocked, and some arm joint within 0.02 rad of its limit at
 the last TRANSPORT step (joint index 5 is the one-sided wrist joint of §9.17).
+TILT: gripper approach axis vs vertical through TRANSPORT (start/end/max) and at
+the first OPEN step, with the object's xy distance to the bin there (d_open).
 
 Positive controls, both required before trusting a count on c2m512_s1:
   * per-episode success here == plain fsm_sim.py on the same seed (passivity)
@@ -37,6 +39,16 @@ S = dict(pre=None, post=None, grasped=False, cur=None)
 records = []
 
 
+def _tilt(raw):
+    """Gripper approach axis vs world vertical, degrees (0 = pointing straight down/up)."""
+    r = raw.robots[0]
+    sid = getattr(r, "eef_site_id", None)
+    if not isinstance(sid, (int, np.integer)):
+        sid = raw.sim.model.site_name2id(r.gripper.important_sites["grip_site"])
+    R = np.array(raw.sim.data.site_xmat[sid]).reshape(3, 3)
+    return float(np.degrees(np.arccos(np.clip(abs(R[2, 2]), 0.0, 1.0))))
+
+
 def _finalize():
     c = S["cur"]; S["cur"] = None
     if not c or not c["tr"]:
@@ -45,7 +57,9 @@ def _finalize():
     P = np.array([t[0] for t in tail])
     path = float(np.linalg.norm(np.diff(P, axis=0), axis=1).sum()) if len(P) > 1 else 0.0
     act = float(np.mean([t[1] for t in tail]))
-    pos, _, grasped, marg, q5 = tr[-1]
+    pos, _, grasped, marg, q5, tilt_end = tr[-1]
+    tilts = [t[5] for t in tr]
+    op = c["open"] or (float("nan"), float("nan"))
     j = int(np.argmin(marg))
     final, fail_from = c["final"], c["fail_from"]
     blocked = bool(final == F.FAIL and fail_from == F.TRANSPORT and grasped
@@ -59,6 +73,8 @@ def _finalize():
         d_end=round(float(np.hypot(pos[0] - F.BIN_X, pos[1] - F.BIN_Y)), 4),
         margin_end=round(float(marg[j]), 4), joint_end=j, q5_end=round(q5, 4),
         margin_min_tr=round(float(min(t[3].min() for t in tr)), 4),
+        tilt_start=round(tilts[0], 2), tilt_end=round(tilt_end, 2),
+        tilt_max=round(max(tilts), 2), tilt_open=round(op[0], 2), d_open=round(op[1], 4),
         blocked=int(blocked), pinned=int(blocked and marg[j] < 0.02)))
 
 
@@ -77,7 +93,7 @@ _orig_reset = GymWrapper.reset
 
 def _reset(self, *a, **k):
     _finalize()
-    S["cur"] = dict(tr=[], final=None, fail_from=None)
+    S["cur"] = dict(tr=[], final=None, fail_from=None, open=None)
     S["pre"] = S["post"] = None
     return _orig_reset(self, *a, **k)
 
@@ -90,16 +106,19 @@ def _step(self, action, *a, **k):
     c = S["cur"]
     if c is not None and S["pre"] is not None:
         raw = self.env
+        m, d = raw.sim.model, raw.sim.data
+        bid = raw.obj_body_id[raw.objects[raw.object_id].name]
+        if S["pre"] == F.OPEN and c["open"] is None and c["tr"]:
+            p = d.body_xpos[bid]
+            c["open"] = (_tilt(raw), float(np.hypot(p[0] - F.BIN_X, p[1] - F.BIN_Y)))
         if S["pre"] == F.TRANSPORT:
-            m, d = raw.sim.model, raw.sim.data
             ids = [m.joint_name2id(n) for n in raw.robots[0].robot_model.joints]
             q = np.array([d.qpos[m.jnt_qposadr[i]] for i in ids])
             rng = m.jnt_range[ids]
             marg = np.minimum(q - rng[:, 0], rng[:, 1] - q)
-            bid = raw.obj_body_id[raw.objects[raw.object_id].name]
             c["tr"].append((np.array(d.body_xpos[bid][:3]),
                             float(np.linalg.norm(np.asarray(action)[0:3])),
-                            bool(S["grasped"]), marg, float(q[5])))
+                            bool(S["grasped"]), marg, float(q[5]), _tilt(raw)))
         if S["post"] in (F.OK, F.FAIL) and c["final"] is None:
             c["final"] = S["post"]
             c["fail_from"] = S["pre"] if S["post"] == F.FAIL else None

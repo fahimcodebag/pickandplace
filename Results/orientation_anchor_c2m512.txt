@@ -1,0 +1,70 @@
+================================================================================
+ROT_ANCHOR_EPS ON THE DEPLOYED ARTIFACT (c2m512_s1) -- IT HURTS ON RANDOM SPAWN
+The bi_s0 gain does not transfer.  The prediction was falsified in the direction
+it named as falsifying: a significant loss.
+================================================================================
+Date 2026-09-11.  Scripts: run_anchor_c2m512.sh, anchor_probe.py,
+analyze_anchor_c2m512.py.  Raw data: Results/anchor_c2m512/ (baseline_report.txt,
+PREDICTION.txt committed in da3a1cf before any eps-1e-6 run).
+
+PROTOCOL
+c2m512_s1 grasp (FP32 checkpoints/td3_grasp_rand_td3_ln_c2m512_s1/best, INT8
+Results/big2m/c2m512_s1_int8.tflite) + checkpoints/td3_place/best (INT8
+qat_output_bi/place_orig_int8.tflite), through fsm_sim.py, --regrasp --rc-steps 60,
+100 episodes per seed.  Random spawn on the held-out seeds of run_holdout4.sh
+(13 59 71 137 199 257 331 419 547 601 733 911); fixed spawn on the protocol seeds
+of run_fixed_c2m.sh.  --rot-anchor-eps 0 vs 1e-6, paired on seed.
+
+1. BASELINE REPRODUCED TO THE EPISODE (--rot-anchor-eps 0)
+    random FP32  1139/1200 = 94.92%     random INT8  1144/1200 = 95.33%
+    fixed  FP32  1200/1200 = 100.00%    fixed  INT8  1198/1200 = 99.83%
+  0 mismatches on (success, phase, steps) against Results/holdout4 and
+  Results/fixed_c2m512.  The recorded headline is exactly what the harness gives
+  with the anchor off -- which is also what the firmware does (the .ino writes 0).
+
+2. THE BLOCKED CLASS, MEASURED BEFORE THE TREATMENT (anchor_probe.py, eps 0)
+  anchor_probe.py runs fsm_sim.main() unchanged and only reads sim state.
+    passivity        0 episode mismatches vs plain fsm_sim.py over 2400 episodes
+    positive control bi_s0 FP32: 1088/1200 as recorded; BLOCKED 38 = 3.17% against
+                     the recorded 3.08% class; joint 5 at its stop in 31
+    c2m512_s1        FP32 BLOCKED 5 = 0.42% (joint 5 at stop in 3)
+                     INT8 BLOCKED 2 = 0.17% (joint 5 at stop in 1)
+  PREDICTION: random FP32 +0.0..+0.4, INT8 +0.0..+0.2, fixed ~0; |delta| <= 1 pt.
+
+3. RESULT (eps 1e-6 minus eps 0, 12 seeds x 100, paired on seed)
+                   eps 0     eps 1e-6     delta    t(11)   seeds up/down/tie
+    random FP32    94.92%    92.17%       -2.75    -4.29       1 / 10 / 1
+    random INT8    95.33%    92.83%       -2.50    -3.74       0 /  8 / 4
+    fixed  FP32   100.00%   100.00%        0.00      --        0 /  0 / 12
+    fixed  INT8    99.83%    99.92%       +0.08    +1.00       1 /  0 / 11
+  The blocked class WAS recovered, as predicted: 4 of the 5 FP32 blocked episodes
+  and 1 of the 2 INT8 ones flipped to success.  But far more successes were lost:
+    FP32  22 episodes gained, 55 lost        INT8  18 gained, 48 lost
+  (Retry attempts are identical episode by episode in both arms, so the flips are
+  not a spawn desynchronisation from differing retry counts.)
+
+4. WHAT GREW -- early failures after the release trigger
+                          failures by scored step at failure
+                     <=80   81-150   151-299   300 (TRANSPORT horizon)   >300
+    FP32  eps 0         4       33         8        15                     1
+    FP32  eps 1e-6      4       65         6        17                     2
+    INT8  eps 0        13       13        19         4                     7
+    INT8  eps 1e-6     12       25        39         2                     8
+  Failures with a regrasp (lost grip): FP32 5 -> 5, INT8 17 -> 17 -- unchanged.
+  Successes finish at a median of ~100 scored steps, so the added failures end
+  where released-not-placed episodes end, not at the TRANSPORT horizon.  The
+  anchor trades a rare blocked carry for a common post-trigger miss.
+  MECHANISM: not yet measured.  anchor_probe.py now records gripper tilt through
+  TRANSPORT and the tilt and object-to-bin distance at the first OPEN step.
+
+CONSEQUENCES
+  * The headline stands as recorded: random INT8 95.33 / FP32 94.92, fixed INT8
+    99.83 / FP32 100.0 -- measured with the anchor off, which the firmware matches.
+  * Do NOT mirror ROT_ANCHOR_EPS into pick_and_place_INT8_FSM.ino for c2m512_s1.
+  * fsm_sim.py defaults to ROT_ANCHOR_EPS = 1e-6 (since 4932118).  Any evaluation
+    of c2m512_s1 must pass --rot-anchor-eps 0, or it reads ~2.5-2.75 pts low on
+    random spawn.  No such evaluation was found in the repo's scripts.
+  * The bi_s0 result (orientation_anchor.txt) stands for bi_s0.  The anchor's net
+    effect depends on how often the grasp drives joint 5 to its stop: 3.17% of
+    episodes for bi_s0, 0.42% for c2m512_s1.  "Prevention, not escape" was right
+    about the class and wrong to generalise as a free fix.
