@@ -1,0 +1,42 @@
+PREDICTION -- ROT_ANCHOR_EPS on the deployed artifact c2m512_s1
+Written 2026-09-11, after the eps-0 baseline and probe, BEFORE any eps-1e-6 run.
+
+BASIS (all measured at --rot-anchor-eps 0, analyze_anchor_c2m512.py)
+  Reproduction   rand FP32 1139/1200, rand INT8 1144/1200, fixed FP32 1200/1200,
+                 fixed INT8 1198/1200 -- identical to the recorded CSVs, 0 episode
+                 mismatches on (success, phase, steps).
+  Probe passive  anchor_probe.py vs plain fsm_sim.py: 0 mismatches / 2400 episodes.
+  Positive ctrl  bi_s0 FP32: 1088/1200 (recorded 1088), BLOCKED 38 = 3.17%
+                 (recorded class 3.08%), pinned 35, joint 5 at its stop in 31.
+                 On bi_s0 the anchor gained +2.92 of that class (95%).
+  c2m512_s1      rand FP32  failures 61, out of TRANSPORT 15, BLOCKED 5 = 0.42%,
+                            joint 5 at its stop in 3
+                 rand INT8  failures 56, out of TRANSPORT 4,  BLOCKED 2 = 0.17%,
+                            joint 5 at its stop in 1
+                 fixed      FP32 0 failures; INT8 2 failures (not probed)
+  CORRECTION before any treatment run: a first draft said "joint 5 x0" for FP32.
+  That counted only the joint with the smallest margin; in 3 of the 4 pinned FP32
+  episodes joints 5 AND 6 sit at their stops together (q5 3.7526-3.7528 against the
+  3.752 limit) and argmin named joint 6.  Joint-5-at-stop is counted directly now.
+
+MECHANISM-BASED EXPECTATION
+The anchor removes stalls caused by a frozen goal_ori; on bi_s0 those were joint-5
+pins.  c2m512_s1 has the same mechanism in far fewer episodes: its blocked class is
+7.5x smaller in FP32 (0.42 vs 3.17%) and 35x smaller in INT8 (0.17 vs 5.92%).
+Recovering 95% of the joint-5 cases, as on bi_s0, gives about +0.25 FP32, +0.08 INT8.
+
+PREDICTED DELTA (eps 1e-6 minus eps 0, 12 seeds x 100, paired)
+  random FP32    +0.0 to +0.4 pts  (point ~+0.25; upper bound = all 5 blocked recovered)
+  random INT8    +0.0 to +0.2 pts  (point ~+0.08; upper bound = both blocked recovered)
+  fixed  FP32     0.0              (no failures to recover)
+  fixed  INT8    +0.0 to +0.2      (2 failures)
+Expected |delta| <= 1.0 pt in every cell, t(11) not significant, and the headline
+figures unchanged within noise.  Any gained episodes should be concentrated in the
+probe-blocked set.  Changes in other episodes can move either way; the anchor alters
+orientation handling in every carry, so a small number of flips outside the class is
+expected in both directions.
+
+WHAT WOULD FALSIFY IT
+  * a gain > +1.0 pt in any cell, or gained episodes mostly outside the blocked set:
+    the anchor acts through something other than the blocked class on this artifact
+  * a significant loss: the anchor harms a policy that does not pin

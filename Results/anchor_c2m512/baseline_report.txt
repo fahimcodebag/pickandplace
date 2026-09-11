@@ -1,0 +1,20 @@
+1. REPRODUCTION of the recorded baselines at --rot-anchor-eps 0 (per episode)
+  rand_fp32   new 1139/1200 = 94.92%   recorded 1139 = 94.92%   episode mismatches 0
+  rand_int8   new 1144/1200 = 95.33%   recorded 1144 = 95.33%   episode mismatches 0
+  fixed_fp32  new 1200/1200 = 100.00%   recorded 1200 = 100.00%   episode mismatches 0
+  fixed_int8  new 1198/1200 = 99.83%   recorded 1198 = 99.83%   episode mismatches 0
+
+2. PASSIVITY: anchor_probe.py CSV vs plain fsm_sim.py (per episode)
+  rand_fp32   1200 episodes compared, mismatches 0
+  rand_int8   1200 episodes compared, mismatches 0
+
+3. CLASS SIZE (anchor_probe.py at eps 0)
+  probe_bi_s0_fp32_eps0      1088/1200 = 90.67% (recorded 1088/1200; blocked class 3.08%)   failures 112, out of TRANSPORT 48   BLOCKED 38 = 3.17%   joint 5 at stop 31   pinned 35 joints {5: 29, 4: 2, 3: 1, 1: 3}   probe/CSV alignment errors 0
+  probe_rand_fp32_eps0       1139/1200 = 94.92%   failures 61, out of TRANSPORT 15   BLOCKED 5 = 0.42%   joint 5 at stop 3   pinned 4 joints {6: 3, 1: 1}   probe/CSV alignment errors 0
+  probe_rand_int8_eps0       1144/1200 = 95.33%   failures 56, out of TRANSPORT 4   BLOCKED 2 = 0.17%   joint 5 at stop 1   pinned 2 joints {3: 1, 5: 1}   probe/CSV alignment errors 0
+
+4. EFFECT of --rot-anchor-eps 1e-6, paired on seed
+  rand_fp32   treatment incomplete (0/12 seeds)
+  rand_int8   treatment incomplete (0/12 seeds)
+  fixed_fp32  treatment incomplete (0/12 seeds)
+  fixed_int8  treatment incomplete (0/12 seeds)
