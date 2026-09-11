@@ -1,0 +1,181 @@
+Cereal from scratch vs warm-started cereal place training -- generated 2026-09-11 16:46:19
+eval rows: 224   (4 seeds x 50 per checkpoint; protocol 12 x 50 confirmations in protocol.tsv)
+
+TRANSITION AXIS
+  cerealscratch_s0   anchors  16  last at ep  4000 = 271,400 transitions  total ep  4000  | log-vs-snapshot mem_cntr max |diff| 0 over 6
+  cerealscratch_s1   anchors  16  last at ep  4000 = 150,424 transitions  total ep  4000  | log-vs-snapshot mem_cntr max |diff| 0 over 8
+  cerealscratch_s2   anchors  16  last at ep  4000 = 238,944 transitions  total ep  4000  | log-vs-snapshot mem_cntr max |diff| 0 over 7
+  pairfix_s0         anchors   8  last at ep  8000 = 380,992 transitions  total ep  8000
+  pairfix_s1         anchors   9  last at ep  8001 = 324,848 transitions  total ep  8001
+  pairfix_s2         anchors   9  last at ep  8000 = 477,384 transitions  total ep  8000
+  cereal_s0          anchors  10  last at ep  8002 = 380,760 transitions  total ep  8002
+  cereal_s1          anchors  11  last at ep  8000 = 357,096 transitions  total ep  8000
+  cereal_s2          anchors   8  last at ep  8000 = 412,008 transitions  total ep  8000
+  cereal_s3          anchors   8  last at ep  8000 = 408,592 transitions  total ep  8000
+  cereal_s4          anchors   9  last at ep  8000 = 394,200 transitions  total ep  8000
+  curR_s0            anchors  16  last at ep  4000 = 176,368 transitions  total ep  4000  | log-vs-snapshot mem_cntr max |diff| 0 over 8
+  curR_s1            anchors  16  last at ep  4000 = 170,504 transitions  total ep  4000  | log-vs-snapshot mem_cntr max |diff| 0 over 8
+  curR_s2            anchors  16  last at ep  4000 = 149,568 transitions  total ep  4000  | log-vs-snapshot mem_cntr max |diff| 0 over 8
+
+Common range = shortest scratch run = 150,424 transitions; 6 full bins of 25k.
+
+SUCCESS per 50 training episodes (%), by transitions collected (upper bin edge)
+                      25k  50k  75k 100k 125k 150k
+  cerealscratch_s0     70   73   73   79   41   31
+  cerealscratch_s1     50   51   38   39   39   42
+  cerealscratch_s2     58   76   51   83   45   27
+  > scratch mean       59   67   54   67   42   33
+
+  pairfix_s0           70   62   44   31   29   32
+  pairfix_s1           66   41   37   34   40   37
+  pairfix_s2           53   38   35   34   39   48
+  > pairfix mean       63   47   38   33   36   39
+
+  cereal_s0            60   68   53   43   35   46
+  cereal_s1            45   50   47   60   53   50
+  cereal_s2            56   51   62   49   63   35
+  cereal_s3            68   74   54   58   48   40
+  cereal_s4            52   59   32   35   27   33
+  > default mean       56   60   50   49   45   41
+
+  curR_s0              83   64   58   55   34   28
+  curR_s1              74   91   86   23   17   25
+  curR_s2              69   82   60   28   65   81
+  > curR mean          75   79   68   35   39   44
+
+
+CURRICULUM frac, 50-episode mean, by transitions collected (upper bin edge)
+                      25k  50k  75k 100k 125k 150k
+  cerealscratch_s0   0.22 0.31 0.35 0.38 0.42 0.42
+  cerealscratch_s1   0.20 0.21 0.22 0.20 0.20 0.20
+  cerealscratch_s2   0.20 0.27 0.34 0.37 0.42 0.42
+  > scratch mean     0.21 0.26 0.30 0.32 0.34 0.35
+
+  pairfix_s0         0.22 0.29 0.31 0.31 0.29 0.28
+  pairfix_s1         0.20 0.21 0.21 0.21 0.20 0.20
+  pairfix_s2         0.20 0.20 0.20 0.20 0.20 0.20
+  > pairfix mean     0.21 0.23 0.24 0.24 0.23 0.23
+
+  cereal_s0          0.21 0.26 0.30 0.30 0.29 0.29
+  cereal_s1          0.20 0.20 0.21 0.22 0.24 0.25
+  cereal_s2          0.20 0.22 0.24 0.28 0.30 0.30
+  cereal_s3          0.23 0.33 0.37 0.38 0.38 0.38
+  cereal_s4          0.20 0.23 0.28 0.29 0.30 0.28
+  > default mean     0.21 0.25 0.28 0.29 0.30 0.30
+
+  curR_s0            0.27 0.38 0.41 0.44 0.45 0.45
+  curR_s1            0.28 0.38 0.49 0.56 0.51 0.48
+  curR_s2            0.25 0.33 0.41 0.41 0.42 0.47
+  > curR mean        0.27 0.37 0.44 0.47 0.46 0.47
+
+SUMMARY.  'learning' = transitions in [10k, common range]; blocks are 50 episodes.
+  run                mean succ min block max frac frac@end | whole run: max frac last 500 ep succ final frac
+  cerealscratch_s0        68.5        22     0.43     0.42 |                0.43             41.2       0.42
+  cerealscratch_s1        43.9        10     0.22     0.20 |                0.22             41.8       0.20
+  cerealscratch_s2        67.4        16     0.43     0.42 |                0.43             14.0       0.35
+  > scratch mean          59.9        16     0.36     0.35 |                0.36             32.3       0.32   (cereal, from scratch)
+
+  pairfix_s0              44.8        16     0.31     0.28 |                0.31             26.8       0.23
+  pairfix_s1              40.1        18     0.21     0.20 |                0.21             48.4       0.20
+  pairfix_s2              38.6        22     0.20     0.20 |                0.30             45.6       0.27
+  > pairfix mean          41.2        19     0.24     0.23 |                0.27             40.3       0.23   (cereal, warm actor+critics (cereal_s2/best), no warmup -- code-matched)
+
+  cereal_s0               54.7         8     0.30     0.29 |                0.30             65.3       0.29
+  cereal_s1               51.5        10     0.26     0.25 |                0.32             62.0       0.32
+  cereal_s2               56.5        24     0.30     0.30 |                0.30             28.6       0.22
+  cereal_s3               65.2        14     0.38     0.38 |                0.38             40.4       0.31
+  cereal_s4               44.6        18     0.30     0.28 |                0.34             73.8       0.34
+  > default mean          54.5        15     0.31     0.30 |                0.33             54.0       0.30   (cereal, warm actor (bread td3_place), fresh critics -- PRE-0fc9a20 wrapper)
+
+  curR_s0                 63.4        18     0.45     0.45 |                0.46             62.3       0.46
+  curR_s1                 69.0         4     0.56     0.47 |                0.56             20.2       0.45
+  curR_s2                 69.1        22     0.53     0.53 |                0.53             82.5       0.53
+  > curR mean             67.2        15     0.51     0.48 |                0.52             55.0       0.48   (bread, from scratch -- reference)
+
+END-TO-END through fsm_sim, cereal, random spawn, 4 seeds x 50 per checkpoint.
+  e2e = robosuite criterion (comparable with recorded figures); rest = came to rest in the compartment.
+  cerealscratch_s0     ep  transitions  state     frac50 place50 metric |   e2e    rest   n    actor
+                       250       10,100  acting    0.20   40.0  0.080 |   0.0%   0.0% 200  4b06f4a6
+                       500       18,649  acting    0.21   88.0  0.183 |  40.5%  48.5% 200  af716daa
+                       750       30,334  acting    0.30   68.0  0.204 |  41.5%  51.5% 200  017ba751
+                      1000       43,870  acting    0.32   62.0  0.200 |  43.0%  50.0% 200  630e63e5
+                      1250       59,121  acting    0.34   60.0  0.203 |  38.5%  47.5% 200  b7d23173
+                      1500       72,831  acting    0.36   72.0  0.256 |  41.5%  49.0% 200  905508f9
+                      1750       87,614  acting    0.38   72.0  0.276 |  36.5%  51.0% 200  4e1a42a6
+                      2000      105,313  acting    0.41   36.0  0.149 |  17.0%  26.0% 200  4e5184a9
+                      2250      125,509  acting    0.42   28.0  0.119 |   2.5%   4.0% 200  24c4a166
+                      2500      144,531  acting    0.42   28.0  0.119 |  10.5%  18.0% 200  c28224f5
+                      2750      165,393  acting    0.42   28.0  0.119 |  16.5%  21.5% 200  b431aa6a
+                      3000      187,436  acting    0.43   50.0  0.214 |  16.0%  19.5% 200  901b2bd5
+                      3250      207,102  acting    0.42   56.0  0.237 |  18.0%  20.0% 200  2f7d87cb
+                      3500      229,110  acting    0.43   42.0  0.179 |  15.0%  16.5% 200  6c5e0622
+                      3750      251,601  acting    0.43   46.0  0.196 |  14.5%  19.5% 200  d5946553
+                      4000      271,396  acting    0.42   44.0  0.186 |  27.5%  33.5% 200  76667693
+    within cerealscratch_s0 (n=16) Spearman vs e2e: place50 +0.80  frac50 -0.55  metric +0.64  time_step -0.38
+  cerealscratch_s1     ep  transitions  state     frac50 place50 metric |   e2e    rest   n    actor
+                       250        9,835  learning  0.20   30.0  0.060 |   0.0%   0.0% 200  737c9a19
+                       500       19,260  acting    0.20   58.0  0.116 |  10.0%  16.0% 200  f53a55d8
+                       750       26,036  acting    0.20   58.0  0.116 |   9.0%  12.0% 200  5b3daa3a
+                      1000       34,434  acting    0.21   48.0  0.101 |   1.0%   2.0% 200  d6266ecf
+                      1250       43,665  acting    0.21   52.0  0.108 |   0.0%   0.0% 200  f03796b6
+                      1500       53,738  acting    0.22   32.0  0.070 |   1.5%   2.0% 200  ddd1d18f
+                      1750       64,689  acting    0.22   22.0  0.048 |   2.5%   3.5% 200  004f4c7f
+                      2000       73,858  acting    0.21   46.0  0.095 |   0.5%   1.5% 200  07474f62
+                      2250       84,145  acting    0.21   30.0  0.062 |   2.0%   2.0% 200  a5d73d8e
+                      2500       93,641  acting    0.20   54.0  0.110 |   1.5%   1.5% 200  80e4b6da
+                      2750      103,295  acting    0.20   42.0  0.084 |   1.5%   1.5% 200  b0ff6d1c
+                      3000      112,801  acting    0.20   34.0  0.068 |   1.5%   2.0% 200  166e5e36
+                      3250      122,124  acting    0.20   44.0  0.088 |   0.5%   1.5% 200  2ca2bb5f
+                      3500      131,210  acting    0.20   38.0  0.076 |   0.5%   0.5% 200  74b7c499
+                      3750      140,489  acting    0.20   46.0  0.092 |   0.5%   0.5% 200  b2b8957a
+                      4000      150,423  acting    0.20   30.0  0.060 |   0.0%   0.0% 200  081a3f20
+    within cerealscratch_s1 (n=16) Spearman vs e2e: place50 +0.18  frac50 +0.13  metric +0.22  time_step -0.31
+  cerealscratch_s2     ep  transitions  state     frac50 place50 metric |   e2e    rest   n    actor
+                       250        9,765  learning  0.20   34.0  0.068 |   1.5%   2.0% 200  f33becda
+                       500       17,803  acting    0.21   64.0  0.133 |   9.5%  11.5% 200  17bfed86
+                       750       26,296  acting    0.22   72.0  0.160 |  54.0%  63.5% 200  f90ba7ec
+                      1000       35,336  acting    0.28   72.0  0.204 |  65.0%  72.0% 200  3e293dc8
+                      1250       47,202  acting    0.32   52.0  0.167 |  80.0%  88.5% 200  b451684f
+                      1500       61,626  acting    0.34   32.0  0.109 |  77.0%  86.0% 200  4dc5d01c
+                      1750       74,806  acting    0.35   60.0  0.207 |  75.0%  85.0% 200  c267d5dc
+                      2000       86,196  acting    0.36   80.0  0.284 |  84.5%  96.0% 200  b279fd5e
+                      2250       97,919  acting    0.39   84.0  0.330 |  89.0%  94.0% 200  cb674cad
+                      2500      115,742  acting    0.42   36.0  0.152 |  38.5%  44.0% 200  6a8acc86
+                      2750      135,618  acting    0.43   26.0  0.111 |  20.5%  23.5% 200  e15b4b4b
+                      3000      154,191  acting    0.42   16.0  0.068 |  37.5%  39.5% 200  7f9724b9
+                      3250      172,265  acting    0.41   26.0  0.107 |  34.0%  39.0% 200  c5c7d3f2
+                      3500      194,091  acting    0.41   14.0  0.057 |  32.5%  37.5% 200  ef356e73
+                      3750      217,203  acting    0.37   20.0  0.074 |  14.0%  16.0% 200  46efe32d
+                      4000      238,940  acting    0.35   16.0  0.056 |  20.5%  22.0% 200  ba9529e3
+    within cerealscratch_s2 (n=16) Spearman vs e2e: place50 +0.58  frac50 +0.04  metric +0.74  time_step -0.16
+  POOLED scratch (n=48)
+    place50   vs e2e   Spearman +0.37   Pearson +0.49
+    frac50    vs e2e   Spearman +0.55   Pearson +0.41
+    metric    vs e2e   Spearman +0.66   Pearson +0.67
+    time_step vs e2e   Spearman +0.04   Pearson -0.11
+
+  Latest scratch snapshot vs FINAL actor_td3 of the warm runs (same protocol):
+  checkpoint                 arm      episodes transitions    e2e   rest    n
+  cerealscratch_s0@ep4000    scratch      4000     271,396  27.5%  33.5%  200
+  cerealscratch_s1@ep4000    scratch      4000     150,423   0.0%   0.0%  200
+  cerealscratch_s2@ep4000    scratch      4000     238,940  20.5%  22.0%  200
+  final_pairfix_s0           pairfix      8000     380,992   0.5%   0.5%  200
+  final_pairfix_s1           pairfix      8001     324,848   4.5%   5.0%  200
+  final_pairfix_s2           pairfix      8000     477,384   4.0%   4.5%  200
+  > pairfix mean                                             3.0%
+  final_cereal_s0            default      8002     380,760  70.0%  80.5%  200
+  final_cereal_s1            default      8000     357,096  73.5%  82.5%  200
+  final_cereal_s2            default      8000     412,008  15.5%  16.5%  200
+  final_cereal_s3            default      8000     408,592   2.5%   3.0%  200
+  final_cereal_s4            default      8000     394,200  38.0%  44.5%  200
+  > default mean                                            39.9%
+  > scratch mean (latest)                                   16.0%
+
+PROTOCOL CONFIRMATION, 12 seeds x 50 (protocol.tsv; positive control in control.tsv)
+  best_cerealscratch_s0       237/600 =  39.50%   rested  48.50%
+  best_cerealscratch_s1       103/600 =  17.17%   rested  22.17%
+  best_cerealscratch_s2       532/600 =  88.67%   rested  97.00%
+  cerealscratch_s2_ep02000    509/600 =  84.83%   rested  94.67%
+  cerealscratch_s2_ep02250    528/600 =  88.00%   rested  95.67%
+  control_cereal_s2best       512/600 =  85.33%   rested  93.83%
+  best_cerealscratch_s2 - control_cereal_s2best, paired on seed: +3.33, t(11)=+1.64, 8 up / 4 down

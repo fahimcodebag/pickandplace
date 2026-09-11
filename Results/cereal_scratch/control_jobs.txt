@@ -1,0 +1,12 @@
+control_cereal_s2best checkpoints/td3_place_cereal_s2/best 7
+control_cereal_s2best checkpoints/td3_place_cereal_s2/best 31
+control_cereal_s2best checkpoints/td3_place_cereal_s2/best 47
+control_cereal_s2best checkpoints/td3_place_cereal_s2/best 89
+control_cereal_s2best checkpoints/td3_place_cereal_s2/best 101
+control_cereal_s2best checkpoints/td3_place_cereal_s2/best 123
+control_cereal_s2best checkpoints/td3_place_cereal_s2/best 211
+control_cereal_s2best checkpoints/td3_place_cereal_s2/best 307
+control_cereal_s2best checkpoints/td3_place_cereal_s2/best 401
+control_cereal_s2best checkpoints/td3_place_cereal_s2/best 503
+control_cereal_s2best checkpoints/td3_place_cereal_s2/best 555
+control_cereal_s2best checkpoints/td3_place_cereal_s2/best 2024
