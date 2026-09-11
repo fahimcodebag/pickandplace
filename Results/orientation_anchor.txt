@@ -52,7 +52,7 @@ is +-2.9 or wider.  It saturates:
         SUCCESS episodes  0.070
   motion achieved / commanded    failed 4.6%   success 15.5%
   windows moving <5 mm in 12 steps   failed 67%   success 4%
-  contacts (arm or box vs bins)      NONE in either group
+  contacts (arm or box vs bins)      0.0% of 2,802 stalled steps (re-measured, see CORRECTION)
 
 Nothing in the loop bounds joint angles.  OSC consumes Cartesian deltas;
 nullspace_torques regulates posture toward initial_joint but never reads
@@ -235,10 +235,42 @@ METHOD NOTE
 Five refutations against two adopted fixes.  The failure statistics pointed at
 none of it -- every hypothesis drawn from the failure distribution (reach,
 collision, carry height, release height, settle window, staging pose, nullspace
-posture, limit-aware nullspace) was refuted.  The mechanism was found by
+posture, limit-aware nullspace) was refuted (collision only after a
+detector bug was fixed -- see CORRECTION).  The mechanism was found by
 reading osc.py after the nullspace theory collapsed.
 
 Sweeps here run as one process per (arm, seed) under xargs -P 28.  MuJoCo will
 not parallelise a single environment, but seeds are embarrassingly parallel:
 3400 episodes finished in the wall time one 100-episode job takes.  The earlier
 sequential form of the same sweep would have run ~2.5 hours at 3% CPU.
+
+================================================================================
+CORRECTION (2026-09-11) -- the "contacts NONE" row above is WITHDRAWN
+================================================================================
+That row came from a check that matched geom NAMES containing "bin". In this
+robosuite build the only named bin geoms are the visual legs
+(bin1_leg*_visual, bin2_leg*_visual); the walls and floor that actually collide
+are unnamed (e.g. geom21). Validated directly: a cereal box resting on the
+place-bin floor produced 4 contacts and ZERO hits from that filter.  So
+collision was never measured, and must not be listed as ruled out.
+
+What this does NOT change: ROT_ANCHOR_EPS is established independently -- by
+the osc.py:259 mechanism, by q5 = 3.753 against the 3.75 stop in stalled
+windows, and by the fix itself measuring +2.92 FP32 / +5.25 INT8 at full
+protocol with both baselines reproduced to the episode.
+
+Method note: classify geoms by parent BODY (M.geom_bodyid), not geom name.
+
+UPDATE (2026-09-11, same day) -- RE-MEASURED, and the original conclusion HOLDS
+Geoms classified by parent BODY (bin walls/floor = geom7-15 on body bin1,
+geom21-33 on body bin2; validated: a box resting on the place-bin floor
+registers as place_bin|object).  Same stall re-run -- cereal, waypoint
+transport, seed 47, 40 episodes, stalled = <5 mm of object motion in 12 steps:
+
+    ROT_ANCHOR_EPS = 0      success 16/40   2,802 stalled steps
+                            joint-pinned 100.0%   arm/object-environment contact 0.0%
+    ROT_ANCHOR_EPS = 1e-6   success 33/40       0 stalled steps
+
+The stall is a joint limit with no collision -- as first written -- but that
+claim was unsupported until now.  It is now measured, and more decisively:
+every stalled step is pinned, none touches anything.
