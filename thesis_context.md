@@ -18,13 +18,13 @@
 > convention decoded. This file answers "why is it like this"; that one answers
 > "where is it"; `Results/*.txt` answers "what is the number".
 >
-> Current headline: **FP32 100.0% fixed / 93.58% random spawn; INT8 96.6% fixed /
-> 83.58% random**, two 7.9 KB actors, evaluated through a replica of the deployed
-> FSM at 1200 episodes per cell (12 eval seeds x 100).
-> The random-spawn cells were raised by §9.17's one-constant controller fix
-> (FP32 90.67 → 93.58, INT8 78.33 → 83.58; both pre-fix baselines reproduced to
-> the episode). **Quantization cost on random spawn falls 12.33 → 10.00.**
-> Fixed-spawn cells have not been re-measured with the anchor.
+> Current headline — deployed artifact `c2m512_s1` grasp INT8 + original place (§9.15.1):
+> **random spawn INT8 95.33% / FP32 94.92%, fixed spawn INT8 99.83% / FP32 100.0%**
+> (held-out, 12 seeds × 100). **Hardware: 97/100 on the ESP32 under random spawn.**
+> **With AprilTag perception running on the ESP32 itself** (no PSRAM): **89.67%**
+> against a 94% ground-truth ceiling (§9.14.3).
+> These predate §9.17's `ROT_ANCHOR_EPS` fix, which was measured only on the older
+> `bi_s0` (INT8 78.33 → 83.58%, FP32 90.67 → 93.58%); `c2m512_s1` is unmeasured with it.
 >
 > Last updated: 2026-09-11
 
@@ -602,6 +602,11 @@ merely small on paper — **both policies and the full control FSM run in real
 time on a $5-class microcontroller**, in closed loop with physics, at the
 same success rate as the desktop pipeline.
 
+**Later hardware validation (supersedes the 10-episode figure above):** 97/100 under
+random spawn with `c2m512_s1` INT8, on-device inference 0.26 ms (§9.15.1,
+`Results/hil_hardware_validation.txt`); and full AprilTag perception on the board
+itself, 18/20 episodes on its own pose (§9.14.3).
+
 ### 8.5 Operational note — host toolchain memory, not device memory
 
 Builds failed with `cc1plus.exe: out of memory` — a **host compiler** RAM
@@ -728,6 +733,9 @@ Everything from §9.1 to §9.3 is preserved as an accurate record of the earlier
 campaign, but its numbers and its conclusions have been overtaken. The
 random-spawn ladder's "3% at native randomization" and the curriculum diagnosis
 describe a pipeline that no longer exists. Read §9.4 onward as current.
+
+> **Superseded (2026-09-11):** this table describes `bi_s0`. The current artifact is
+> `c2m512_s1` (§9.15.1); the current headline is at the top of this file.
 
 **Current headline (all at spawn level 2.0 = full position box + full
 z-rotation, i.e. robosuite's native sampler):**
@@ -1052,6 +1060,115 @@ that actually scored 93.3%. Spawn-condition mismatches between training and
 evaluation have been the single most common source of wrong numbers in this
 project.
 
+### 9.14.1 AprilTag end-to-end — the camera goes blind at grasp, so latch
+
+`Results/apriltag_perception.txt`. Real detector (tag injected into the scene,
+OpenCV AprilTag + PnP) under the real FSM.
+
+**Detection dies at grasp in every camera configuration** — GRASP 65% (agentview)
+/ 29% (wrist), then **0%** through TEST_LIFT and TRANSPORT: the gripper occludes
+the tag. That is geometry, not resolution. It is survivable because a held
+object's pose *relative to the gripper* is constant and the gripper pose is exact
+from joint encoders: `mode=latch` latches object→gripper at grasp and propagates
+it with forward kinematics. Recomputing a world pose after grasp is actively
+wrong — it holds a stale pose while the arm carries the object away.
+
+**Three implementation bugs were worth ~40 points** (latch 28% → 68%):
+resolution (the tag renders below AprilTag's decode threshold at 320/640 px from
+agentview); planar pose ambiguity (IPPE_SQUARE returned the flipped solution;
+fixed with `solvePnPGeneric` plus an upright-normal prior, orientation p95
+91.3° → 4.7°); and a tag-vs-object-centre offset, which decomposed as fixed in
+the *world* frame — a camera-extrinsics artifact, corrected there.
+
+**Matched cost of real perception: −15 points** (truth 94.0% vs latch 79.0%,
+t=−8.66, 4/4 seeds). An earlier "100% truth ceiling" was 8 episodes.
+
+**Three negatives, one principle.** Detecting 5× more often changed nothing
+(68% vs 68%); latching the median of recent detections cost −2.5; a second
+camera cost −3.5 (averaged) and −7.5 (selected by reprojection error). Before the
+grasp the object is stationary, so staleness is nearly free while noise is not:
+**take the single most accurate measurement and hold it** — do not fuse, refresh
+or average. Also closed: tag size (already overhangs the object), resolution
+(past returns at 1280×960), and camera motion (provably static).
+
+### 9.14.2 The learned residual corrector (MLP) — 77% of the gap closed
+
+`Results/apriltag_perception.txt`, `Results/corrector_on_device.txt`.
+
+**Framing.** Predict the *residual* (true − detected position) from features
+available at runtime, not the absolute pose — regressing to truth lets a model
+score well by echoing an already ~90%-right input. The fixed calibration offset
+is the zero-feature special case. Data: 2,181 detections over 6 seeds, logged
+under the real FSM. Two rounds of leakage had to be removed first: features
+derived from the simulator's ground-truth pose inflated the fit from +39% to a
+spurious +60%. In simulation the answer key sits beside the inputs.
+
+| Corrector | Pose error (median) | End-to-end (12 seeds × 50) |
+|---|---|---|
+| none | 11.56 mm | 75.2% |
+| ridge (linear) | 7.08 mm | 81.8% (+6.7, p=0.0037) |
+| MLP 64-64 | 2.30 mm | 86.8% (+11.7, 12/0 seeds) |
+| **MLP, tuned** | **0.69 mm** held-out | **89.7%** vs 94.0% ceiling |
+
+The residual is **nonlinear** — an earlier "it is linear, no MLP needed" was
+retracted once an MLP was actually fitted. Tuning used a seed split (tune on
+four, hold out two) so the search could not leak into the result; **batch size
+dominated architecture**. The size curve is flat at those hyperparameters: a
+**1,571-parameter** net reaches 92% of the error reduction, smaller than the
+policy it serves.
+
+**A unit bug scored 0.0% on all 12 seeds**: the export emitted millimetres into
+a position in metres. Fixed by rescaling the final layer and guarded by a
+magnitude-ratio check (0.999).
+
+**Composes benignly with INT8:** INT8 + AprilTag + corrector **89.50%** vs FP32
+89.7% (p=0.93). Perception costs 5.83 points; quantisation costs 0.
+
+**It must run FP32.** Per-tensor INT8 put 6.4–13.2 mm of error on a 11.56 mm
+residual, because the 12 input features span a 2,198× range of scales and
+per-tensor INT8 sets one scale for the whole input. FP32 costs 6–20 KB on a
+board with an FPU and ~192× timing headroom, so the sketch runs a hand-rolled
+MLP with no third interpreter. INT8 was necessary for the policies and
+unnecessary for the corrector — "quantise everything" is the wrong default.
+
+**One detection per episode is enough** (88.0% vs 86.5% at period 5; 7 → 1
+detections per episode), which collapses the on-device *timing* requirement.
+
+*Per-setup calibration:* it encodes this camera in this scene and must be refit
+against real ground truth before it means anything on hardware.
+
+### 9.14.3 Full perception on a plain ESP32 — no PSRAM
+
+`Results/wrist_camera_route.txt`, `Results/tag16h5_deployment.txt`,
+`Results/tag16h5_deployment_path.txt`, `Results/on_device_perception.txt`.
+
+**Tag pixels, not resolution, are binding.** Agentview needs 1280×960 (1,200 KB
+frame); the wrist camera sits ~10× closer and resolves a ~20 px tag at 320×240
+(75 KB). Detecting once at t=0 with the arm at home makes the camera pose fixed,
+so the residual is one calibration map: 20.6 → 0.39 mm (98%), end-to-end 86.8%
+vs agentview's 89.7% (not significant). **tag16h5** is used because the ESP32
+port ships its code table; at n=3,200 it detects equivalently to 36h11 (68.3% vs
+66.9%) — an earlier +23-point spot check at n=30 was noise.
+
+**The C detector port beats OpenCV**: its raw error is a near-constant 20.5 mm
+offset, so the corrector reaches 0.06 mm (vs 0.39 mm). Deployment configuration:
+ROI 180×160, tag16h5, `bits_corrected=0`, `AT_MIN_REGION=60`, zarray growth
+1.25×, 4-byte union-find, two inherited memory leaks fixed — **89.67%** against a
+94% ceiling, indistinguishable from the same detector with unlimited memory.
+
+**Memory lessons.** The binding pool is `MALLOC_CAP_8BIT` (~211 KB), not
+`getFreeHeap()` (281 KB, which includes 32-bit-only IRAM); two predicted fits
+against the latter were wrong. Every panic (`0x1c`/`0x1d`) was out-of-memory —
+upstream AprilTag never checks a malloc — and a host stack measurement had
+overstated the need. A silent fallback to the PC's ground-truth pose once scored
+19/20 with zero detections; the HIL harness now reports perception outcomes.
+
+**On hardware:** peak heap 176.9 KB of 213.7 KB, detection 192–576 ms, 0 crashes,
+no heap drift; HIL 18/20 episodes on the board's own pose. Higher resolution does
+not help (640×480 does not fit and detects no better); 160×120 cannot buy back
+error correction. **Deployed corrector:** FP32, 1,571 parameters
+(`tag_residual_wrist32.json`, 6.1 KB).
+
 ### 9.15 Rule-layer sweep, and a 3-point measurement correction
 
 **The sweep.** Sec 5's precedent (FSM parameters alone worth 78% -> 92% at fixed
@@ -1114,10 +1231,71 @@ The INT8 penalty on random spawn is real and large (-13.5 pts); on fixed spawn
 it is small (-3.4). The mechanism is in §9.12 — per-tensor quantization of the
 grasp actor, whose weight dynamic range is the widest of the three models.
 
+### 9.15.1 The INT8 campaign — `c2m512_s1` replaces `bi_s0` (08-30 → 09-02)
+
+The quantisation gap on random spawn (FP32 90.67% vs INT8 78.33% for `bi_s0`)
+was closed and then inverted, one measured lever at a time:
+
+| Lever | INT8 effect | File |
+|---|---|---|
+| Weight-range clipping, \|w\| ≤ 8·std | **+7.25** (p=0.0002), removes catastrophic seeds | `weight_range_regularisation.txt` |
+| QAT *inside the RL loop* (fake-quant, STE, optimises return) | **+4.43**; FP32 unchanged | `qat_in_training.txt` |
+| Wider actor via net2wider | −5.93, confounded (critic left small) | `capacity_experiments.txt` |
+| → `smallc64_s5` | INT8 93.08% / FP32 91.67% held-out | `validated_90_model.txt` |
+| Replay buffer 200k → 500k / 1M | **+15.17 / +14.00**; seed sd 17.18 → 2.84 | `buffer_size.txt` |
+| Critic 512/256 given 2M buffer, batch 1024, 55k episodes | +3.12 INT8, +6.04 FP32 — free at deployment | `critic_capacity_2m.txt` |
+
+The in-loop QAT result overturns §9.12's "QAT was the damage": that verdict was
+about a distillation loss anti-correlated with deployed success, not about QAT.
+The first large-critic test had been a budget artifact.
+
+**Current artifact `c2m512_s1`** (held-out, 12 seeds × 100):
+
+| | Fixed spawn | Random spawn |
+|---|---|---|
+| FP32 | 100.00% | 94.92% |
+| INT8 | 99.83% | **95.33%** |
+
+A strict improvement over `bi_s0` on every cell. **On hardware (09-04): 97/100
+under random spawn** (95% CI 91.5–99.4), on-device inference **0.26 ms**, 0
+communication errors over 14,996 cycles (`Results/hil_hardware_validation.txt`).
+
+Also measured: jerk is not what drops objects; grip *quality* is, and the
+monolithic v7 grip is 11–13 points better than the decomposed INT8 grip
+(`Results/grip_robustness.txt`).
+
+**Caveat:** §9.17's `ROT_ANCHOR_EPS` gains were measured on `bi_s0`. `c2m512_s1`
+has not been re-measured with the anchor.
+
+### 9.15.2 Beyond bread — generalisation, orientation, compression, cereal (09-06 → 09-08)
+
+* **Zero-shot to unseen objects fails**, ordered by departure from bread's
+  near-cubic shape, not size: can 71.67%, milk 44.00%, cereal 27.00% vs bread
+  95.67% (`Results/object_generalisation.txt`).
+* **World-frame orientation is nearly free, gripper-frame is essential**:
+  `obj_quat` → identity costs −1.0; also blanking `obj_to_eef_quat` costs −84.3.
+  The grasp policy does not align jaw yaw at all — error is uniform
+  (`Results/orientation_ablation.txt`, `Results/yaw_alignment.txt`).
+* **Pruning and distillation**: 48×24 keeps 90.67%, 32×16 83.33%, 24×12 66%;
+  pruned initialisation beats random by up to 49 points, and mean action error
+  is a poor proxy for task success (`Results/pruning_distillation.txt`).
+* **Cereal per-object grasp is solved** (96.5–100% vs 27% zero-shot; warm start
+  beats cold) — **but the grasp metric is anti-correlated with task success
+  (r = −0.918)**: `--align-grip` improves the grasp and costs 15 points end to end
+  (`Results/cereal_per_object.txt`). Stage-local metrics can fight the task.
+* **Cereal transport**: the bread place actor operates 9σ outside its training
+  distribution (`obj_to_eef_z` 0.057 vs 0.002); the high carry is load-bearing
+  (every attempt to lower it hurt); a scripted waypoint transport went 31% → 60%
+  after fixing three implementation bugs (`Results/transport_diagnosis.txt`),
+  and later to 89.2% with §9.17's fixes.
+
 ### 9.16 Where things stand for a fresh session
 
 **Read `REPOSITORY_MAP.md` first** for where anything lives — scripts,
 checkpoint naming, which results file answers which question.
+
+> **Superseded in part:** the model figures below describe `bi_s0`. See the file header
+> and §9.15.1 for `c2m512_s1`, and §9.14.1–9.14.3 for perception.
 
 **Done and validated:** grasp stage (87.1% certified), transport (original,
 never retrained), FSM in FP32 (100.0% fixed / 89.6% random), INT8 conversion
@@ -1148,10 +1326,12 @@ FP32 90.67 → **93.58%**, INT8 78.33 → **83.58%**, quantization cost 12.33 �
    placement (99.7%) and scored success (89.7%) diverge by ~10 points for
    cereal alone, confounding every bread-vs-cereal comparison (§9.17).
 8. `can` grasp is trained (best 0.995, seeds 0/1 to ~55k); `milk` is untrained.
-9. **Random-spawn place training (§9.18) — see the dated status block there.** Final correlation report from
-   `finish_curriculum_pair.sh`; cereal from-scratch arm running. Also untested:
-   robosuite built-in reward on the place stage; wrapper scripted phases still
+9. **Random-spawn place training (§9.18) — see the dated status block there.** Both runs
+   finished and were evaluated; the open problem is late-training degradation. Also
+   untested: robosuite built-in reward on the place stage; wrapper scripted phases still
    write `a[3:6] = 0`; training wrapper vs FSM release constants disagree.
+10. **Measure `c2m512_s1` with `ROT_ANCHOR_EPS`** — the anchor gains were measured on
+    the superseded `bi_s0` (§9.15.1).
 
 **Methodological rules earned the hard way in this campaign:**
 
@@ -1374,15 +1554,25 @@ deployed FSM disagree on release radius (0.10 vs 0.18), hold count (5 vs 3) and
 translation scale (0.5 vs 0.65). robosuite's built-in reward has **never** been
 tried on the place stage.
 
-**Status 2026-09-11 15:30 (resume here).** Curriculum pair FINISHED (4,000 episodes):
-final frac fixed 0.77 / 0.49 / 0.36, random 0.45 / 0.45 / 0.53; last-window success per 50 fixed
-8 / 10 / 32, random 35 / 10 / 27 — large within-arm variance, no between-arm gap. Final
-snapshot evaluation was running (379 rows); `finish_curriculum_pair.sh` writes
-`Results/curriculum_pair/correlation_report.txt` (resumable — rerun if killed). Cereal
-from-scratch arm (`td3_place_cerealscratch_s0-2`) at episode ~3,400/4,000, frac 0.42 / 0.20 / 0.40.
-**Next:** read the report; write a cereal evaluator (copy `eval_place_snapshot_job.sh` with cereal +
-`cereal_alignwarm_s0` grasp); compare cereal-from-scratch with the warm-started cereal runs on
-`time_step`; commit `cerealscratch` checkpoints once its trainers exit.
+**Status 2026-09-11 evening (resume here).** Both runs finished and were evaluated end-to-end.
+
+*Curriculum pair* (bread, from scratch; `Results/curriculum_pair/correlation_report.txt`): the
+best-selection metric (frac50 × place50) correlates with end-to-end success at pooled Spearman
+**+0.59 fixed / +0.73 random** (within-run −0.18 … +0.68). Latest-snapshot means **20.0% fixed /
+15.7% random** — no between-arm gap.
+
+*Cereal from scratch* (`Results/cereal_scratch/report.txt`): latest snapshots 27.5 / 0.0 / 20.5%
+(mean 16.0%). Final weights of the warm-started runs: default recipe mean **39.9%**
+(70.0 / 73.5 / 15.5 / 2.5 / 38.0) — far below the 67.77% quoted from `best/` — and pairfix 3.0%.
+
+**The pattern across all of it is rise-then-degrade.** `cerealscratch_s2` reached **89.0%**
+end-to-end at episode 2,250 and ended at 20.5%; bread `curF_s0` reached 85.0% at 2,500–2,750 and
+ended at 24.5%. It appears from scratch and on bread, so neither warm-starting nor the object is
+the whole explanation. The live problem is late-training instability of the place stage, which
+the rolling metric and `best/` only partly track.
+
+**Next:** select place checkpoints on end-to-end evaluation of snapshots rather than the training
+metric; measure `c2m512_s1` with `ROT_ANCHOR_EPS`; and the open items in §9.16.
 
 ---
 
@@ -1393,15 +1583,16 @@ from-scratch arm (`td3_place_cerealscratch_s0-2`) at episode ~3,400/4,000, frac 
 | Decomposition makes each sub-problem learnable with tiny networks | **Demonstrated** | 87.1% certified grasp and 100.0% end-to-end (fixed spawn) with two 64→32 actors, 5.2k params each (§9.9, §9.11) |
 | A deterministic rule layer converts a good policy into a reliable system | **Demonstrated** | 78% → 92% from FSM parameters alone (§5); FSM replica reproduces the eval harness within noise (§9.11) |
 | Sub-policies fit and run on a commodity MCU in real time | **Demonstrated** | 15.8 KB total (2 × 7.9 KB), 9.49 ms/cycle vs 50 ms budget (§7–8) |
-| Quantized deployment preserves task behavior | **Demonstrated** | INT8 96.6% vs FP32 100.0% fixed spawn, 1200 episodes — above the 92% FP32 Python baseline (§9.12, §9.15) |
+| Quantized deployment preserves task behavior | **Demonstrated** | `c2m512_s1`: INT8 95.33% vs FP32 94.92% random, 99.83% vs 100.0% fixed (held-out); clipping, in-loop QAT and a larger buffer/critic closed a 12-point gap (§9.15.1). HIL 97/100 on the ESP32 |
 | Decomposition confines spawn randomness to the grasp stage | **Demonstrated** | Grasp stage absorbed the randomness (79.2% → 87.1%); the transport policy was **never retrained** and the two attempts to retrain it both lost (§9.9, §9.13) |
 | A learned transport policy is not required for these tasks | **Demonstrated, modestly** | Scripted three-leg transport vs the learned place actor, both through `fsm_sim.py` at 12×100: **bread 95.50% vs 93.58%, +1.92, t(11)=+2.87** (9u/2d/1t) — the fair test, since that actor was trained on bread. On **cereal** the learned arm is the bread policy *transferred* (no cereal place policy has ever been trained), so **89.17% vs 73.17%, +16.00** is a *cost-matched* claim — scripting and transfer both cost zero training — not scripted-vs-trained. The stage is replaceable; the bread margin is small |
 | Failure classes that resist the rule layer are defects one layer down | **Demonstrated** | The 3.08% "blocked at a joint limit" class survived three open-loop escapes at 1200 episodes each (0/88 recovered) and was recovered by a one-constant change to the controller interface (§9.17) |
 | The stage interface is the dominant design variable | **Demonstrated** | Aligning stage-1 certification with stage-2 handoff: 13% → 82% end-to-end, no architecture change (§9.5) |
 | Plasticity-loss remedies transfer across stages | **Falsified** | Critic resets: +20 to +30 on grasp, −30 on transport (§9.6) |
 | Reward shaping can direct fine-grained grasp geometry | **Falsified** | Four interventions failed; the critic never represents the axis (corr −0.004 across six critics) (§9.8) |
-| Perception can run far below control rate | **Demonstrated in simulation** | `recompute` flat to a 20× update period at 10 mm noise → 5% duty cycle (§9.14) |
-| AprilTag closed-loop perception on hardware | **Open** | §9.15 |
+| Perception can run far below control rate | **Demonstrated** | One AprilTag detection per episode suffices when latched through the grasp — 88.0% vs 86.5% at period 5 (§9.14.1–9.14.2) |
+| AprilTag perception on the MCU | **Demonstrated (sim + HIL)** | Detector + learned residual corrector on a plain ESP32, no PSRAM: 89.67% vs 94% ground-truth ceiling over 600 episodes; hardware 18/20 episodes on the board's own pose, 0 crashes (§9.14.3) |
+| A learned residual corrector closes most of the perception gap | **Demonstrated** | MLP: 75.2% → 89.7% vs a 94.0% ceiling, 12/12 seeds; must run FP32 because INT8 error exceeds the residual (§9.14.2) |
 | Grasp-stage hyperparameter levers transfer to the place stage | **Falsified** | Critic resets +20..+30 grasp, −30 transport (§9.6); batch 1024 + critic 512/256 −28.44 on place, collapsing variance onto a worse mean (§9.18) |
 | Random spawn itself prevents place-policy training | **Not supported (open)** | All collapsed runs were cereal and/or warm-started; the controlled bread pair from scratch shows no fixed/random gap so far; cereal from-scratch arm running (§9.18) |
 
