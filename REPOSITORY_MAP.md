@@ -8,7 +8,7 @@ where to go next.
 evidence (that is `Results/*.txt`). Numbers are not duplicated here — only
 pointers, so this file cannot go stale by disagreeing with a measurement.
 
-Last surveyed: 2026-09-08 · 118 commits · branch `main`
+Last surveyed: 2026-09-08 · artifact and results index revised 2026-09-11 · branch `orientation-anchor-fix`
 
 ---
 
@@ -17,8 +17,8 @@ Last surveyed: 2026-09-08 · 118 commits · branch `main`
 | File | Role | When to read it |
 |---|---|---|
 | `REPOSITORY_MAP.md` (this) | **Index.** Where everything is. | "Where is X?" / new to the repo |
-| `thesis_context.md` (1310 ln) | **Narrative.** What was tried, what failed, what superseded what. §9.16 is the fresh-session entry point, §9.17 the newest finding; §10 is the claim-status table. | "Why is it like this?" / resuming work |
-| `Results/*.txt` (39 files) | **Evidence.** Measured tables at protocol, with method and caveats. | "What is the number, and how solid?" |
+| `thesis_context.md` (~1,600 ln) | **Narrative.** What was tried, what failed, what superseded what. The header carries the current headline; §9.16 is the fresh-session entry point, §9.18 the newest finding; §10 is the claim-status table. | "Why is it like this?" / resuming work |
+| `Results/*.txt` (40 files) | **Evidence.** Measured tables at protocol, with method and caveats. | "What is the number, and how solid?" |
 
 `PROJECT_CONTEXT.md` (281 ln, last updated 2026-06-30) is an **older** context
 primer from the monolithic era and is superseded by `thesis_context.md` for
@@ -30,11 +30,11 @@ re-derived. The joint-5 joint-limit stall was recorded in both
 rediscovered from scratch months later. A finding must be reachable from
 `thesis_context.md` §9.16 or from this file, or it is effectively lost.
 
-**Recently revised:** the **random-spawn** headline cells (`thesis_context.md`
-§9.17) — FP32 90.67 → **93.58%**, INT8 78.33 → **83.58%**, quantization cost
-12.33 → **10.00**. Fixed-spawn cells are unchanged and un-re-measured.
+**Recently revised:** the deployed grasp is **`c2m512_s1`** (`thesis_context.md`
+§9.15.1), replacing `bi_s0`. §9.17's `ROT_ANCHOR_EPS` gains were measured on
+`bi_s0` only; `c2m512_s1` has not been measured with the anchor.
 
-**Resume point (2026-09-11):** `thesis_context.md` §9.18 status block. Curriculum pair finished; its report lands in `Results/curriculum_pair/correlation_report.txt`; cereal from-scratch arm still training (`logs/train_place_cerealscratch_s*.log`).
+**Resume point (2026-09-11, evening):** `thesis_context.md` §9.18 status block. Curriculum pair and cereal from-scratch arm finished and evaluated end-to-end (`Results/curriculum_pair/correlation_report.txt`, `Results/cereal_scratch/report.txt`): place training rises then degrades in every configuration.
 
 **Harness note:** measure through `fsm_sim.py` itself, not a reimplementation.
 `main()` runs a respawn-and-retry handoff loop that a custom driver will miss,
@@ -75,9 +75,9 @@ and it is worth ~2 points.
 | `tflite_to_header.py` | `.tflite` → C header byte array. |
 | `analyze_qat.py`, `analyze_wclip.py`, `analyze_widen.py` | QAT / weight-clipping / width sweeps. |
 | `prune_actor.py`, `distill_actor.py` | Pruning and distillation of FP32 actors. |
-| `pick_and_place_INT8_FSM.ino` | **The deployed firmware.** FSM + both INT8 actors + on-device AprilTag. |
+| `pick_and_place_INT8_FSM.ino` | **The deployed firmware.** FSM + both INT8 actors + on-device AprilTag + FP32 corrector. |
 | `pick_and_place_FP32.ino` | FP32 reference firmware. |
-| `grasp_model.h`, `place_model.h`, `actor_model_float32.h`, `corrector_model.h` | Generated model headers. |
+| `grasp_model.h`, `place_model.h`, `actor_model_float32.h`, `corrector_model.h` | Generated model headers. Each names its source file in its first lines. |
 
 ### Perception (AprilTag)
 | File | What it does |
@@ -91,7 +91,7 @@ and it is worth ~2 points.
 ### Hardware-in-the-loop
 | File | What it does |
 |---|---|
-| `hil_main.py` | HIL driver. Sim on host, policy on ESP32 over serial. `--on-device-perception` sends image ROIs. |
+| `hil_main.py` | HIL driver. Sim on host, policy on ESP32 over serial. `--random-spawn`; `--on-device-perception` sends image ROIs. |
 | `esp32_bridge.py` | Serial transport, framing, debug-line capture, per-episode perception summary. |
 |  `protocol_float32.py` | Wire format incl. `IMG_MSG`, ROI crop, 15-float pose payload. |
 | `diag_esp32_actions.py` | Action-level host/device diff. |
@@ -113,6 +113,8 @@ These predate the decomposition; `train_v8.py` is the last monolithic loop
 | `eval_place_snapshots.sh` + `eval_place_snapshot_job.sh` | End-to-end evaluation of every snapshot (resumable). |
 | `analyze_place_snapshots.py` | Training metric vs end-to-end correlation, keyed on `time_step`. |
 | `finish_curriculum_pair.sh` | Unattended: wait for trainers, final eval, write the report. |
+| `eval_cereal_scratch.sh` + `eval_cereal_scratch_job.sh` | Cereal end-to-end evaluation: every `cerealscratch` snapshot plus the final actor of each warm-started cereal run; records robosuite success and physical rest (`--settle-steps 60`). Resumable. |
+| `analyze_cereal_scratch.py` | Cereal from scratch vs warm-started cereal (and bread `curR`), keyed on transitions collected. |
 | `stop_runs.sh` | Stop runs by pattern, filtering on `/proc` comm so it cannot kill its caller. |
 | `osc_anchor.py` | `ROT_ANCHOR_EPS`, shared by `fsm_sim.py` and the place wrapper. |
 
@@ -122,19 +124,23 @@ These predate the decomposition; `train_v8.py` is the last monolithic loop
 
 | Directory | Contents |
 |---|---|
-| `Results/` | 39 `.txt` evidence files, ~85 experiment subdirs of raw CSVs, `figures/`. See §4. |
+| `Results/` | 40 `.txt` evidence files, ~85 experiment subdirs of raw CSVs, `figures/`. See §4. `Results/big2m/` holds the `c2m512_s*` INT8 artifacts. |
 | `checkpoints/` | 161 run directories. Naming convention in §3. Each holds `best/` and periodic saves. |
 | `logs/` | 174 training logs, one per run, named to match its checkpoint family. |
-| `qat_output*/` | Quantization artifacts per campaign: `_bi` (the shipped pair), `_fix`, `_phaseB`, `_reset`, `_corrector`. Each holds `.tflite`, the `_float32.tflite` reference, and the refined `.pt`. |
+| `qat_output*/` | Quantization artifacts per campaign: `_bi` (holds the deployed `place_orig_int8`; its `bi_s0` grasp is superseded), `_fix`, `_phaseB`, `_reset`, `_corrector`. Each holds `.tflite`, the `_float32.tflite` reference, and the refined `.pt`. |
 | `Decomposed state training/` | Current training code + `Grasp_training_history.txt`. |
 | `esp32_apriltag/` | Vendored detector (see §1). |
-| `assets/` | Tag images, textures. |
+| `assets/` | Tag images, textures, and the deployed corrector `tag_residual_wrist32.json`. |
 | `Important Texts/` | Reference material. |
 
-**Shipped artifact pair:** `qat_output_fix/grasp_bi_noqat_int8.tflite` +
-`qat_output_bi/place_orig_int8.tflite`. The FP32 equivalents are
-`checkpoints/td3_grasp_rand_td3_ln_bi_s0/best` + `checkpoints/td3_place/best`.
-`.tflite` files in the repo **root** are stale (`thesis_context.md` §9.4).
+**Deployed artifact** (confirmed by the firmware headers): grasp
+`Results/big2m/c2m512_s1_int8.tflite` (source `checkpoints/td3_grasp_rand_td3_ln_c2m512_s1/best`)
++ place `qat_output_bi/place_orig_int8.tflite` (source `checkpoints/td3_place/best`, the
+original fixed-spawn policy, never retrained) + FP32 AprilTag corrector
+`assets/tag_residual_wrist32.json` (1,571 params). Superseded grasp:
+`qat_output_fix/grasp_bi_noqat_int8.tflite` (`checkpoints/td3_grasp_rand_td3_ln_bi_s0/best`).
+`.tflite` files in the repo **root** are stale and match neither deployed model
+(`thesis_context.md` §9.4).
 
 ---
 
@@ -152,41 +158,60 @@ td3_grasp_rand_td3_ln_<experiment>_s<seed>
 ```
 
 Experiment tags in use: `phaseA` / `phaseB` / `phaseBr` (spawn ladder),
-`resetA` (critic resets), `bi` (**the shipped pair**), `liftcert_*` (lift
+`resetA` (critic resets), `bi` (the previous shipped grasp, superseded), `liftcert_*` (lift
 certification), `gripfix*`, `rv2` (reward v2), `align` (yaw alignment),
 `qat8` / `wclip*` / `wide128` / `smallc64` / `bigc512` / `c2m*` (capacity and
-quantization sweeps), `buf200k/500k/1000k` (buffer size), `long60k`,
-`cereal_{base,align}[warm]` (per-object, cereal).
+quantization sweeps; **`c2m512_s1` is the deployed grasp**), `buf200k/500k/1000k` (buffer size), `long60k`,
+`cereal_{base,align}[warm]` (per-object, cereal), `can_warm` (per-object, can).
 
-`td3_place*` random-spawn investigation (§9.18): `_cereal_s*` (default recipe), `_cerealbig_s*` / `_cerealsmall_s*` / `_breadbig_s*` (recipe arms), `_pairfix_s*` (critics warm-started), `_curF_s*` / `_curR_s*` (controlled fixed vs random pair, with `snapshots/`), `_cerealscratch_s*` (cereal from scratch).
+`td3_place*` random-spawn investigation (§9.18): `_cereal_s*` (default recipe), `_cerealbig_s*` / `_cerealsmall_s*` / `_breadbig_s*` (recipe arms), `_pairfix_s*` (critics warm-started), `_curF_s*` / `_curR_s*` (controlled fixed vs random pair, with `snapshots/`), `_cerealscratch_s*` (cereal from scratch, with `snapshots/`).
 
-`td3_place*` variants: `_bi_s*` (paired with the shipped grasp), `_rs_reset_*`
+`td3_place*` variants: `_bi_s*` (paired with the superseded `bi_s0` grasp), `_rs_reset_*`
 vs `_rs_control_*` (critic-reset ablation), `*_backup` (manual saves).
 
 ---
 
 ## 4. Results index — which file answers what
 
+Section numbers are `thesis_context.md` sections.
+
 | File | Question it settles |
 |---|---|
 | `phaseA_algorithm_comparison.txt`, `phaseA_eval100.txt` | TD3 vs SAC vs PPO on the grasp stage. |
 | `phaseB_rotation.txt` | Full yaw randomisation; critic resets replicate; capability is specialised in both directions. |
-| `reset_ablation.txt`, `quantization_resetpolicy.txt` | Critic resets / plasticity loss. |
-| `lift_certification.txt`, `gripfix_and_selection.txt`, `grip_robustness.txt` | Stage-1 certification and grip quality. |
-| `handoff_diagnostic.txt` (superseded by `monolithic_control.txt`); raw data in `Results/handoff_carry/` | The stage interface; grip pose predicts carry survival. |
-| `builtin_reward_results.txt`, `reward_v2_results.txt` | Reward shaping; robosuite's own shaped reward. |
-| `capacity_experiments.txt`, `critic_capacity_2m.txt`, `buffer_size.txt`, `weight_range_regularisation.txt`, `qat_in_training.txt` | Capacity, buffer, weight-clipping, in-loop QAT. |
-| `fsm_fp32_validation.txt`, `fsm_rule_layer_sweep.txt` | The FSM replica matches the eval harness; rule-layer tuning. |
-| `transport_stall_diagnosis.txt` | **Central.** Three failure causes; Fix A/C adopted, Fix B/D rejected. Part 3's "blocked class is unfixable from the rule layer" is correct *as scoped*, and carries a forward pointer — superseded in **disposition**, not analysis, by `orientation_anchor.txt`. |
+| `reset_ablation.txt`, `quantization_resetpolicy.txt` | Critic resets / plasticity loss (§9.6). |
+| `lift_certification.txt` | Lift-certifying the grasp criterion aligns the stage interface (§9.5). |
+| `gripfix_and_selection.txt` | Grip-quality reward and the checkpoint-selection fix (§9.7). |
+| `grip_robustness.txt` | Grip quality, not jerk, drops objects; the monolithic grip is better (§9.15.1). |
+| `handoff_diagnostic.txt` (superseded by `monolithic_control.txt`); raw data in `Results/handoff_carry/` | The stage interface; grip pose predicts carry survival (§9.8). |
+| `builtin_reward_results.txt`, `reward_v2_results.txt` | Reward shaping; robosuite's own shaped reward (§9.9, §9.10). |
+| `int8_deployment.txt` | INT8 conversion of the superseded `bi_s0`; distillation-loss QAT hurt (§9.12, revised by §9.15.1). |
+| `weight_range_regularisation.txt` | Weight-range clipping for INT8; removes catastrophic seeds (§9.15.1). |
+| `qat_in_training.txt` | QAT inside the RL loop helps INT8; overturns §9.12's verdict (§9.15.1). |
+| `capacity_experiments.txt` | Wider actor via net2wider: negative, confounded by a small critic (§9.15.1). |
+| `validated_90_model.txt` | `smallc64_s5`, the first held-out INT8 model above 90% (§9.15.1). |
+| `buffer_size.txt` | Replay buffer size: the largest INT8 lever; seed variance collapses (§9.15.1). |
+| `critic_capacity_2m.txt` | Large critic given a 2M buffer: the recipe behind `c2m512_s1` (§9.15.1). |
+| `fsm_fp32_validation.txt`, `fsm_rule_layer_sweep.txt` | The FSM replica matches the eval harness (§9.11); rule-layer tuning (§9.15). |
+| `transport_stall_diagnosis.txt` | **Central.** Three failure causes; Fix A/C adopted, Fix B/D rejected. Part 3's "blocked class is unfixable from the rule layer" is correct *as scoped*, and carries a forward pointer — superseded in **disposition**, not analysis, by `orientation_anchor.txt` (§9.17). |
 | `transport_retrain_negative.txt`, `wrist_alignment_negative.txt` | Settled negatives — do not retry. `KEEP_ROTATION=1` (−52 pts) is also settled, but do **not** read it as "rotation: closed" — see `thesis_context.md` §9.13. |
-| `place_random_spawn_investigation.txt` | **Newest** (`thesis_context.md` §9.18, interim). Why random-spawn place training collapses: not buffer, critic warm start, forgetting, freezing, drops or collision; curriculum never advances; collapsed policies sit at the zero-action floor. The controlled pair does not (yet) support "random spawn is the cause". Raw data in `Results/curriculum_pair/`. |
-| `orientation_anchor.txt` | **Newest** (`thesis_context.md` §9.17). `a[3:6]=0` freezes `goal_ori` in robosuite's OSC → joint 5 saturates against its one-sided range. `ROT_ANCHOR_EPS=1e-6` recovers the blocked class: FP32 random 90.67→93.58%, INT8 random 78.33→83.58%, quantization cost 12.33→10.00. Also documents the cereal scoring artifact (physical 99.7% vs scored 89.7%) that confounds bread-vs-cereal comparisons. |
-| `object_generalisation.txt`, `cereal_per_object.txt`, `orientation_ablation.txt`, `yaw_alignment.txt` | Beyond bread; per-object policies; ablations. |
-| `pruning_distillation.txt` | Parameter reduction vs accuracy. |
-| `int8_deployment.txt`, `validated_90_model.txt` | INT8 conversion and the validated model. |
-| `apriltag_perception.txt`, `wrist_camera_route.txt`, `corrector_on_device.txt`, `tag16h5_deployment*.txt`, `on_device_perception.txt` | Perception, from sweep to on-device detection. |
-| `hil_hardware_validation.txt`, `int8_FSM_HIL_performance.txt` | Hardware-in-the-loop. |
-| `transport_diagnosis.txt` | Cereal transport failure analysis (pre-`orientation_anchor`). |
+| `orientation_anchor.txt` | §9.17, **measured on the superseded `bi_s0`** (`c2m512_s1` is unmeasured with the anchor). `a[3:6]=0` freezes `goal_ori` in robosuite's OSC → joint 5 saturates against its one-sided range; `ROT_ANCHOR_EPS=1e-6` recovers the blocked class. Also documents the cereal scoring artifact (physical vs scored placement) that confounds bread-vs-cereal comparisons. |
+| `place_random_spawn_investigation.txt` | **Newest** (§9.18, final). Place training rises then degrades in every configuration — from scratch and warm-started, bread and cereal, fixed and random spawn — and final weights score far below `best/`. Not random spawn, not the object, not warm-starting: late-training instability is the open problem. Also not buffer, critic warm start, forgetting, freezing, drops or collision. |
+| `curriculum_pair/` | Bread fixed vs random spawn from scratch; every snapshot scored end-to-end; `correlation_report.txt` = training metric vs end-to-end (§9.18). |
+| `cereal_scratch/` | Cereal from scratch vs warm-started cereal on transitions: `report.txt`; `eval.tsv` (4×50 per checkpoint), `protocol.tsv` (12×50), `control.tsv` (positive control) (§9.18). |
+| `object_generalisation.txt` | Zero-shot to unseen objects fails, ordered by shape rather than size (§9.15.2). |
+| `orientation_ablation.txt` | World-frame orientation input is nearly free; gripper-frame is essential (§9.15.2). |
+| `yaw_alignment.txt` | The grasp policy does not align jaw yaw (§9.15.2). |
+| `cereal_per_object.txt` | Cereal per-object grasp; its grasp metric is anti-correlated with task success (§9.15.2). |
+| `transport_diagnosis.txt` | Cereal transport under the bread place actor; scripted waypoint transport (§9.15.2; pre-`orientation_anchor`). |
+| `pruning_distillation.txt` | Parameter reduction vs accuracy; pruned initialisation beats random (§9.15.2). |
+| `apriltag_perception.txt` | AprilTag end-to-end under the real FSM: latch at grasp; the learned residual corrector (§9.14.1, §9.14.2). |
+| `corrector_on_device.txt` | The residual corrector must run FP32 on the MCU; INT8 destroys it (§9.14.2). |
+| `wrist_camera_route.txt` | Perception via the wrist camera, one detection per episode, on a plain ESP32 (§9.14.3). |
+| `tag16h5_deployment.txt`, `tag16h5_deployment_path.txt` | tag16h5 as the deployment tag family, and why (§9.14.3). |
+| `on_device_perception.txt` | Detector and corrector running on the ESP32 itself, no PSRAM (§9.14.3). |
+| `hil_hardware_validation.txt` | HIL with the deployed `c2m512_s1` INT8 under random spawn (§8.4, §9.15.1). |
+| `int8_FSM_HIL_performance.txt` | The earlier 10-episode HIL run: fixed spawn, older model, raw terminal log (§8.4; superseded). |
 
 ---
 
@@ -223,11 +248,12 @@ third of the checkpoint sweeps are local-only until committed. If the record is
 meant to survive this host, those are the two gaps to close first.
 
 ### Known stale / open
-* `.tflite` in repo root — stale (§9.4).
+* `.tflite` in repo root — stale, matches neither deployed model (§9.4).
 * `PROJECT_CONTEXT.md` — June, monolithic era.
+* `c2m512_s1` has not been measured with `ROT_ANCHOR_EPS`; the anchor gains are `bi_s0` only (§9.16).
 * `ROT_ANCHOR_EPS` not mirrored to `.ino`; `check_fsm_sync.py` must gain it when it is.
-* Fixed-spawn cells not re-measured with `ROT_ANCHOR_EPS`.
-* No **cereal** place policy has ever been trained; the cereal "learned"
-  baseline is the bread policy transferred.
-* `hil_main.py` fixed-spawn hard-code (§9.16 item 2).
+* Place training degrades late in every configuration; select place checkpoints on end-to-end evaluation of snapshots, not the training metric (§9.18).
+* The cereal "learned" baseline in `thesis_context.md` §9.17 / §10 is the bread
+  policy transferred. A from-scratch cereal place policy reached 88.67% at 12×50
+  (§9.18) but has not been paired against scripted transport.
 * `train_place.py` 50-episode best-window (§9.7).

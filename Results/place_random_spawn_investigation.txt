@@ -1,8 +1,8 @@
 ================================================================================
 RANDOM-SPAWN PLACE TRAINING -- what fails, and what does not
-STATUS: INTERIM (2026-09-11).  The controlled curriculum pair and the cereal
-from-scratch arm are still training; the correlation report is produced
-unattended by finish_curriculum_pair.sh.
+STATUS: FINAL (2026-09-11).  All arms finished and evaluated end-to-end.  The
+final STATUS UPDATE at the end answers the open question and supersedes the
+interim conclusions of section 7.
 ================================================================================
 
 QUESTION
@@ -19,7 +19,8 @@ Warm-started from the bread place actor, default recipe (buffer 200k / batch
 best/ checkpoints, deterministic through fsm_sim, 12 eval seeds x 50:
 
     s2 85.33   s3 76.00   s1 71.83   s0 69.17   s4 36.50
-    mean 67.77%   sd 18.52
+    mean 67.77%   sd 18.52     <- best/ checkpoints.  The FINAL weights of the
+                                  same runs score 39.9% (final STATUS UPDATE).
     bread policy transferred (control)   73.33%   pooled -5.57, t(59)=-2.31
     scripted waypoint transport          89.17%
 
@@ -111,7 +112,8 @@ TRAIN / DEPLOY MISMATCH.
     RECENTER phase               none            60 steps
 Same weights (cereal s2): 60% at full distance in the wrapper, 85.33% through
 the FSM.  The original fixed-spawn model trained under the same mismatch and
-deploys at 93.58%, so it is survivable -- but it is a defect.
+deploys at 93.58% (with the superseded bi_s0 grasp), so it is survivable -- but
+it is a defect.
 
 --------------------------------------------------------------------------------
 6. WHAT A COLLAPSED PLACE POLICY ACTUALLY DOES
@@ -186,6 +188,8 @@ few to read.  Final: Results/curriculum_pair/correlation_report.txt.
 CEREAL FROM-SCRATCH ARM (td3_place_cerealscratch_s0-2, launched 2026-09-11):
 curR with one change, the object.  Collapses -> the failure is cereal.
 Healthy -> the failure was warm-starting.
+RESULT: neither -- it rises to 88.67% and then degrades; see the final STATUS
+UPDATE.
 
 --------------------------------------------------------------------------------
 8. CORRECTIONS MADE DURING THIS THREAD
@@ -212,19 +216,23 @@ REFUTED            buffer size as the cause; batch/critic transfer (harmful);
                    forgetting; "worse than zero actions" (object mismatch);
                    policy freezing; drops preceding collapse; kinematic block;
                    bin collision; scripted-carry pin as the primary cause
-ESTABLISHED        cereal per-object place training loses to transfer;
+ESTABLISHED        warm-started cereal place training loses to transfer;
                    grasp levers do not transfer to place; curriculum never
-                   advances in the collapsed runs; fixed spawn's early rungs
+                   advances in the collapsed warm-started runs; fixed spawn's early rungs
                    are free (relative frac vs absolute radius); collapsed
                    policies sit at the zero-action floor and fail by
                    self-induced distribution shift; learning-gate timing
                    confound between spawn conditions
-NOT SUPPORTED YET  "random spawn itself breaks place training" -- the only
-                   controlled comparison shows no gap
-OPEN               cereal vs warm-start (arm running); what drives the
-                   self-induced shift; robosuite built-in reward never tried
-                   on place (see 10); wrapper scripted phases still write
-                   a[3:6] = 0; train/deploy constant mismatch
+NOT SUPPORTED      "random spawn itself breaks place training" (no gap in
+                   the controlled pair); "the failure is cereal" (cereal from
+                   scratch reached 88.67%); "the failure is warm-starting"
+                   (from-scratch runs degrade too)
+FINAL FINDING      place training rises then degrades in every configuration;
+                   final weights score far below best/
+OPEN               late-training instability (what drives the self-induced
+                   shift); robosuite built-in reward never tried on place
+                   (see 10); wrapper scripted phases still write a[3:6] = 0;
+                   train/deploy constant mismatch
 
 --------------------------------------------------------------------------------
 10. BUILT-IN REWARD ON THE PLACE STAGE -- NEVER TRIED
@@ -261,7 +269,7 @@ ARTIFACTS
                          finish_curriculum_pair.sh  stop_runs.sh
   checkpoints            td3_place_{cereal,cerealbig,cerealsmall,breadbig,
                          pairfix}_s*  (finished);  td3_place_cur{F,R}_s*,
-                         td3_place_cerealscratch_s*  (training)
+                         td3_place_cerealscratch_s*  (finished)
   results                Results/curriculum_pair/
 
 --------------------------------------------------------------------------------
@@ -276,3 +284,81 @@ in progress (379 rows); report -> Results/curriculum_pair/correlation_report.txt
 via finish_curriculum_pair.sh (resumable).
 CEREAL FROM SCRATCH: episode ~3,400/4,000, frac 0.42 / 0.20 / 0.40, success
 20 / 27 / 10 per 50.  Interim -- needs its own evaluator (the pair's is bread).
+
+--------------------------------------------------------------------------------
+STATUS UPDATE 2026-09-11 evening -- FINAL for this thread
+--------------------------------------------------------------------------------
+All trainers exited.  Evaluator: eval_cereal_scratch.sh (the pair's job with
+cereal, the cereal_alignwarm_s0 grasp, and --settle-steps 60).  POSITIVE
+CONTROL: cereal_s2/best at 12 x 50 reproduces the recorded 85.33% exactly
+(512/600).  Report: Results/cereal_scratch/report.txt (analyze_cereal_scratch.py,
+keyed on transitions collected; time_step == mem_cntr except pairfix, +10,000).
+
+CURRICULUM PAIR, final (curriculum_pair/correlation_report.txt).  Latest
+snapshot per seed, end-to-end, 4 x 50:
+    fixed    24.5 / 34.5 /  1.0   mean 20.0
+    random   38.5 /  3.5 /  5.0   mean 15.7      -- no gap
+Training metric (frac50 x place50) vs end-to-end, Spearman:
+    within run   fixed +0.68 / -0.18 / +0.17    random +0.50 / +0.57 / +0.65
+    pooled       fixed +0.59 (n=42)             random +0.73 (n=46)
+Pooled looks usable; within a run it is not (curF_s2 sat at ~2% end-to-end for
+3,000 episodes while place50 swung 10-64%).
+
+CEREAL FROM SCRATCH, end-to-end:
+                                        e2e    rested   protocol
+    cerealscratch_s2 best/ (ep 2146)   88.67   97.00    12 x 50
+    cerealscratch_s2 ep 2250           88.00   95.67    12 x 50
+    cerealscratch_s2 ep 2000           84.83   94.67    12 x 50
+    cerealscratch_s0 best/ (ep 1837)   39.50   48.50    12 x 50
+    cerealscratch_s1 best/ (ep  691)   17.17   22.17    12 x 50
+    s2 best/ - cereal_s2/best (warm)   +3.33, t(11)=+1.64, 8 up / 4 down
+  Trajectory, 4 x 50 per snapshot:
+    s2  0 -> 54 (ep 750) -> 89 (ep 2250) -> 38.5 (ep 2500) -> 20.5 final;
+        frac50 0.39 -> 0.42 across the drop
+    s0  ~40 for ep 500-1750 -> 17 -> 2.5 (ep 2250) -> 27.5 final;
+        frac50 0.38 -> 0.42 across the drop
+    s1  frac50 0.20 all run, <= 10% at every snapshot
+  Metric vs end-to-end, within run Spearman +0.64 / +0.22 / +0.74; pooled +0.66.
+
+WARM-STARTED CEREAL, final actor_td3, same protocol (4 x 50):
+    pairfix  (code-matched)          0.5 /  4.5 /  4.0               mean  3.0
+    default  (pre-0fc9a20 wrapper)  70.0 / 73.5 / 15.5 / 2.5 / 38.0  mean 39.9
+
+TRAINING SIDE, first 150k transitions (= the shortest scratch run):
+                    max frac50, mean   seeds reaching 0.40
+    scratch               0.36               2 / 3
+    pairfix               0.24               0 / 3
+    default               0.31               0 / 5   (0.38 max over 8000 ep)
+    curR (bread)          0.51               3 / 3
+  Matched transitions (~115-145k): pairfix 10.67 / 42.33 / 12.00 (12 x 50,
+  section 3) vs scratch 10.5 / 0.5 / 38.5 (4 x 50) -- no difference in kind.
+
+CONFOUND.  default cereal_s0-4 launched 2026-09-09 13:24-15:35; osc_anchor.py
+was created 14:01 and place_env_wrapper.py last edited 2026-09-10 13:35.  At
+least s0-s2 trained with a[3:6] = 0 on the POLICY path and a 200-step grasp
+rollout cap.  pairfix (09-11 00:19) and scratch (09-11 12:59) share the current
+wrapper, so pairfix is the only clean warm arm.
+
+ANSWER -- late-training instability; not the object, spawn or warm-starting:
+  * RISE THEN DEGRADE, IN EVERY CONFIGURATION.  From scratch: cerealscratch_s2
+    88.00 (ep 2250, 12 x 50) -> 20.5 final; s0 ~40 -> 27.5; bread curF_s0
+    85.0 -> 24.5; bread curR_s1 85.5 -> 3.5.  Warm-started: decay from the
+    initialisation -- pairfix 85.33 -> 3.0 final; default recipe 39.9% final
+    against 67.77% from best/ (section 1).
+  * NOT THE OBJECT.  A cereal place policy trains from scratch at random spawn
+    to 88.67% best/: level with the best warm cereal policy (paired +3.33,
+    n.s.) and with scripted transport (89.17% at 12 x 100 -- unpaired,
+    different n).  One seed of three; the three best/ average 48.45%.
+  * NOT RANDOM SPAWN.  No fixed/random gap in the controlled pair.
+  * NOT WARM-STARTING.  From-scratch runs degrade too.
+  WHEN it happens differs: from-scratch drops coincide with a curriculum
+  advance to ~0.41 (the Hurdle 5 limit cycle); pairfix s1/s2 decayed with
+  frac50 held at 0.20-0.21.  best/ scored at or near each scratch seed's best
+  snapshot here, but within a run the training metric does not reliably track
+  end-to-end success (pair: -0.18 .. +0.68), so select place checkpoints on
+  end-to-end evaluation of snapshots.  Seed variance (17-89%) dominates every
+  arm difference measured here.
+
+NOT DONE (ask before starting): best_cerealscratch_s2 vs scripted transport,
+paired at 12 x 100 through fsm_sim; robosuite built-in reward on place; wrapper
+scripted phases still write a[3:6] = 0; train/deploy constant mismatch.

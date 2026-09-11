@@ -4,7 +4,7 @@ The "blocked at a joint limit" class was never fixable from the rule layer
 because it was never IN the rule layer.  One constant recovers it.
 ================================================================================
 
-SUMMARY
+SUMMARY   (MAIN = the superseded bi_s0 grasp -- see caveat 5)
   cereal + waypoint transport   57.4% -> 82.3%  +24.92  t(11)=+24.3  12up/0down
     + release radius 0.18->0.08 82.3% -> 89.2%  + 6.83  t(11)= +5.30 12up/0down
   FP32   + place actor (MAIN)   90.67%-> 93.58% + 2.92  t(11)= +5.12 11up/1down
@@ -228,6 +228,10 @@ CAVEATS -- read before rewriting the headline table
    fixed world attitude through a large arc is a physical error and a real
    Panda's joint 5 has the same one-sided range.  check_fsm_sync.py must gain
    ROT_ANCHOR_EPS when that mirror happens.
+5. MEASURED ON bi_s0 ONLY.  Every MAIN-pipeline cell above uses the bi_s0 grasp,
+   since superseded by c2m512_s1 (thesis_context 9.15.1).  c2m512_s1 has not
+   been measured with ROT_ANCHOR_EPS, so none of these gains or the 12.33 ->
+   10.00 quantization cost may be quoted for the deployed artifact.
 
 --------------------------------------------------------------------------------
 METHOD NOTE

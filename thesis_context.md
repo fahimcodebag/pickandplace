@@ -7,9 +7,10 @@
 > generalization to randomized object spawns, and the current deployed
 > INT8 pipeline.
 >
-> **START HERE if resuming work: §9.4 (current status), §9.16 (what is open and
-> the methodological rules), and §9.17 (a controller-interface defect that
-> revises the random-spawn numbers upward).** Sections 7, 8.4 and 9.1–9.3 record
+> **START HERE if resuming work: the headline below, §9.15.1 (the deployed artifact),
+> §9.16 (what is open and the methodological rules), §9.17 (a controller-interface
+> defect, measured only on the superseded `bi_s0`) and §9.18 (place-training
+> instability).** Sections 7, 8.4 and 9.1–9.3 record
 > earlier states of the project and are explicitly superseded where §9.4 onward
 > says so.
 >
@@ -18,7 +19,8 @@
 > convention decoded. This file answers "why is it like this"; that one answers
 > "where is it"; `Results/*.txt` answers "what is the number".
 >
-> Current headline — deployed artifact `c2m512_s1` grasp INT8 + original place (§9.15.1):
+> Current headline — deployed artifact `c2m512_s1` grasp INT8 + `place_orig_int8` + FP32
+> corrector `tag_residual_wrist32.json` (§9.15.1, §9.14.2):
 > **random spawn INT8 95.33% / FP32 94.92%, fixed spawn INT8 99.83% / FP32 100.0%**
 > (held-out, 12 seeds × 100). **Hardware: 97/100 on the ESP32 under random spawn.**
 > **With AprilTag perception running on the ESP32 itself** (no PSRAM): **89.67%**
@@ -734,8 +736,10 @@ campaign, but its numbers and its conclusions have been overtaken. The
 random-spawn ladder's "3% at native randomization" and the curriculum diagnosis
 describe a pipeline that no longer exists. Read §9.4 onward as current.
 
-> **Superseded (2026-09-11):** this table describes `bi_s0`. The current artifact is
-> `c2m512_s1` (§9.15.1); the current headline is at the top of this file.
+> **Superseded (2026-09-11):** this table and the artifact and checkpoint paths below
+> describe `bi_s0`. Current: grasp `Results/big2m/c2m512_s1_int8.tflite` (run
+> `checkpoints/td3_grasp_rand_td3_ln_c2m512_s1`), the same transport, and the FP32
+> corrector `assets/tag_residual_wrist32.json` (§9.14.2, §9.15.1). Headline at the top.
 
 **Current headline (all at spawn level 2.0 = full position box + full
 z-rotation, i.e. robosuite's native sampler):**
@@ -745,7 +749,7 @@ z-rotation, i.e. robosuite's native sampler):**
 | FP32, deployed FSM | **100.0%** (200 ep) | **89.6%** (1200 ep) |
 | INT8, deployed FSM | **96.6%** (1200 ep) | **76.1%** (1200 ep) |
 
-All random-spawn figures use the **tuned** rule layer (§9.16). Earlier drafts of
+All random-spawn figures use the **tuned** rule layer (§9.15). Earlier drafts of
 this file quoted 84.0% FP32 / 70.0% INT8 random from 4-to-7 eval seeds; those
 were **low by 3-6 points** because per-seed sd is 3.3 points and the seed draw
 was unlucky. See §9.15.
@@ -1294,44 +1298,32 @@ has not been re-measured with the anchor.
 **Read `REPOSITORY_MAP.md` first** for where anything lives — scripts,
 checkpoint naming, which results file answers which question.
 
-> **Superseded in part:** the model figures below describe `bi_s0`. See the file header
-> and §9.15.1 for `c2m512_s1`, and §9.14.1–9.14.3 for perception.
-
-**Done and validated:** grasp stage (87.1% certified), transport (original,
-never retrained), FSM in FP32 (100.0% fixed / 89.6% random), INT8 conversion
-(96.6% fixed / 76.1% random), rule-layer tuning, perception sweep.
-**Both random-spawn cells were re-measured** with `ROT_ANCHOR_EPS` (§9.17):
-FP32 90.67 → **93.58%**, INT8 78.33 → **83.58%**, quantization cost 12.33 →
-**10.00**. The *fixed*-spawn cells have not been.
+**Done and validated:** the deployed artifact — grasp `c2m512_s1` INT8, the original
+place actor (`place_orig_int8`, never retrained) and an FP32 AprilTag corrector
+(`tag_residual_wrist32.json`, 1,571 params). Held-out, 12 seeds × 100: random spawn INT8
+**95.33%** / FP32 94.92%, fixed spawn INT8 99.83% / FP32 100.0% (§9.15.1). **HIL 97/100**
+under random spawn on the ESP32 (§8.4, §9.15.1). AprilTag perception on the ESP32 itself:
+**89.67%** vs a 94% ceiling (§9.14.1–9.14.3). Rule-layer tuning (§9.15). §9.17's
+`ROT_ANCHOR_EPS` gains belong to the superseded `bi_s0` only.
 
 **Open:**
 
-1. **AprilTag closed-loop validation** — implemented (`apriltag_sim.py`,
-   `perception_wrapper.py`) but never measured end-to-end with rendering.
-   §9.14 gives the operating point.
-2. **HIL re-run** with the current artifacts. `hil_main.py:70` hard-codes a
-   fixed spawn ("Fixed spawn, matching how both policies were trained") — that
-   must change for a random-spawn number to be comparable. The 90% on record is
-   a different model, fixed spawn, 10 episodes.
-3. `train_place.py` still uses a 50-episode best-window (§9.7).
-4. Deployed `.tflite` files in the repo root are stale (§9.4).
-5. **Done.** Both random-spawn cells re-measured with `ROT_ANCHOR_EPS`, both
-   baselines reproduced to the episode: FP32 90.67 → **93.58**, INT8 78.33 →
-   **83.58**, quantization cost 12.33 → **10.00**. Remaining: the *fixed*-spawn
-   cells have not been re-measured, and the **cereal** cells need re-running
-   through the CLI rather than the no-retry worker (§9.17 caveat 1).
-6. **Mirror `ROT_ANCHOR_EPS` to `pick_and_place_INT8_FSM.ino`** and add it to
+1. **Measure `c2m512_s1` with `ROT_ANCHOR_EPS`**, random and fixed spawn, 12×100 paired.
+   No anchor number exists for the deployed artifact (§9.15.1, §9.17).
+2. **Mirror `ROT_ANCHOR_EPS` to `pick_and_place_INT8_FSM.ino`** and add it to
    `check_fsm_sync.py` (§9.17 caveat 4).
-7. **Decide how cereal is scored.** The environment's z-window makes physical
+3. `train_place.py` still uses a 50-episode best-window (§9.7).
+4. The `.tflite` files in the repo root are stale; they match neither deployed model (§9.4).
+5. **Decide how cereal is scored.** The environment's z-window makes physical
    placement (99.7%) and scored success (89.7%) diverge by ~10 points for
-   cereal alone, confounding every bread-vs-cereal comparison (§9.17).
-8. `can` grasp is trained (best 0.995, seeds 0/1 to ~55k); `milk` is untrained.
-9. **Random-spawn place training (§9.18) — see the dated status block there.** Both runs
-   finished and were evaluated; the open problem is late-training degradation. Also
-   untested: robosuite built-in reward on the place stage; wrapper scripted phases still
-   write `a[3:6] = 0`; training wrapper vs FSM release constants disagree.
-10. **Measure `c2m512_s1` with `ROT_ANCHOR_EPS`** — the anchor gains were measured on
-    the superseded `bi_s0` (§9.15.1).
+   cereal alone, confounding every bread-vs-cereal comparison (§9.17). The
+   no-retry cereal cells of §9.17 caveat 1 still need CLI re-runs before quoting.
+6. `can` grasp is trained (best 0.995, seeds 0/1 to ~55k); `milk` is untrained.
+7. **Random-spawn place training (§9.18)** — finished and evaluated. The open problem is
+   late-training instability: every configuration rises then degrades, and final weights
+   score far below `best/`. Also untested: robosuite built-in reward on the place stage;
+   wrapper scripted phases still write `a[3:6] = 0`; training wrapper vs FSM release
+   constants disagree.
 
 **Methodological rules earned the hard way in this campaign:**
 
@@ -1361,7 +1353,9 @@ FP32 90.67 → **93.58%**, INT8 78.33 → **83.58%**, quantization cost 12.33 �
 ### 9.17 The orientation anchor — a controller-interface defect
 
 `Results/orientation_anchor.txt`. Supersedes the disposition (not the analysis)
-of `Results/transport_stall_diagnosis.txt` Part 3.
+of `Results/transport_stall_diagnosis.txt` Part 3. **Every main-pipeline cell in this
+section uses the superseded `bi_s0` grasp; the deployed `c2m512_s1` has not been
+measured with the anchor (§9.15.1).**
 
 **The mechanism.** robosuite's OSC updates the position goal unconditionally but
 the orientation goal only when the rotational delta is nonzero
@@ -1418,7 +1412,7 @@ episode** (1088/1200 and 940/1200), so both cells are directly quotable. Each
 precision recovers ~90% of its own blocked class — 2.92/3.08 and 5.25/5.92 —
 on classes differing by 1.9×. **Quantization cost on random spawn: 12.33 →
 10.00.** († the cereal "before" column is the **bread** place policy transferred; no
-cereal place policy exists, so that row is cost-matched, not scripted-vs-trained.)
+cereal place policy existed then (§9.18), so that row is cost-matched, not scripted-vs-trained.)
 
 **This is the class §9.15's campaign could not fix, and its attribution was
 correct.** `transport_stall_diagnosis.txt` measured the blocked class at 3.08%
@@ -1490,8 +1484,8 @@ both criteria; report both, do not substitute ours.
    (95%) — which is strong evidence the mechanism is the same one on class
    sizes differing by 1.9×. INT8 random spawn now reads
    **76.08% (base) → 78.33% (A+C) → 83.58% (A+C + anchor)**.
-   The *quantization cost* cannot yet be restated: FP32 at the exact recorded
-   configuration remains unmeasured (caveat 1).
+   With the FP32 cell re-measured through the CLI (caveat 1), the `bi_s0`
+   quantization cost restates as 12.33 → 10.00.
 3. `NEAR_TARGET_XY 0.08` (+6.83) was measured on the **cereal scripted path
    only**. It is a shared rule-layer constant, so the default stays 0.18 and the
    scripted arm passes the flag.
@@ -1508,16 +1502,17 @@ lifts the *learned* arms far more than the scripted ones, because retries only
 fire when the grasp fails to hand off — cereal's grasp is 96.5–100% and almost
 never retries, bread's `bi_s0` is 87.1% certified and often does.
 **On cereal the "learned" arm is the bread policy transferred** — no cereal
-place policy has ever been trained — so that row is cost-matched (zero training
+place policy had been trained when this was measured (§9.18) — so that row is cost-matched (zero training
 either way), not evidence that a trained cereal policy would lose. Bears on §10.
 
-### 9.18 Random-spawn place training — what fails, and what does not (interim)
+### 9.18 Random-spawn place training — what fails, and what does not
 
-`Results/place_random_spawn_investigation.txt`. Still running: the controlled
-curriculum pair (`Results/curriculum_pair/`) and a cereal from-scratch arm.
+`Results/place_random_spawn_investigation.txt` (final); raw data in
+`Results/curriculum_pair/` and `Results/cereal_scratch/`.
 
-**A per-object cereal place policy loses to not training one.** Warm-started
-from the bread place actor, 5 seeds: mean **67.77%** (sd 18.52) against
+**A warm-started per-object cereal place policy loses to not training one.** Warm-started
+from the bread place actor, 5 seeds: mean **67.77%** (sd 18.52; a `best/` figure — the
+final weights score 39.9%) against
 **73.33%** for the bread policy transferred and **89.17%** scripted. A first
 evaluation that read `best/` while trainers overwrote it reported 1–16% for
 three seeds; they were 36–72% once the trainers exited.
@@ -1532,7 +1527,7 @@ warmup still collapsed 85% → 11%), curriculum forgetting, policy freezing, dro
 a kinematic block, or bin collision.
 
 **What was established.** The curriculum never advanced past ~0.40 in any
-collapsed run, while the original fixed-spawn run reached 0.96. With the policy
+collapsed warm-started run, while the original fixed-spawn run reached 0.96. With the policy
 removed, fixed spawn scores **100%** at frac 0.2 and random spawn ~80% (bread),
 37.5% (cereal): fixed spawn's first rungs are free, because `frac` is relative to
 each episode's distance while the release radius is absolute. Collapsed policies
@@ -1540,8 +1535,8 @@ sit at that zero-action floor at every distance, commanding *harder* than the
 working policy, and fail by self-induced distribution shift — correct on the old
 policy's states, wrong on their own.
 
-**What is not established: that random spawn itself is the problem.** Every
-collapsed run was cereal, warm-started, or both. In the controlled bread pair —
+**Random spawn itself is not the problem.** The early collapsed runs were all
+cereal, warm-started, or both. In the controlled bread pair —
 from scratch, only spawn differs — both arms show the same advance → collapse →
 recover-or-regress cycle at ~0.40 and no gap between them. Snapshots must be
 compared on `time_step`, not episode: `learn()` is a no-op below 5,120
@@ -1554,22 +1549,28 @@ deployed FSM disagree on release radius (0.10 vs 0.18), hold count (5 vs 3) and
 translation scale (0.5 vs 0.65). robosuite's built-in reward has **never** been
 tried on the place stage.
 
-**Status 2026-09-11 evening (resume here).** Both runs finished and were evaluated end-to-end.
+**Status 2026-09-11 evening (resume here).** Everything finished and was evaluated end-to-end;
+nothing is training. Evidence: the final STATUS UPDATE of the results file,
+`Results/curriculum_pair/correlation_report.txt`, `Results/cereal_scratch/report.txt` (positive
+control: `cereal_s2/best` reproduces 85.33% exactly through the new evaluator).
 
-*Curriculum pair* (bread, from scratch; `Results/curriculum_pair/correlation_report.txt`): the
-best-selection metric (frac50 × place50) correlates with end-to-end success at pooled Spearman
-**+0.59 fixed / +0.73 random** (within-run −0.18 … +0.68). Latest-snapshot means **20.0% fixed /
-15.7% random** — no between-arm gap.
+*Curriculum pair* (bread, from scratch): the selection metric (frac50 × place50) tracks end-to-end
+success at pooled Spearman **+0.59 fixed / +0.73 random**, but within a run only −0.18 … +0.68.
+Latest-snapshot means **20.0% fixed / 15.7% random** — no between-arm gap.
 
-*Cereal from scratch* (`Results/cereal_scratch/report.txt`): latest snapshots 27.5 / 0.0 / 20.5%
-(mean 16.0%). Final weights of the warm-started runs: default recipe mean **39.9%**
-(70.0 / 73.5 / 15.5 / 2.5 / 38.0) — far below the 67.77% quoted from `best/` — and pairfix 3.0%.
+*Cereal from scratch* (random spawn): `best/` at 12×50 scores **88.67%** (s2; paired against the
+best warm cereal policy +3.33, t(11)=+1.64), 39.50% (s0) and 17.17% (s1); latest snapshots
+27.5 / 0.0 / 20.5%. Warm-started final weights: default recipe **39.9%**
+(70.0 / 73.5 / 15.5 / 2.5 / 38.0) against its 67.77% `best/`, and code-matched `pairfix` 3.0%.
 
-**The pattern across all of it is rise-then-degrade.** `cerealscratch_s2` reached **89.0%**
-end-to-end at episode 2,250 and ended at 20.5%; bread `curF_s0` reached 85.0% at 2,500–2,750 and
-ended at 24.5%. It appears from scratch and on bread, so neither warm-starting nor the object is
-the whole explanation. The live problem is late-training instability of the place stage, which
-the rolling metric and `best/` only partly track.
+**Every configuration rises then degrades.** `cerealscratch_s2` 88.0% at episode 2,250 (12×50) →
+20.5% final; bread `curF_s0` 85.0% at 2,500–2,750 → 24.5%; warm starts decay from their
+initialisation (`pairfix` 85.33% → 3.0%). From-scratch drops coincide with a curriculum advance to
+~0.41; `pairfix` s1/s2 decayed with frac held at 0.20. A cereal policy trains from scratch to
+88.67%, so neither the object nor warm-starting explains it: the open problem is **late-training
+instability** of the place stage, which the rolling metric and `best/` only partly track.
+Confound: `cereal_s0-4` launched before the wrapper gained `ROT_ANCHOR_EPS` on the policy path
+(`0fc9a20`); `pairfix` and the scratch arm share code.
 
 **Next:** select place checkpoints on end-to-end evaluation of snapshots rather than the training
 metric; measure `c2m512_s1` with `ROT_ANCHOR_EPS`; and the open items in §9.16.
@@ -1585,7 +1586,7 @@ metric; measure `c2m512_s1` with `ROT_ANCHOR_EPS`; and the open items in §9.16.
 | Sub-policies fit and run on a commodity MCU in real time | **Demonstrated** | 15.8 KB total (2 × 7.9 KB), 9.49 ms/cycle vs 50 ms budget (§7–8) |
 | Quantized deployment preserves task behavior | **Demonstrated** | `c2m512_s1`: INT8 95.33% vs FP32 94.92% random, 99.83% vs 100.0% fixed (held-out); clipping, in-loop QAT and a larger buffer/critic closed a 12-point gap (§9.15.1). HIL 97/100 on the ESP32 |
 | Decomposition confines spawn randomness to the grasp stage | **Demonstrated** | Grasp stage absorbed the randomness (79.2% → 87.1%); the transport policy was **never retrained** and the two attempts to retrain it both lost (§9.9, §9.13) |
-| A learned transport policy is not required for these tasks | **Demonstrated, modestly** | Scripted three-leg transport vs the learned place actor, both through `fsm_sim.py` at 12×100: **bread 95.50% vs 93.58%, +1.92, t(11)=+2.87** (9u/2d/1t) — the fair test, since that actor was trained on bread. On **cereal** the learned arm is the bread policy *transferred* (no cereal place policy has ever been trained), so **89.17% vs 73.17%, +16.00** is a *cost-matched* claim — scripting and transfer both cost zero training — not scripted-vs-trained. The stage is replaceable; the bread margin is small |
+| A learned transport policy is not required for these tasks | **Demonstrated, modestly** | Scripted three-leg transport vs the learned place actor, both through `fsm_sim.py` at 12×100 with the superseded `bi_s0` grasp and `ROT_ANCHOR_EPS`: **bread 95.50% vs 93.58%, +1.92, t(11)=+2.87** (9u/2d/1t) — the fair test, since that actor was trained on bread. On **cereal** the learned arm is the bread policy *transferred* (a cereal place policy trained from scratch has since reached 88.67% at 12×50, §9.18, but is unpaired against scripted), so **89.17% vs 73.17%, +16.00** is a *cost-matched* claim — scripting and transfer both cost zero training — not scripted-vs-trained. The stage is replaceable; the bread margin is small |
 | Failure classes that resist the rule layer are defects one layer down | **Demonstrated** | The 3.08% "blocked at a joint limit" class survived three open-loop escapes at 1200 episodes each (0/88 recovered) and was recovered by a one-constant change to the controller interface (§9.17) |
 | The stage interface is the dominant design variable | **Demonstrated** | Aligning stage-1 certification with stage-2 handoff: 13% → 82% end-to-end, no architecture change (§9.5) |
 | Plasticity-loss remedies transfer across stages | **Falsified** | Critic resets: +20 to +30 on grasp, −30 on transport (§9.6) |
@@ -1594,6 +1595,6 @@ metric; measure `c2m512_s1` with `ROT_ANCHOR_EPS`; and the open items in §9.16.
 | AprilTag perception on the MCU | **Demonstrated (sim + HIL)** | Detector + learned residual corrector on a plain ESP32, no PSRAM: 89.67% vs 94% ground-truth ceiling over 600 episodes; hardware 18/20 episodes on the board's own pose, 0 crashes (§9.14.3) |
 | A learned residual corrector closes most of the perception gap | **Demonstrated** | MLP: 75.2% → 89.7% vs a 94.0% ceiling, 12/12 seeds; must run FP32 because INT8 error exceeds the residual (§9.14.2) |
 | Grasp-stage hyperparameter levers transfer to the place stage | **Falsified** | Critic resets +20..+30 grasp, −30 transport (§9.6); batch 1024 + critic 512/256 −28.44 on place, collapsing variance onto a worse mean (§9.18) |
-| Random spawn itself prevents place-policy training | **Not supported (open)** | All collapsed runs were cereal and/or warm-started; the controlled bread pair from scratch shows no fixed/random gap so far; cereal from-scratch arm running (§9.18) |
+| Random spawn itself prevents place-policy training | **Refuted** | Controlled bread pair from scratch: no fixed/random gap (latest snapshots 20.0% vs 15.7%); cereal from scratch at random spawn reached 88.67% (`best/`, 12×50). Place training rises then degrades in every configuration — late-training instability is the open problem (§9.18) |
 
 ---
