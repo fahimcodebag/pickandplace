@@ -1,0 +1,89 @@
+================================================================================
+PLACE TRAINING BATCHES -- early stopping, bare built-in reward, built-in + idle cost
+STATUS: IN PROGRESS (2026-09-11).  Design fixed; gates and runs below.
+================================================================================
+
+QUESTION
+Place training rises then degrades in every configuration (thesis_context 9.18).
+Three batches test three responses:
+  A  custom reward + EARLY STOPPING on periodic end-to-end evaluation
+  B  robosuite's built-in shaped reward, bare (never tried on the place stage)
+  C  built-in reward + the fix that worked best for it on the grasp stage
+
+DECISIONS (from the user, 2026-09-11)
+  object        cereal, random spawn
+  seeds         6 per batch: 3 from scratch + 3 warm-started (seeds 10 11 12 each)
+  stopping      early stopping in batch A only; B and C run the full 4000 episodes
+                and are scored from snapshots afterwards
+  "fixes"       the user chose "the one that worked best".  Read as the IDLE COST:
+                it is the fix that made built-in reward work on the grasp stage
+                (79.2 -> 87.1% certified, thesis_context 9.9) and it targets the
+                trap built-in reward sets under this stage's termination (success
+                ends the episode and forfeits per-step income).  Its size is set by
+                the pricing audit below, not copied from the grasp stage.
+
+DESIGN (run_place_es_batch.sh)
+  recipe        as run_cereal_scratch.sh: buffer 200k, batch 512, critic 64x32,
+                LayerNorm, 4000 episodes, snapshots every 250, cereal_alignwarm_s0
+                grasp, curriculum on, ROT_ANCHOR_EPS in the wrapper (training value)
+  warm start    actor only from td3_place_cerealscratch_s2/best (89.00% on 8 held-out
+                seeds x 100), --skip-warmup.  Its critic learned the custom reward,
+                so B and C cannot reuse it; A starts the same way so the batches
+                differ only in reward and stopping.
+  early stop    es_watch.py scores every snapshot through fsm_sim.py (seeds 7 31 x
+                50, anchor 1e-6, robosuite criterion, settle 60).  Best = highest
+                success, ties to the earliest.  STOP once 4 later snapshots fail to
+                beat it and the latest is at episode >= 1000.  The selected policy is
+                the best snapshot.  Early stopping does not change learning; it
+                decides when to stop and which snapshot to keep.
+  reward modes  place_env_wrapper.py reward_mode: custom (default, unchanged) |
+                builtin (robosuite PickPlace.reward() with shaping, at each
+                transition's end state) | builtin_idle (builtin minus idle_cost per
+                policy step).  The custom reward is always computed: termination
+                reads its counters.
+
+GATES
+  1. Custom mode unchanged by the code change (gates batch A).  A 250-episode rerun
+     of td3_place_cerealscratch_s0's configuration must reproduce its ep_00250
+     snapshot byte for byte.
+  2. Pricing audit (gates B and C; thesis_context 9.10).  run_place_reward_audit.sh
+     prices custom / built-in / built-in minus a grid of idle costs on the same
+     recorded episodes: trained, collapsed, zero, linger (hold outside the release
+     radius) and creep (dodge the stall limit), at curriculum frac 0.3 and 1.0.
+     Smoke test: two clean successes earned 149 / 148 custom but only 5.0 / 15.7
+     built-in.  Controls: returned reward == R_custom, built-in replica == robosuite
+     reward() on non-release steps -- both exact in the smoke test.
+
+GATE 2 RESULT -- PRICING AUDIT (Results/place_reward_audit/report.txt)
+400 episodes.  Controls exact: returned reward == R_custom (max |diff| 0), built-in
+replica == robosuite reward() on every non-release step (0 mismatches).
+Mean return per outcome class:
+
+  frac 0.3 (success takes ~20 policy steps)
+    mode            SUCCESS  fell_off  t_dropped  t_stall     success beats all?
+    custom           148.41   -32.44    -44.07    -26.21      yes  +174.62
+    builtin           10.76    34.54     15.22     32.08      NO   (stalling, n=137, pays 3x)
+    builtin - 0.5      0.70    -6.71    -84.78      0.38      yes  +0.33
+    builtin - 0.8     -5.33   -31.46   -144.78    -18.65      yes  +13.32
+  frac 1.0 (success takes ~102 policy steps)
+    mode            SUCCESS  fell_off  t_dropped  t_held  t_stall  success beats all?
+    custom           144.58   -49.92    -49.20   -35.03  -28.96    yes  +173.54
+    builtin           51.85    31.61     22.94    95.29   41.43    NO   (holding pays 2x)
+    builtin - 0.5      0.72   -22.27    -77.06    -4.71   -3.41    yes  +4.13
+    builtin - 0.8    -29.96   -54.59   -137.06   -64.71  -30.31    yes  +0.35
+    builtin - 0.9    -40.18   -65.37   -157.06   -84.71  -39.28    NO   -0.91
+
+  * BARE BUILT-IN IS MISPRICED at both difficulties: stalling (frac 0.3, 137
+    episodes) and holding the box until the horizon (frac 1.0) out-earn placing it;
+    so does dropping it off the table, though on only 2 and 4 episodes.
+    The forfeiture trap of thesis_context 9.9, reproduced on the place stage.
+  * THE IDLE COST ORDERS BOTH DIFFICULTIES ONLY IN A NARROW WINDOW: 0.5 is the only
+    grid value that works at both, with margins +0.33 and +4.13 against the custom
+    reward's +174.  Cost 0.9 or more makes a long successful carry cost more than a
+    short stall.  Structural cause: a success lasts ~20 policy steps at frac 0.3 and
+    ~102 at frac 1.0, so any constant per-step cost that makes stalling unprofitable
+    near the bin makes success unprofitable far from it, and the curriculum moves the
+    task between the two during training.
+
+RESULTS
+  (pending)

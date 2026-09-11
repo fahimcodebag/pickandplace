@@ -1,0 +1,29 @@
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+  [PlaceWrapper] Grasp agent loaded from /home/fahim/Thesis_fahim/pickandplace/checkpoints/td3_grasp_rand_td3_ln_cereal_alignwarm_s0/best
+  ep 0: transport_stall        steps  51  R_custom   -25.18  R_builtin   27.26
+  ep 1: transport_stall        steps  51  R_custom   -25.07  R_builtin   26.15
+  ep 2: transport_stall        steps  51  R_custom   -22.91  R_builtin   18.73
+  ep 3: transport_stall        steps  51  R_custom   -25.03  R_builtin   26.06
+  ep 4: transport_stall        steps  51  R_custom   -25.24  R_builtin   27.07
+  ep 5: success                steps   5  R_custom   149.50  R_builtin    2.87
+  ep 6: transport_stall        steps  51  R_custom   -24.43  R_builtin   25.52
+  ep 7: transport_stall        steps  51  R_custom   -24.91  R_builtin   25.87
+  ep 8: transport_stall        steps  51  R_custom   -24.92  R_builtin   25.87
+  ep 9: transport_stall        steps  51  R_custom   -24.94  R_builtin   25.95
+  ep 10: transport_stall        steps  51  R_custom   -24.57  R_builtin   25.55
+  ep 11: transport_stall        steps  71  R_custom   -27.06  R_builtin   36.72
+  ep 12: transport_stall        steps  51  R_custom   -25.22  R_builtin   27.54
+  ep 13: transport_stall        steps  51  R_custom   -24.96  R_builtin   26.01
+  ep 14: transport_stall        steps  51  R_custom   -24.62  R_builtin   25.57
+  ep 15: transport_stall        steps  51  R_custom   -24.91  R_builtin   25.87
+  ep 16: success                steps   5  R_custom   149.49  R_builtin    3.22
+  ep 17: transport_stall        steps  51  R_custom   -24.93  R_builtin   25.92
+  ep 18: transport_stall        steps  51  R_custom   -22.62  R_builtin   18.66
+  ep 19: success                steps   5  R_custom   149.51  R_builtin    2.84

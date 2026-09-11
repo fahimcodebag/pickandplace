@@ -41,7 +41,8 @@ from place_env_wrapper import PlaceGymWrapper
 # ---------------------------------------------------------------------------
 
 def make_place_env(env_name="PickPlace", seed=None, grasp_chkpt_dir=None,
-                   random_spawn=False, object_type="bread"):
+                   random_spawn=False, object_type="bread",
+                   reward_mode="custom", idle_cost=0.0, reward_shaping=False):
     """Create a single robosuite environment with place-only reward."""
     if grasp_chkpt_dir is None:
         grasp_chkpt_dir = os.path.join(
@@ -63,7 +64,10 @@ def make_place_env(env_name="PickPlace", seed=None, grasp_chkpt_dir=None,
         # to ~540 steps. 700 keeps the raw horizon from cutting the place
         # phase short (which would show up as raw_env_horizon terminations).
         horizon=700,
-        reward_shaping=False,
+        # The wrapper computes its own reward in every mode; True here only
+        # changes GymWrapper's (ignored) reward, which place_reward_audit.py uses
+        # as the reference for the built-in replica.
+        reward_shaping=reward_shaping,
         control_freq=20,
         single_object_mode=2,
         object_type=object_type,
@@ -90,7 +94,8 @@ def make_place_env(env_name="PickPlace", seed=None, grasp_chkpt_dir=None,
     raw_env = env
     gym_env = GymWrapper(raw_env)
     # PlaceGymWrapper sits on top: runs grasp policy on reset, place rewards on step
-    place_env = PlaceGymWrapper(gym_env, raw_env, grasp_chkpt_dir)
+    place_env = PlaceGymWrapper(gym_env, raw_env, grasp_chkpt_dir,
+                                reward_mode=reward_mode, idle_cost=idle_cost)
     if seed is not None:
         place_env.seed(seed)
     return place_env
@@ -103,6 +108,8 @@ def make_place_env(env_name="PickPlace", seed=None, grasp_chkpt_dir=None,
 # Globals to pass config to forked workers
 _GRASP_CHKPT_DIR = None
 _RANDOM_SPAWN = False
+_REWARD_MODE = "custom"
+_IDLE_COST = 0.0
 
 
 def _worker(remote, parent_remote, env_name, seed):
@@ -110,7 +117,8 @@ def _worker(remote, parent_remote, env_name, seed):
     parent_remote.close()
     env = make_place_env(env_name, seed=seed, grasp_chkpt_dir=_GRASP_CHKPT_DIR,
                          random_spawn=_RANDOM_SPAWN,
-                         object_type=_OBJECT_TYPE)
+                         object_type=_OBJECT_TYPE,
+                         reward_mode=_REWARD_MODE, idle_cost=_IDLE_COST)
     while True:
         try:
             cmd, data = remote.recv()
@@ -329,7 +337,8 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
           batch_size_override=None, buffer_size_override=None,
           critic_fc1=None, critic_fc2=None,
           warm_start_from=None, critic_reset_every=0, layer_norm=False,
-          warm_start_critics=False, skip_warmup=False, snapshot_every=0):
+          warm_start_critics=False, skip_warmup=False, snapshot_every=0,
+          reward_mode="custom", idle_cost=0.0, stop_file=None):
     """
     Train the Place sub-policy using TD3 with subprocess-parallel envs.
 
@@ -337,6 +346,8 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     then the place policy trains on the lift → transport → place phase.
     """
     global _GRASP_CHKPT_DIR, _RANDOM_SPAWN
+    global _REWARD_MODE, _IDLE_COST
+    _REWARD_MODE, _IDLE_COST = reward_mode, float(idle_cost)   # read by forked workers
 
     place_chkpt_dir = place_chkpt_dir or os.path.join(
         os.path.dirname(__file__), "..", "checkpoints", "td3_place"
@@ -361,6 +372,10 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     print(f"Spawn:          {'NATIVE random (position + rotation)' if random_spawn else 'fixed'}")
     print(f"Object:         {object_type}")
     print(f"Seed:           {seed}")
+    print(f"Reward:         {reward_mode}"
+          + (f" (idle cost {idle_cost} per step)" if reward_mode == "builtin_idle" else ""))
+    if stop_file:
+        print(f"Stop file:      {stop_file}")
     print(f"Checkpoints:    {place_chkpt_dir}")
     print("=" * 70 + "\n")
 
@@ -658,7 +673,9 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
                             avg_score100=float(avg_score),
                             reasons50=dict(_col.Counter(done_reasons[-50:])),
                             time_step=int(agent.time_step),
-                            mem_cntr=int(agent.memory.mem_cntr)), _fh, indent=1)
+                            mem_cntr=int(agent.memory.mem_cntr),
+                            reward_mode=_REWARD_MODE,
+                            idle_cost=_IDLE_COST), _fh, indent=1)
                     if os.path.isdir(_dst):
                         _sh.rmtree(_dst)
                     os.replace(_tmp, _dst)
@@ -686,6 +703,14 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
                 f"\n🎯 Place target reached at full difficulty! "
                 f"Success rate: {np.mean(place_successes[-100:]) * 100:.1f}%"
             )
+            break
+
+        # ---- External stop: early stopping on end-to-end evaluation --------
+        # es_watch.py scores snapshots through fsm_sim.py and writes this file
+        # once the best snapshot has gone unbeaten for its patience.
+        if stop_file and os.path.exists(stop_file):
+            print(f"\nStop file {stop_file} found at episode {total_episodes}: "
+                  f"stopping (early stopping on end-to-end evaluation).", flush=True)
             break
 
         # ---- Learn ONCE per timestep ---------------------------------------
@@ -789,6 +814,16 @@ if __name__ == "__main__":
     _p.add_argument("--critic-fc2", type=int, default=None,
                     help="critic hidden 2 (default 32, as bread).")
     _p.add_argument("--layer-norm", action="store_true")
+    _p.add_argument("--reward-mode", default="custom",
+                    choices=("custom", "builtin", "builtin_idle"),
+                    help="custom = potential-shaped place reward (default). "
+                         "builtin = robosuite PickPlace shaped reward. "
+                         "builtin_idle = builtin minus --idle-cost per step. "
+                         "Price a mode with place_reward_audit.py before training it.")
+    _p.add_argument("--idle-cost", type=float, default=0.0,
+                    help="per-step cost subtracted in builtin_idle mode.")
+    _p.add_argument("--stop-file", default=None,
+                    help="stop training when this file appears (es_watch.py).")
     _p.add_argument("--warm-start-from", default=None,
                     help="Place checkpoint dir to seed the actor from.")
     _a = _p.parse_args()
@@ -821,4 +856,6 @@ if __name__ == "__main__":
                   critic_fc1=_a.critic_fc1, critic_fc2=_a.critic_fc2,
                   warm_start_critics=_a.warm_start_critics,
                   skip_warmup=_a.skip_warmup,
-                  snapshot_every=_a.snapshot_every)
+                  snapshot_every=_a.snapshot_every,
+                  reward_mode=_a.reward_mode, idle_cost=_a.idle_cost,
+                  stop_file=_a.stop_file)

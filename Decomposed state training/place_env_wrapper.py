@@ -333,7 +333,8 @@ class PlaceGymWrapper:
     _CARRY_HOLD_DZ       = 0.1   # small +z each carry step to counteract sag
 
     def __init__(self, gym_env, raw_env, grasp_chkpt_dir,
-                 grasp_layer1=64, grasp_layer2=32, curriculum=True):
+                 grasp_layer1=64, grasp_layer2=32, curriculum=True,
+                 reward_mode="custom", idle_cost=0.0):
         """
         Args:
             gym_env:          GymWrapper instance (provides flat observations)
@@ -351,6 +352,19 @@ class PlaceGymWrapper:
         self._grasp_chkpt_dir = grasp_chkpt_dir
         self._grasp_layer1 = grasp_layer1
         self._grasp_layer2 = grasp_layer2
+
+        # Reward mode.  "custom" (the default, unchanged) is the potential-shaped
+        # reward below.  "builtin" is robosuite's own PickPlace.reward() with
+        # reward_shaping=True -- 1.0 if robosuite's _check_success holds, plus the
+        # largest staged term (reach <= 0.1, grasp 0.35, lift <= 0.5, hover <= 0.7)
+        # -- evaluated at the state each transition ends in.  "builtin_idle"
+        # subtracts idle_cost per policy step (the grasp-stage pricing fix,
+        # thesis_context 9.9).  The custom reward is ALWAYS computed, because
+        # termination reads its counters, and both are reported in info.
+        if reward_mode not in ("custom", "builtin", "builtin_idle"):
+            raise ValueError(f"unknown reward_mode {reward_mode!r}")
+        self._reward_mode = reward_mode
+        self._idle_cost = float(idle_cost)
 
         # Expose gym spaces (place agent uses the same obs/action spaces)
         self.observation_space = gym_env.observation_space
@@ -684,7 +698,7 @@ class PlaceGymWrapper:
         action[0:3] *= self._TRANSLATE_SCALE                # gentle translation
         action[-1] = self._action_space_high[-1]            # gripper scripted closed
 
-        obs, _, done_raw, info = self._gym_env.step(action)
+        obs, r_env_raw, done_raw, info = self._gym_env.step(action)
         self._step_count += 1
 
         # Get raw obs_dict for reward computation
@@ -719,6 +733,17 @@ class PlaceGymWrapper:
             reward += self.W_TIMEOUT_HELD
 
         info["applied_action"] = action
+        r_builtin = self._builtin_reward()
+        info["r_custom"] = float(reward)
+        info["r_builtin"] = r_builtin
+        # GymWrapper's own reward for the policy's env step.  It equals r_builtin
+        # on non-release steps only when the env was built with reward_shaping=True.
+        info["r_env_raw"] = float(r_env_raw)
+        info["released"] = bool(released)
+        if self._reward_mode == "builtin":
+            reward = r_builtin
+        elif self._reward_mode == "builtin_idle":
+            reward = r_builtin - self._idle_cost
         return obs, reward, done, info
 
     def close(self):
@@ -849,6 +874,14 @@ class PlaceGymWrapper:
             phi += self.PHI_PLACE * lift_latch * xy_frac * place_frac
 
         return phi
+
+    def _builtin_reward(self):
+        """robosuite PickPlace.reward() with reward_shaping=True, one object,
+        reward_scale 1.0 -- replicated so the env need not be rebuilt.
+        place_reward_audit.py checks it against robosuite's own reward()."""
+        env = self._raw_env
+        env._check_success()
+        return float(np.sum(env.objects_in_bins) + max(env.staged_rewards()))
 
     def _place_reward(self, obs_dict):
         obj_pos = self._get_obj_pos(obs_dict)
