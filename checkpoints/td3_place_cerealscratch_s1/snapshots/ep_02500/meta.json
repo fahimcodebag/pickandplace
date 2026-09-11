@@ -1,0 +1,15 @@
+{
+ "episode": 2500,
+ "frac50": 0.20299999999999996,
+ "place50": 0.54,
+ "metric": 0.10961999999999998,
+ "best_metric": 0.14799999999999996,
+ "avg_score100": 52.821738139875904,
+ "reasons50": {
+  "success": 27,
+  "fell_off_table": 2,
+  "transport_stall": 21
+ },
+ "time_step": 93648,
+ "mem_cntr": 93641
+}
