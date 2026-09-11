@@ -8,9 +8,10 @@
 set -u
 cd "$(dirname "$0")"
 P=${1:-20}
+O=${2:-Results/place_reward_audit}
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 PY=/home/fahim/Thesis_fahim/venv/bin/python
-O=Results/place_reward_audit; mkdir -p $O/csv
+mkdir -p $O/csv
 J=$O/jobs.txt; : > $J
 declare -A POL=(
   [good]="actor:../checkpoints/td3_place_cerealscratch_s2/best"

@@ -10,15 +10,18 @@ average, by a margin (success minus the best failure class, over |best failure|)
 Reports the smallest grid cost that restores that ordering at both fracs, and the
 controls: returned rewards == R_custom, built-in replica == robosuite reward().
 """
-import collections, csv, glob
+import collections, csv, glob, sys
 import numpy as np
 
-rows = [r for f in sorted(glob.glob("Results/place_reward_audit/csv/*.csv")) for r in csv.DictReader(open(f))]
+D = sys.argv[1] if len(sys.argv) > 1 else "Results/place_reward_audit"
+rows = [r for f in sorted(glob.glob(f"{D}/csv/*.csv")) for r in csv.DictReader(open(f))]
 if not rows:
     raise SystemExit("no audit CSVs yet")
 for r in rows:
-    for k in ("R_custom", "R_builtin", "frac", "ctrl_returned_minus_custom", "ctrl_builtin_max_abs"):
-        r[k] = float(r[k])
+    for k in ("R_custom", "R_builtin", "frac", "ctrl_returned_minus_custom", "ctrl_builtin_max_abs",
+              "R_bpot_shape", "R_bpot_sparse"):
+        if k in r:
+            r[k] = float(r[k])
     for k in ("steps", "success", "ctrl_builtin_mismatch_steps"):
         r[k] = int(r[k])
 
@@ -59,6 +62,9 @@ for frac in sorted({r["frac"] for r in rows}):
     print("  outcome by policy:", dict(collections.Counter((r["label"], cls(r)) for r in v)))
     modes = [("custom", lambda r: r["R_custom"]), ("builtin", lambda r: r["R_builtin"])]
     modes += [(f"builtin-{c}", (lambda c: lambda r: r["R_builtin"] - c * r["steps"])(c)) for c in GRID[1:]]
+    if "R_bpot_shape" in v[0]:
+        modes += [(f"bpot w={w}", (lambda w: lambda r: w * r["R_bpot_shape"] + r["R_bpot_sparse"])(w))
+                  for w in (1.0, 0.5, 0.1, 0.0)]
     classes = sorted({cls(r) for r in v}, key=lambda k: (k != "SUCCESS", k))
     print(f"  {'mode':14s} " + " ".join(f"{k[:16]:>17s}" for k in classes) + "   success beats all?  margin (vs best failure)")
     for name, fn in modes:

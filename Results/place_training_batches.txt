@@ -6,9 +6,12 @@ STATUS: IN PROGRESS (2026-09-11).  Design fixed; gates and runs below.
 QUESTION
 Place training rises then degrades in every configuration (thesis_context 9.18).
 Three batches test three responses:
-  A  custom reward + EARLY STOPPING on periodic end-to-end evaluation
-  B  robosuite's built-in shaped reward, bare (never tried on the place stage)
-  C  built-in reward + the fix that worked best for it on the grasp stage
+  A   custom reward + EARLY STOPPING on periodic end-to-end evaluation
+  B'  robosuite's built-in staged reward used as a POTENTIAL, plus success
+  C'  B' with the shaping annealed toward sparse once training success builds up
+  (B and C were first planned as bare built-in and built-in minus an idle cost;
+  gate 2 below showed both mispriced, and the user approved B' and C' instead on
+  2026-09-12.)
 
 DECISIONS (from the user, 2026-09-11)
   object        cereal, random spawn
@@ -36,6 +39,21 @@ DESIGN (run_place_es_batch.sh)
                 beat it and the latest is at episode >= 1000.  The selected policy is
                 the best snapshot.  Early stopping does not change learning; it
                 decides when to stop and which snapshot to keep.
+  B'            reward_mode builtin_potential: r = 0.99*Phi(s') - Phi(s) + 1.0 once on
+                success, Phi = largest robosuite staged term.  Holding still earns
+                -(1-0.99)*Phi <= 0, so the stall trap cannot exist.  Success is the
+                wrapper's object-aware check (robosuite's own fails for a flat cereal
+                box); once placed, Phi is held at its maximum 0.7, because robosuite
+                zeroes the staged terms for a placed object and would otherwise charge
+                the policy for succeeding.
+  C'            B' + train_place.py --anneal-shaping: reward = w*shaping + success.
+                w = 1.0 until training place success over 200 episodes reaches 60%,
+                then falls linearly to 0.1 over 1000 episodes, never rising.  Shaping
+                and success are stored per transition beside the replay buffer, and
+                every sampled batch is RE-SCORED at the current w, so the critic never
+                learns from a mix of reward functions.  Control: at w = 1 the
+                re-scored reward must equal the stored one (checked on 50 batches).
+                The trigger is training success, which the curriculum also moves.
   reward modes  place_env_wrapper.py reward_mode: custom (default, unchanged) |
                 builtin (robosuite PickPlace.reward() with shaping, at each
                 transition's end state) | builtin_idle (builtin minus idle_cost per
@@ -85,5 +103,40 @@ Mean return per outcome class:
     near the bin makes success unprofitable far from it, and the curriculum moves the
     task between the two during training.
 
+GATE 3 RESULT -- PRICING OF B' AND C' (Results/place_reward_audit2/report.txt): PASS
+Same audit, now also recording the potential-based shaping and success terms.
+Controls exact over 400 episodes, and audit 2 reproduces audit 1 episode for episode
+(reason, steps, R_custom, R_builtin identical, 400/400): the B' code changed nothing.
+Mean return per outcome class, reward = w * shaping + success:
+
+  frac 0.3    SUCCESS  fell_off  t_dropped  t_stall     success beats all?
+    w = 1.0     1.08     -0.85     -0.62     -0.32      yes  +1.40   (B')
+    w = 0.5     1.04     -0.42     -0.31     -0.16      yes  +1.20
+    w = 0.1     1.01     -0.08     -0.06     -0.03      yes  +1.04   (C' floor)
+  frac 1.0    SUCCESS  fell_off  t_dropped  t_held  t_stall   success beats all?
+    w = 1.0     0.71     -0.81     -0.66    -0.94   -0.42    yes  +1.13   (B')
+    w = 0.5     0.86     -0.41     -0.33    -0.47   -0.21    yes  +1.07
+    w = 0.1     0.97     -0.08     -0.07    -0.09   -0.04    yes  +1.01   (C' floor)
+
+  By policy at w = 1 (frac 0.3 / 1.0): trained +0.87 / +0.61, collapsed -0.00 / -0.54,
+  zero -0.13 / -0.25, creep -0.12 / -0.24, LINGER -0.38 / -0.80.  The stall exploit
+  that bare built-in reward paid best is now the WORST policy.
+  * Every failure class is negative and success positive at every weight C' passes
+    through.  Long successful carries pay a little less (0.71 at frac 1.0) because a
+    potential decays by (1 - 0.99) * Phi per step -- mild time pressure, no trap.
+  * Caveat: B' returns are ~1 in size where the custom reward's are ~150.  With Adam
+    the updates are close to scale-invariant, but the batches differ in reward scale
+    as well as shape.
+
+GATE 4 RESULT -- C' IN TRAINING (smoke run: 70 episodes, 2 envs, batch 64, warm start,
+anneal threshold 0 over 40 episodes, 20-episode anneal): PASS
+  re-scoring control, 50 batches at w = 1: max |stored - re-scored| = 0.00e+00
+  anneal triggered at episode 40; snapshot ep_00050 records shaping_weight 0.55 =
+  1 - 0.9 * (50 - 40) / 20 and anneal_start 40; run completed cleanly (exit 0)
+
 RESULTS
+  Batch A launched 2026-09-12 (td3_place_cerES_{scr,warm}_s{10,11,12}, es_watch.py
+  -> Results/place_es).
+  Batches B' (td3_place_cerBP_*) and C' (td3_place_cerBPann_*) launched 2026-09-12,
+  scored by es_watch.py --no-stop -> Results/place_es_B, Results/place_es_C.
   (pending)

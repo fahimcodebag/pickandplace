@@ -1,0 +1,53 @@
+Place reward pricing audit 2 (adds B' and C') -- generated 2026-09-12 00:16:06
+
+episodes: 400
+CONTROL returned == R_custom: max |diff| 0.00e+00
+CONTROL builtin replica == robosuite reward(): mismatched steps 0, max |diff| 0.00e+00
+
+=== curriculum frac 0.3  (200 episodes) ===
+  outcome by policy: {('collapsed', 'SUCCESS'): 11, ('collapsed', 'transport_stall'): 22, ('collapsed', 'timeout_dropped'): 6, ('collapsed', 'fell_off_table'): 1, ('creep', 'transport_stall'): 36, ('creep', 'SUCCESS'): 4, ('good', 'SUCCESS'): 35, ('good', 'transport_stall'): 4, ('good', 'fell_off_table'): 1, ('linger', 'transport_stall'): 39, ('linger', 'SUCCESS'): 1, ('zero', 'transport_stall'): 36, ('zero', 'SUCCESS'): 4}
+  mode                     SUCCESS    fell_off_table   timeout_dropped   transport_stall   success beats all?  margin (vs best failure)
+  custom            148.41 (n= 55)    -32.44 (n=  2)    -44.07 (n=  6)    -26.21 (n=137)   True   +174.62 vs transport_stall
+  builtin            10.76 (n= 55)     34.54 (n=  2)     15.22 (n=  6)     32.08 (n=137)   False  -23.78 vs fell_off_table
+  builtin-0.1         8.75 (n= 55)     26.29 (n=  2)     -4.78 (n=  6)     25.74 (n=137)   False  -17.54 vs fell_off_table
+  builtin-0.2         6.74 (n= 55)     18.04 (n=  2)    -24.78 (n=  6)     19.40 (n=137)   False  -12.66 vs transport_stall
+  builtin-0.3         4.73 (n= 55)      9.79 (n=  2)    -44.78 (n=  6)     13.06 (n=137)   False  -8.33 vs transport_stall
+  builtin-0.4         2.71 (n= 55)      1.54 (n=  2)    -64.78 (n=  6)      6.72 (n=137)   False  -4.00 vs transport_stall
+  builtin-0.5         0.70 (n= 55)     -6.71 (n=  2)    -84.78 (n=  6)      0.38 (n=137)   True   +0.33 vs transport_stall
+  builtin-0.6        -1.31 (n= 55)    -14.96 (n=  2)   -104.78 (n=  6)     -5.97 (n=137)   True   +4.66 vs transport_stall
+  builtin-0.7        -3.32 (n= 55)    -23.21 (n=  2)   -124.78 (n=  6)    -12.31 (n=137)   True   +8.99 vs transport_stall
+  builtin-0.8        -5.33 (n= 55)    -31.46 (n=  2)   -144.78 (n=  6)    -18.65 (n=137)   True   +13.32 vs transport_stall
+  builtin-0.9        -7.34 (n= 55)    -39.71 (n=  2)   -164.78 (n=  6)    -24.99 (n=137)   True   +17.65 vs transport_stall
+  builtin-1.0        -9.35 (n= 55)    -47.96 (n=  2)   -184.78 (n=  6)    -31.33 (n=137)   True   +21.98 vs transport_stall
+  builtin-1.2       -13.37 (n= 55)    -64.46 (n=  2)   -224.78 (n=  6)    -44.02 (n=137)   True   +30.64 vs transport_stall
+  builtin-1.5       -19.41 (n= 55)    -89.21 (n=  2)   -284.78 (n=  6)    -63.04 (n=137)   True   +43.63 vs transport_stall
+  bpot w=1.0          1.08 (n= 55)     -0.85 (n=  2)     -0.62 (n=  6)     -0.32 (n=137)   True   +1.40 vs transport_stall
+  bpot w=0.5          1.04 (n= 55)     -0.42 (n=  2)     -0.31 (n=  6)     -0.16 (n=137)   True   +1.20 vs transport_stall
+  bpot w=0.1          1.01 (n= 55)     -0.08 (n=  2)     -0.06 (n=  6)     -0.03 (n=137)   True   +1.04 vs transport_stall
+  bpot w=0.0          1.00 (n= 55)      0.00 (n=  2)      0.00 (n=  6)      0.00 (n=137)   True   +1.00 vs transport_stall
+  mean policy steps by class: {'SUCCESS': 20.1, 'fell_off_table': 82.5, 'timeout_dropped': 200.0, 'transport_stall': 63.4}
+
+=== curriculum frac 1.0  (200 episodes) ===
+  outcome by policy: {('collapsed', 'transport_stall'): 19, ('collapsed', 'fell_off_table'): 4, ('collapsed', 'timeout_dropped'): 16, ('collapsed', 'SUCCESS'): 1, ('creep', 'transport_stall'): 40, ('good', 'SUCCESS'): 37, ('good', 'transport_stall'): 3, ('linger', 'transport_stall'): 34, ('linger', 'timeout_dropped'): 2, ('linger', 'timeout_held'): 4, ('zero', 'transport_stall'): 40}
+  mode                     SUCCESS    fell_off_table   timeout_dropped      timeout_held   transport_stall   success beats all?  margin (vs best failure)
+  custom            144.58 (n= 38)    -49.92 (n=  4)    -49.20 (n= 18)    -35.03 (n=  4)    -28.96 (n=136)   True   +173.54 vs transport_stall
+  builtin            51.85 (n= 38)     31.61 (n=  4)     22.94 (n= 18)     95.29 (n=  4)     41.43 (n=136)   False  -43.44 vs timeout_held
+  builtin-0.1        41.63 (n= 38)     20.83 (n=  4)      2.94 (n= 18)     75.29 (n=  4)     32.46 (n=136)   False  -33.66 vs timeout_held
+  builtin-0.2        31.40 (n= 38)     10.06 (n=  4)    -17.06 (n= 18)     55.29 (n=  4)     23.50 (n=136)   False  -23.89 vs timeout_held
+  builtin-0.3        21.17 (n= 38)     -0.72 (n=  4)    -37.06 (n= 18)     35.29 (n=  4)     14.53 (n=136)   False  -14.12 vs timeout_held
+  builtin-0.4        10.95 (n= 38)    -11.49 (n=  4)    -57.06 (n= 18)     15.29 (n=  4)      5.56 (n=136)   False  -4.34 vs timeout_held
+  builtin-0.5         0.72 (n= 38)    -22.27 (n=  4)    -77.06 (n= 18)     -4.71 (n=  4)     -3.41 (n=136)   True   +4.13 vs transport_stall
+  builtin-0.6        -9.51 (n= 38)    -33.04 (n=  4)    -97.06 (n= 18)    -24.71 (n=  4)    -12.37 (n=136)   True   +2.87 vs transport_stall
+  builtin-0.7       -19.73 (n= 38)    -43.82 (n=  4)   -117.06 (n= 18)    -44.71 (n=  4)    -21.34 (n=136)   True   +1.61 vs transport_stall
+  builtin-0.8       -29.96 (n= 38)    -54.59 (n=  4)   -137.06 (n= 18)    -64.71 (n=  4)    -30.31 (n=136)   True   +0.35 vs transport_stall
+  builtin-0.9       -40.18 (n= 38)    -65.37 (n=  4)   -157.06 (n= 18)    -84.71 (n=  4)    -39.28 (n=136)   False  -0.91 vs transport_stall
+  builtin-1.0       -50.41 (n= 38)    -76.14 (n=  4)   -177.06 (n= 18)   -104.71 (n=  4)    -48.24 (n=136)   False  -2.17 vs transport_stall
+  builtin-1.2       -70.86 (n= 38)    -97.69 (n=  4)   -217.06 (n= 18)   -144.71 (n=  4)    -66.18 (n=136)   False  -4.68 vs transport_stall
+  builtin-1.5      -101.54 (n= 38)   -130.02 (n=  4)   -277.06 (n= 18)   -204.71 (n=  4)    -93.08 (n=136)   False  -8.46 vs transport_stall
+  bpot w=1.0          0.71 (n= 38)     -0.81 (n=  4)     -0.66 (n= 18)     -0.94 (n=  4)     -0.42 (n=136)   True   +1.13 vs transport_stall
+  bpot w=0.5          0.86 (n= 38)     -0.41 (n=  4)     -0.33 (n= 18)     -0.47 (n=  4)     -0.21 (n=136)   True   +1.07 vs transport_stall
+  bpot w=0.1          0.97 (n= 38)     -0.08 (n=  4)     -0.07 (n= 18)     -0.09 (n=  4)     -0.04 (n=136)   True   +1.01 vs transport_stall
+  bpot w=0.0          1.00 (n= 38)      0.00 (n=  4)      0.00 (n= 18)      0.00 (n=  4)      0.00 (n=136)   True   +1.00 vs transport_stall
+  mean policy steps by class: {'SUCCESS': 102.3, 'fell_off_table': 107.8, 'timeout_dropped': 200.0, 'timeout_held': 200.0, 'transport_stall': 89.7}
+
+Smallest grid idle cost at which success out-earns every failure class: {0.3: 0.5, 1.0: 0.5}

@@ -18,7 +18,7 @@ Last surveyed: 2026-09-08 · artifact and results index revised 2026-09-11 · br
 |---|---|---|
 | `REPOSITORY_MAP.md` (this) | **Index.** Where everything is. | "Where is X?" / new to the repo |
 | `thesis_context.md` (~1,600 ln) | **Narrative.** What was tried, what failed, what superseded what. The header carries the current headline; §9.16 is the fresh-session entry point, §9.18 the newest finding; §10 is the claim-status table. | "Why is it like this?" / resuming work |
-| `Results/*.txt` (42 files) | **Evidence.** Measured tables at protocol, with method and caveats. | "What is the number, and how solid?" |
+| `Results/*.txt` (43 files) | **Evidence.** Measured tables at protocol, with method and caveats. | "What is the number, and how solid?" |
 
 `PROJECT_CONTEXT.md` (281 ln, last updated 2026-06-30) is an **older** context
 primer from the monolithic era and is superseded by `thesis_context.md` for
@@ -121,6 +121,9 @@ These predate the decomposition; `train_v8.py` is the last monolithic loop
 | `run_anchor_c2m512.sh` + `analyze_anchor_c2m512.py` | The anchor on the deployed artifact (§9.17.1): `baseline` (eps 0, reproduces the recorded CSVs), `treatment` (eps 1e-6, refuses to run without `PREDICTION.txt`), `mechanism` (tilt probe). |
 | `anchor_probe.py` | Passive probe around `fsm_sim.main()`: blocked/pinned carries, gripper tilt, release point. Positive control on `bi_s0`. |
 | `run_cereal_pairing.sh` + `analyze_cereal_pairing.py` | Cereal: trained place policy vs scripted transport vs transfer, paired 12×100, with reproduction controls (§9.18, §10). |
+| `run_place_es_batch.sh` | Place training batches on cereal (A: custom reward + early stopping; B: potential-based built-in reward; C: B with shaping annealed toward sparse), 3 warm + 3 scratch each. `Results/place_training_batches.txt`. |
+| `es_watch.py` | Early stopping on periodic end-to-end evaluation: scores each snapshot through `fsm_sim.py`, writes `<run>/STOP` after 4 unbeaten snapshots; `--no-stop` scores only. |
+| `Decomposed state training/place_reward_audit.py` + `run_place_reward_audit.sh` + `analyze_place_reward_audit.py` | Prices every place reward mode on the same recorded episodes before training (§9.10 method), with exact accounting controls. |
 | `run_place_selection.sh` + `analyze_place_selection.py` | Place-checkpoint selection on end-to-end success, re-scored on held-out seeds (§9.18). |
 
 ---
@@ -129,7 +132,7 @@ These predate the decomposition; `train_v8.py` is the last monolithic loop
 
 | Directory | Contents |
 |---|---|
-| `Results/` | 42 `.txt` evidence files, ~85 experiment subdirs of raw CSVs, `figures/`. See §4. `Results/big2m/` holds the `c2m512_s*` INT8 artifacts. |
+| `Results/` | 43 `.txt` evidence files, ~85 experiment subdirs of raw CSVs, `figures/`. See §4. `Results/big2m/` holds the `c2m512_s*` INT8 artifacts. |
 | `checkpoints/` | 161 run directories. Naming convention in §3. Each holds `best/` and periodic saves. |
 | `logs/` | 174 training logs, one per run, named to match its checkpoint family. |
 | `qat_output*/` | Quantization artifacts per campaign: `_bi` (holds the deployed `place_orig_int8`; its `bi_s0` grasp is superseded), `_fix`, `_phaseB`, `_reset`, `_corrector`. Each holds `.tflite`, the `_float32.tflite` reference, and the refined `.pt`. |
@@ -169,7 +172,7 @@ certification), `gripfix*`, `rv2` (reward v2), `align` (yaw alignment),
 quantization sweeps; **`c2m512_s1` is the deployed grasp**), `buf200k/500k/1000k` (buffer size), `long60k`,
 `cereal_{base,align}[warm]` (per-object, cereal), `can_warm` (per-object, can).
 
-`td3_place*` random-spawn investigation (§9.18): `_cereal_s*` (default recipe), `_cerealbig_s*` / `_cerealsmall_s*` / `_breadbig_s*` (recipe arms), `_pairfix_s*` (critics warm-started), `_curF_s*` / `_curR_s*` (controlled fixed vs random pair, with `snapshots/`), `_cerealscratch_s*` (cereal from scratch, with `snapshots/`).
+`td3_place*` random-spawn investigation (§9.18): `_cereal_s*` (default recipe), `_cerealbig_s*` / `_cerealsmall_s*` / `_breadbig_s*` (recipe arms), `_pairfix_s*` (critics warm-started), `_curF_s*` / `_curR_s*` (controlled fixed vs random pair, with `snapshots/`), `_cerealscratch_s*` (cereal from scratch, with `snapshots/`), `_cerES_*` / `_cerBP_*` / `_cerBPann_*` (`scr`/`warm`, seeds 10–12: early stopping, potential-based built-in reward, annealed toward sparse; `Results/place_training_batches.txt`).
 
 `td3_place*` variants: `_bi_s*` (paired with the superseded `bi_s0` grasp), `_rs_reset_*`
 vs `_rs_control_*` (critic-reset ablation), `*_backup` (manual saves).
@@ -205,6 +208,7 @@ Section numbers are `thesis_context.md` sections.
 | `place_random_spawn_investigation.txt` | **Newest** (§9.18, final). Place training rises then degrades in every configuration — from scratch and warm-started, bread and cereal, fixed and random spawn — and final weights score far below `best/`. Not random spawn, not the object, not warm-starting: late-training instability is the open problem. Also not buffer, critic warm start, forgetting, freezing, drops or collision. |
 | `curriculum_pair/` | Bread fixed vs random spawn from scratch; every snapshot scored end-to-end; `correlation_report.txt` = training metric vs end-to-end (§9.18). |
 | `cereal_pairing.txt`; raw data in `cereal_pairing/` | Cereal, trained place policy vs scripted transport vs transfer, paired 12×100: scripted 89.17% vs trained 88.00%, not significant; the anchor helps this pipeline (§9.18, §10). |
+| `place_training_batches.txt`; raw data in `place_reward_audit/`, `place_reward_audit2/`, `place_es/`, `place_es_B/`, `place_es_C/` | The three cereal place-training batches: design, the pricing gates (bare built-in and idle-cost built-in mispriced; potential-based built-in passes), and results. |
 | `place_selection/` | Place-checkpoint selection on end-to-end success, re-scored on 8 held-out seeds × 100: peak vs `best/` vs final weights vs reference (§9.18). |
 | `cereal_scratch/` | Cereal from scratch vs warm-started cereal on transitions: `report.txt`; `eval.tsv` (4×50 per checkpoint), `protocol.tsv` (12×50), `control.tsv` (positive control) (§9.18). |
 | `object_generalisation.txt` | Zero-shot to unseen objects fails, ordered by shape rather than size (§9.15.2). |

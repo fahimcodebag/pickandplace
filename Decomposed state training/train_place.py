@@ -338,7 +338,9 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
           critic_fc1=None, critic_fc2=None,
           warm_start_from=None, critic_reset_every=0, layer_norm=False,
           warm_start_critics=False, skip_warmup=False, snapshot_every=0,
-          reward_mode="custom", idle_cost=0.0, stop_file=None):
+          reward_mode="custom", idle_cost=0.0, stop_file=None,
+          anneal_shaping=False, anneal_threshold=0.6, anneal_window=200,
+          anneal_episodes=1000, anneal_min_weight=0.1):
     """
     Train the Place sub-policy using TD3 with subprocess-parallel envs.
 
@@ -552,6 +554,42 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     # --- Initial reset ------------------------------------------------------
     observations = vec_env.reset()
 
+    # --- C': anneal the potential-based built-in shaping toward sparse --------
+    # reward = w * shaping + success.  w starts at 1.0; once training place
+    # success over anneal_window episodes reaches anneal_threshold it falls
+    # linearly to anneal_min_weight over anneal_episodes and never rises.  The
+    # buffer holds rewards collected at older weights, so every sampled batch is
+    # RE-SCORED at the current weight from components stored per transition --
+    # otherwise the critic would learn from a mix of reward functions.
+    shaping_w = 1.0
+    anneal_start = None
+    if anneal_shaping:
+        if reward_mode != "builtin_potential":
+            raise ValueError("--anneal-shaping needs --reward-mode builtin_potential")
+        _msz = agent.memory.mem_size
+        _shape_mem = np.zeros(_msz, dtype=np.float64)
+        _sparse_mem = np.zeros(_msz, dtype=np.float64)
+        _orig_sample = agent.memory.sample_buffer_per
+        _ctrl = {"checks": 0, "max_diff": 0.0}
+
+        def _relabelled_sample(batch_size):
+            s_, a_, r_, s2_, d_, tidx, isw = _orig_sample(batch_size)
+            n = min(agent.memory.mem_cntr, _msz)
+            idx = (tidx - _msz + 1) % n            # SumTree leaf -> data index
+            r_new = shaping_w * _shape_mem[idx] + _sparse_mem[idx]
+            if anneal_start is None and _ctrl["checks"] < 50:
+                # CONTROL: at w = 1 the re-scored reward must equal the stored one.
+                _ctrl["max_diff"] = max(_ctrl["max_diff"], float(np.max(np.abs(r_new - r_))))
+                _ctrl["checks"] += 1
+                if _ctrl["checks"] == 50:
+                    print(f"  [anneal] re-scoring control, 50 batches at w=1: "
+                          f"max |stored - re-scored| = {_ctrl['max_diff']:.2e}", flush=True)
+            return s_, a_, r_new, s2_, d_, tidx, isw
+
+        agent.memory.sample_buffer_per = _relabelled_sample
+        print(f"Shaping anneal: start when place success over {anneal_window} episodes >= "
+              f"{anneal_threshold:.0%}; w 1.0 -> {anneal_min_weight} over {anneal_episodes} episodes")
+
     print("Starting place training...\n")
 
     while total_episodes < n_episodes:
@@ -574,6 +612,10 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
             # stays consistent. Falls back to the chosen action if unavailable.
             applied_action = infos[i].get("applied_action", actions[i])
 
+            if anneal_shaping:
+                _k = agent.memory.mem_cntr % _msz
+                _shape_mem[_k] = infos[i].get("r_bpot_shape", 0.0)
+                _sparse_mem[_k] = infos[i].get("r_bpot_sparse", 0.0)
             agent.remember(
                 observations[i],
                 applied_action,
@@ -606,6 +648,16 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
                 avg_score = np.mean(score_history[-100:])
                 avg_place = np.mean(place_successes[-100:]) * 100
                 total_episodes += 1
+                if anneal_shaping:
+                    if (anneal_start is None and len(place_successes) >= anneal_window
+                            and np.mean(place_successes[-anneal_window:]) >= anneal_threshold):
+                        anneal_start = total_episodes
+                        print(f"\n  [anneal] place success {np.mean(place_successes[-anneal_window:]):.0%} over "
+                              f"{anneal_window} episodes at episode {total_episodes}: annealing shaping",
+                              flush=True)
+                    if anneal_start is not None:
+                        shaping_w = max(anneal_min_weight, 1.0 - (1.0 - anneal_min_weight)
+                                        * (total_episodes - anneal_start) / max(1, anneal_episodes))
 
                 # TensorBoard
                 writer.add_scalar("Place/Score_Episode", score, total_episodes)
@@ -647,6 +699,9 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
                     _recent_fracs = curric_fracs[-50:]
                     print(f"    curriculum frac (50): min={min(_recent_fracs):.2f} "
                           f"mean={np.mean(_recent_fracs):.2f} max={max(_recent_fracs):.2f}")
+                    if anneal_shaping:
+                        print(f"    shaping weight: {shaping_w:.3f}"
+                              + (f" (annealing since episode {anneal_start})" if anneal_start else " (not started)"))
 
                 # Snapshot series for the training-metric vs end-to-end
                 # correlation.  save_models() writes FIXED filenames, so the
@@ -675,7 +730,9 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
                             time_step=int(agent.time_step),
                             mem_cntr=int(agent.memory.mem_cntr),
                             reward_mode=_REWARD_MODE,
-                            idle_cost=_IDLE_COST), _fh, indent=1)
+                            idle_cost=_IDLE_COST,
+                            shaping_weight=float(shaping_w),
+                            anneal_start=anneal_start), _fh, indent=1)
                     if os.path.isdir(_dst):
                         _sh.rmtree(_dst)
                     os.replace(_tmp, _dst)
@@ -815,15 +872,25 @@ if __name__ == "__main__":
                     help="critic hidden 2 (default 32, as bread).")
     _p.add_argument("--layer-norm", action="store_true")
     _p.add_argument("--reward-mode", default="custom",
-                    choices=("custom", "builtin", "builtin_idle"),
+                    choices=("custom", "builtin", "builtin_idle", "builtin_potential"),
                     help="custom = potential-shaped place reward (default). "
                          "builtin = robosuite PickPlace shaped reward. "
+                         "builtin_potential = that reward used as a potential, plus 1.0 on success. "
                          "builtin_idle = builtin minus --idle-cost per step. "
                          "Price a mode with place_reward_audit.py before training it.")
     _p.add_argument("--idle-cost", type=float, default=0.0,
                     help="per-step cost subtracted in builtin_idle mode.")
     _p.add_argument("--stop-file", default=None,
                     help="stop training when this file appears (es_watch.py).")
+    _p.add_argument("--anneal-shaping", action="store_true",
+                    help="C': with --reward-mode builtin_potential, scale the shaping "
+                         "term by w, annealed toward --anneal-min-weight once training "
+                         "success reaches --anneal-threshold; sampled batches are "
+                         "re-scored at the current w.")
+    _p.add_argument("--anneal-threshold", type=float, default=0.6)
+    _p.add_argument("--anneal-window", type=int, default=200)
+    _p.add_argument("--anneal-episodes", type=int, default=1000)
+    _p.add_argument("--anneal-min-weight", type=float, default=0.1)
     _p.add_argument("--warm-start-from", default=None,
                     help="Place checkpoint dir to seed the actor from.")
     _a = _p.parse_args()
@@ -858,4 +925,7 @@ if __name__ == "__main__":
                   skip_warmup=_a.skip_warmup,
                   snapshot_every=_a.snapshot_every,
                   reward_mode=_a.reward_mode, idle_cost=_a.idle_cost,
-                  stop_file=_a.stop_file)
+                  stop_file=_a.stop_file,
+                  anneal_shaping=_a.anneal_shaping, anneal_threshold=_a.anneal_threshold,
+                  anneal_window=_a.anneal_window, anneal_episodes=_a.anneal_episodes,
+                  anneal_min_weight=_a.anneal_min_weight)

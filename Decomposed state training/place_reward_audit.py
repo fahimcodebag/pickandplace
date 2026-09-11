@@ -12,6 +12,8 @@ policy, scripted carry and release, termination -- with the curriculum pinned at
 trajectory:
     R_custom    sum of the custom reward (what reward_mode=custom returns)
     R_builtin   sum of robosuite's shaped reward at each transition's end state
+    R_bpot_shape / R_bpot_sparse   the potential-based built-in reward (B'), split
+                so any shaping weight w prices as w * shape + sparse (C')
     steps       policy steps, so R_builtin_idle(c) = R_builtin - c * steps
 and the outcome class (place_done_reason).
 
@@ -94,7 +96,7 @@ def main():
         p, b = obj_bin()
         z0 = float(p[2]) if p is not None else 1.0
         d0 = float(np.linalg.norm(p[:2] - b[:2])) if p is not None and b is not None else 0.3
-        R_ret = R_c = R_b = 0.0
+        R_ret = R_c = R_b = R_ps = R_pp = 0.0
         steps = released = mism = 0
         maxabs = 0.0
         done, info = False, {}
@@ -109,6 +111,7 @@ def main():
             obs, r, done, info = env.step(act)
             steps += 1
             R_ret += r; R_c += info["r_custom"]; R_b += info["r_builtin"]
+            R_ps += info["r_bpot_shape"]; R_pp += info["r_bpot_sparse"]
             if info["released"]:
                 released += 1
             else:
@@ -119,6 +122,7 @@ def main():
             reason=info.get("place_done_reason", ""), success=int(bool(info.get("place_success", False))),
             steps=steps, released=released, handoff_d=round(d0, 4),
             R_custom=round(R_c, 4), R_builtin=round(R_b, 4),
+            R_bpot_shape=round(R_ps, 4), R_bpot_sparse=round(R_pp, 4),
             ctrl_returned_minus_custom=round(R_ret - R_c, 6),
             ctrl_builtin_mismatch_steps=mism, ctrl_builtin_max_abs=maxabs))
         print(f"  ep {ep}: {rows[-1]['reason']:22s} steps {steps:3d}  R_custom {R_c:8.2f}  R_builtin {R_b:7.2f}", flush=True)

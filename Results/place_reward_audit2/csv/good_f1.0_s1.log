@@ -1,0 +1,29 @@
+[robosuite WARNING] No private macro file found! (__init__.py:7)
+[robosuite WARNING] It is recommended to use a private macro file (__init__.py:8)
+[robosuite WARNING] To setup, run: python /home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/robosuite/scripts/setup_macros.py (__init__.py:9)
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+/home/fahim/Thesis_fahim/venv/lib/python3.12/site-packages/gym/spaces/box.py:84: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+  [PlaceWrapper] Grasp agent loaded from /home/fahim/Thesis_fahim/pickandplace/checkpoints/td3_grasp_rand_td3_ln_cereal_alignwarm_s0/best
+  ep 0: success                steps  83  R_custom   145.55  R_builtin   42.20
+  ep 1: success                steps  86  R_custom   145.54  R_builtin   43.41
+  ep 2: success                steps  82  R_custom   145.42  R_builtin   42.14
+  ep 3: success                steps  98  R_custom   145.20  R_builtin   49.72
+  ep 4: success                steps 145  R_custom   140.82  R_builtin   72.45
+  ep 5: success                steps 119  R_custom   143.67  R_builtin   60.22
+  ep 6: transport_stall        steps 117  R_custom   -31.50  R_builtin   59.30
+  ep 7: success                steps 113  R_custom   144.96  R_builtin   55.15
+  ep 8: success                steps 119  R_custom   143.90  R_builtin   59.91
+  ep 9: success                steps  73  R_custom   146.09  R_builtin   37.59
+  ep 10: success                steps  94  R_custom   144.99  R_builtin   47.73
+  ep 11: success                steps 117  R_custom   143.79  R_builtin   59.65
+  ep 12: success                steps  98  R_custom   145.17  R_builtin   50.13
+  ep 13: transport_stall        steps 131  R_custom   -30.70  R_builtin   66.01
+  ep 14: success                steps  90  R_custom   145.69  R_builtin   46.07
+  ep 15: success                steps 135  R_custom   142.29  R_builtin   68.37
+  ep 16: success                steps  97  R_custom   144.20  R_builtin   49.28
+  ep 17: success                steps 102  R_custom   144.97  R_builtin   52.08
+  ep 18: success                steps 119  R_custom   143.64  R_builtin   60.25
+  ep 19: success                steps 110  R_custom   144.49  R_builtin   55.72

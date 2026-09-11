@@ -21,6 +21,9 @@ trainer runs is safe.  Trainers are detected by /proc comm (python*) plus the
 cmdline, never by pgrep -f.  Resumable: evaluations already in <out>/eval.tsv are
 not repeated.
 
+--no-stop scores the same way but never writes STOP: selection data for runs that
+train the full length, comparable with an early-stopped batch.
+
 Outputs: <out>/eval.tsv (run, episode, seed, ok, n, rested),
          <out>/decisions.tsv (run, event, best_episode, best_pct, latest_episode, time).
 """
@@ -72,6 +75,7 @@ def main():
     ap.add_argument("--grasp-ckpt", default="checkpoints/td3_grasp_rand_td3_ln_cereal_alignwarm_s0/best")
     ap.add_argument("--rot-anchor-eps", default="1e-6")
     ap.add_argument("--poll", type=int, default=30)
+    ap.add_argument("--no-stop", action="store_true", help="score snapshots, never write STOP")
     a = ap.parse_args()
     os.chdir(ROOT)
     os.makedirs(os.path.join(a.out, "csv"), exist_ok=True)
@@ -138,7 +142,8 @@ def main():
             rates = [sum(score[(run, ep, s)][0] for s in a.seeds) / max(1, sum(score[(run, ep, s)][1] for s in a.seeds))
                      for ep in prefix]
             bi = max(range(len(rates)), key=lambda i: (rates[i], -i))
-            if not stopped[run] and len(rates) - 1 - bi >= a.patience and prefix[-1] >= a.min_episode:
+            if (not a.no_stop and not stopped[run] and len(rates) - 1 - bi >= a.patience
+                    and prefix[-1] >= a.min_episode):
                 with open(os.path.join(run, "STOP"), "w") as fh:
                     fh.write(f"best snapshot ep_{prefix[bi]:05d} at {100*rates[bi]:.1f}%; "
                              f"{len(rates)-1-bi} later snapshots up to ep {prefix[-1]} did not beat it\n")

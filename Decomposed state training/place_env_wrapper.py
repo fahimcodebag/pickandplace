@@ -361,10 +361,23 @@ class PlaceGymWrapper:
         # subtracts idle_cost per policy step (the grasp-stage pricing fix,
         # thesis_context 9.9).  The custom reward is ALWAYS computed, because
         # termination reads its counters, and both are reported in info.
-        if reward_mode not in ("custom", "builtin", "builtin_idle"):
+        if reward_mode not in ("custom", "builtin", "builtin_idle", "builtin_potential"):
             raise ValueError(f"unknown reward_mode {reward_mode!r}")
         self._reward_mode = reward_mode
         self._idle_cost = float(idle_cost)
+        # "builtin_potential" (B'): robosuite's staged reward used as a POTENTIAL,
+        # r = GAMMA*Phi(s') - Phi(s) + 1.0 once on success, Phi = largest staged
+        # term.  Holding still earns -(1-GAMMA)*Phi <= 0, so the stall trap of the
+        # bare built-in reward cannot exist.  Once placed (object-aware success),
+        # Phi is held at its maximum 0.7: robosuite zeroes the staged terms once an
+        # object counts as placed, which would otherwise charge the policy for
+        # succeeding.  Shaping and success are reported separately (r_bpot_shape,
+        # r_bpot_sparse) so train_place.py --anneal-shaping can rescale the shaping
+        # term toward sparse (C').
+        self._BPOT_SUCCESS = 1.0
+        self._BPOT_PHI_SUCCESS = 0.7
+        self._prev_bphi = 0.0
+        self._bpot_success_paid = False
 
         # Expose gym spaces (place agent uses the same obs/action spaces)
         self.observation_space = gym_env.observation_space
@@ -740,10 +753,21 @@ class PlaceGymWrapper:
         # on non-release steps only when the env was built with reward_shaping=True.
         info["r_env_raw"] = float(r_env_raw)
         info["released"] = bool(released)
+        phi_b = self._bpot_phi()
+        r_bpot_shape = self._GAMMA * phi_b - self._prev_bphi
+        self._prev_bphi = phi_b
+        r_bpot_sparse = 0.0
+        if self._success_given and not self._bpot_success_paid:
+            r_bpot_sparse = self._BPOT_SUCCESS
+            self._bpot_success_paid = True
+        info["r_bpot_shape"] = float(r_bpot_shape)
+        info["r_bpot_sparse"] = float(r_bpot_sparse)
         if self._reward_mode == "builtin":
             reward = r_builtin
         elif self._reward_mode == "builtin_idle":
             reward = r_builtin - self._idle_cost
+        elif self._reward_mode == "builtin_potential":
+            reward = r_bpot_shape + r_bpot_sparse
         return obs, reward, done, info
 
     def close(self):
@@ -839,6 +863,8 @@ class PlaceGymWrapper:
         # so the first step's gamma*Phi(s') - Phi(s) measures real progress
         # rather than a spurious jump up from zero.
         self._prev_phi = self._potential(obj_pos, self._get_target_bin_pos())
+        self._bpot_success_paid = False
+        self._prev_bphi = self._bpot_phi()
 
     # --- Place reward computation ------------------------------------------
 
@@ -882,6 +908,12 @@ class PlaceGymWrapper:
         env = self._raw_env
         env._check_success()
         return float(np.sum(env.objects_in_bins) + max(env.staged_rewards()))
+
+    def _bpot_phi(self):
+        """Potential for builtin_potential: largest staged term; 0.7 once placed."""
+        if self._success_given:
+            return self._BPOT_PHI_SUCCESS
+        return float(max(self._raw_env.staged_rewards()))
 
     def _place_reward(self, obs_dict):
         obj_pos = self._get_obj_pos(obs_dict)
