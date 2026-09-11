@@ -22,8 +22,12 @@ QUEUE="B:scr_s10 B:scr_s11 B:scr_s12 B:warm_s10 B:warm_s11 B:warm_s12 C:scr_s10 
 alive_runs() {   # distinct place runs with a live python trainer
   for p in /proc/[0-9]*; do
     case "$(cat $p/comm 2>/dev/null)" in
-      python*) tr '\0' ' ' < $p/cmdline 2>/dev/null \
-                 | grep -o 'train_place\.py.*--place-chkpt-dir [^ ]*' | grep -o '[^/ ]*$' ;;
+      # sed, not grep -o '[^/ ]*$': that also emits an empty match per line, which
+      # sort -u turns into one phantom run (caught by the control before launch).
+      # /proc cmdline has no trailing newline: add one, or sed's output runs every
+      # run name together onto one line (the second control caught that).
+      python*) { tr '\0' ' ' < $p/cmdline 2>/dev/null; echo; } \
+                 | sed -n 's|.*train_place\.py.*--place-chkpt-dir [^ ]*/\([^/ ][^/ ]*\).*|\1|p' ;;
     esac
   done | sort -u | wc -l
 }
