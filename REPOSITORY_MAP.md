@@ -34,6 +34,8 @@ rediscovered from scratch months later. A finding must be reachable from
 §9.17) — FP32 90.67 → **93.58%**, INT8 78.33 → **83.58%**, quantization cost
 12.33 → **10.00**. Fixed-spawn cells are unchanged and un-re-measured.
 
+**Resume point (2026-09-11):** `thesis_context.md` §9.18 status block. Curriculum pair finished; its report lands in `Results/curriculum_pair/correlation_report.txt`; cereal from-scratch arm still training (`logs/train_place_cerealscratch_s*.log`).
+
 **Harness note:** measure through `fsm_sim.py` itself, not a reimplementation.
 `main()` runs a respawn-and-retry handoff loop that a custom driver will miss,
 and it is worth ~2 points.

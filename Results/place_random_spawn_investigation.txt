@@ -263,3 +263,16 @@ ARTIFACTS
                          pairfix}_s*  (finished);  td3_place_cur{F,R}_s*,
                          td3_place_cerealscratch_s*  (training)
   results                Results/curriculum_pair/
+
+--------------------------------------------------------------------------------
+STATUS UPDATE 2026-09-11 15:30
+--------------------------------------------------------------------------------
+CURRICULUM PAIR FINISHED (4,000 episodes each).
+                 final frac            last-window success / 50
+    fixed        0.77  0.49  0.36        8   10   32
+    random       0.45  0.45  0.53       35   10   27
+Within-arm variance dominates; no between-arm gap.  Final snapshot evaluation
+in progress (379 rows); report -> Results/curriculum_pair/correlation_report.txt
+via finish_curriculum_pair.sh (resumable).
+CEREAL FROM SCRATCH: episode ~3,400/4,000, frac 0.42 / 0.20 / 0.40, success
+20 / 27 / 10 per 50.  Interim -- needs its own evaluator (the pair's is bread).

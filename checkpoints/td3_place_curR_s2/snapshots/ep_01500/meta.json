@@ -1,0 +1,17 @@
+{
+ "episode": 1500,
+ "frac50": 0.39099999999999996,
+ "place50": 0.68,
+ "metric": 0.26588,
+ "best_metric": 0.32536000000000004,
+ "avg_score100": 99.7221839736308,
+ "reasons50": {
+  "success": 34,
+  "transport_stall": 10,
+  "timeout_dropped": 2,
+  "release_miss": 1,
+  "fell_off_table": 3
+ },
+ "time_step": 46976,
+ "mem_cntr": 46970
+}

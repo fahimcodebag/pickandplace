@@ -26,7 +26,7 @@
 > the episode). **Quantization cost on random spawn falls 12.33 → 10.00.**
 > Fixed-spawn cells have not been re-measured with the anchor.
 >
-> Last updated: 2026-09-09
+> Last updated: 2026-09-11
 
 ---
 
@@ -1148,7 +1148,7 @@ FP32 90.67 → **93.58%**, INT8 78.33 → **83.58%**, quantization cost 12.33 �
    placement (99.7%) and scored success (89.7%) diverge by ~10 points for
    cereal alone, confounding every bread-vs-cereal comparison (§9.17).
 8. `can` grasp is trained (best 0.995, seeds 0/1 to ~55k); `milk` is untrained.
-9. **Random-spawn place training (§9.18).** Final correlation report pending from
+9. **Random-spawn place training (§9.18) — see the dated status block there.** Final correlation report from
    `finish_curriculum_pair.sh`; cereal from-scratch arm running. Also untested:
    robosuite built-in reward on the place stage; wrapper scripted phases still
    write `a[3:6] = 0`; training wrapper vs FSM release constants disagree.
@@ -1373,6 +1373,16 @@ and pins joint 5 in ~10% of random-spawn carries; the training wrapper and the
 deployed FSM disagree on release radius (0.10 vs 0.18), hold count (5 vs 3) and
 translation scale (0.5 vs 0.65). robosuite's built-in reward has **never** been
 tried on the place stage.
+
+**Status 2026-09-11 15:30 (resume here).** Curriculum pair FINISHED (4,000 episodes):
+final frac fixed 0.77 / 0.49 / 0.36, random 0.45 / 0.45 / 0.53; last-window success per 50 fixed
+8 / 10 / 32, random 35 / 10 / 27 — large within-arm variance, no between-arm gap. Final
+snapshot evaluation was running (379 rows); `finish_curriculum_pair.sh` writes
+`Results/curriculum_pair/correlation_report.txt` (resumable — rerun if killed). Cereal
+from-scratch arm (`td3_place_cerealscratch_s0-2`) at episode ~3,400/4,000, frac 0.42 / 0.20 / 0.40.
+**Next:** read the report; write a cereal evaluator (copy `eval_place_snapshot_job.sh` with cereal +
+`cereal_alignwarm_s0` grasp); compare cereal-from-scratch with the warm-started cereal runs on
+`time_step`; commit `cerealscratch` checkpoints once its trainers exit.
 
 ---
 
