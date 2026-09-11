@@ -134,9 +134,18 @@ anneal threshold 0 over 40 episodes, 20-episode anneal): PASS
   anneal triggered at episode 40; snapshot ep_00050 records shaping_weight 0.55 =
   1 - 0.9 * (50 - 40) / 20 and anneal_start 40; run completed cleanly (exit 0)
 
+INCIDENT 2026-09-12 00:23 -- OUT OF MEMORY, ALL RUNS LOST, RESTARTED
+  Launching all three batches at once (18 runs x ~9 processes, plus evaluators)
+  exhausted the 98 GB WSL VM: the kernel logged a global OOM at 00:23, killed Python
+  processes holding ~1 GB each, and the VM shut down at 00:25.  The runs had reached
+  episodes 250-300 (A), 50-100 (B') and 0 (C'); none had reached the 500-episode
+  checkpoint that saves the replay buffer, so nothing was resumable.  Partial outputs
+  are archived under checkpoints/, logs/ and Results/_interrupted_20260912/.
+  RESTART PLAN: batch A alone first and measure its memory; then B' alongside it if
+  the measured footprint allows; C' when A's early stopping frees capacity.
+
 RESULTS
   Batch A launched 2026-09-12 (td3_place_cerES_{scr,warm}_s{10,11,12}, es_watch.py
   -> Results/place_es).
-  Batches B' (td3_place_cerBP_*) and C' (td3_place_cerBPann_*) launched 2026-09-12,
-  scored by es_watch.py --no-stop -> Results/place_es_B, Results/place_es_C.
+  (first launch lost to the OOM incident above; batch A relaunched 2026-09-12 ~00:55)
   (pending)
