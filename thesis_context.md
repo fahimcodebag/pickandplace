@@ -1147,7 +1147,11 @@ FP32 90.67 → **93.58%**, INT8 78.33 → **83.58%**, quantization cost 12.33 �
 7. **Decide how cereal is scored.** The environment's z-window makes physical
    placement (99.7%) and scored success (89.7%) diverge by ~10 points for
    cereal alone, confounding every bread-vs-cereal comparison (§9.17).
-8. `can` and `milk` per-object policies are untrained.
+8. `can` grasp is trained (best 0.995, seeds 0/1 to ~55k); `milk` is untrained.
+9. **Random-spawn place training (§9.18).** Final correlation report pending from
+   `finish_curriculum_pair.sh`; cereal from-scratch arm running. Also untested:
+   robosuite built-in reward on the place stage; wrapper scripted phases still
+   write `a[3:6] = 0`; training wrapper vs FSM release constants disagree.
 
 **Methodological rules earned the hard way in this campaign:**
 
@@ -1205,7 +1209,9 @@ It saturates.
 | limit proximity (0 = at a stop) | 0.007 | 0.070 |
 | motion achieved / commanded | 4.6% | 15.5% |
 | windows moving <5 mm in 12 steps | 67% | 4% |
-| contacts (arm or box vs bins) | none | none |
+| contacts (arm or box vs bins) | 0.0% of 2,802 stalled steps¹ | — |
+
+¹ *Correction and re-measurement (2026-09-11):* this row first read "none / none" from a check that matched geom names containing `bin` — but the only named bin geoms are visual legs, so collision was never actually measured. Re-measured with geoms classified by **parent body** (validated on a box resting on the bin floor): at `ROT_ANCHOR_EPS = 0`, 2,802 stalled steps were **100% joint-pinned with 0.0% arm/object–environment contact**; with the fix, stalled steps fell to 0 and success rose 16/40 → 33/40. The original conclusion holds — it is now measured rather than assumed.
 
 Nothing in the loop bounds joint angles: OSC consumes Cartesian deltas, and
 `nullspace_torques` regulates posture toward `initial_joint` but never reads
@@ -1325,6 +1331,49 @@ never retries, bread's `bi_s0` is 87.1% certified and often does.
 place policy has ever been trained — so that row is cost-matched (zero training
 either way), not evidence that a trained cereal policy would lose. Bears on §10.
 
+### 9.18 Random-spawn place training — what fails, and what does not (interim)
+
+`Results/place_random_spawn_investigation.txt`. Still running: the controlled
+curriculum pair (`Results/curriculum_pair/`) and a cereal from-scratch arm.
+
+**A per-object cereal place policy loses to not training one.** Warm-started
+from the bread place actor, 5 seeds: mean **67.77%** (sd 18.52) against
+**73.33%** for the bread policy transferred and **89.17%** scripted. A first
+evaluation that read `best/` while trainers overwrote it reported 1–16% for
+three seeds; they were 36–72% once the trainers exited.
+
+**Grasp-stage levers do not transfer to place — a second falsified transfer.**
+Batch 1024 + critic 512/256 cost **−28.44** and collapsed seed variance
+(sd 18.52 → 2.03) exactly as on grasp (17.18 → 2.84), onto a worse mean. Buffer
+size alone was worth +4; a 2M buffer never fills at 8,000 episodes.
+
+**Not the cause:** warm actor with cold critic (loading critics and skipping
+warmup still collapsed 85% → 11%), curriculum forgetting, policy freezing, drops,
+a kinematic block, or bin collision.
+
+**What was established.** The curriculum never advanced past ~0.40 in any
+collapsed run, while the original fixed-spawn run reached 0.96. With the policy
+removed, fixed spawn scores **100%** at frac 0.2 and random spawn ~80% (bread),
+37.5% (cereal): fixed spawn's first rungs are free, because `frac` is relative to
+each episode's distance while the release radius is absolute. Collapsed policies
+sit at that zero-action floor at every distance, commanding *harder* than the
+working policy, and fail by self-induced distribution shift — correct on the old
+policy's states, wrong on their own.
+
+**What is not established: that random spawn itself is the problem.** Every
+collapsed run was cereal, warm-started, or both. In the controlled bread pair —
+from scratch, only spawn differs — both arms show the same advance → collapse →
+recover-or-regress cycle at ~0.40 and no gap between them. Snapshots must be
+compared on `time_step`, not episode: `learn()` is a no-op below 5,120
+transitions, and fixed-spawn episodes are short enough that learning starts ~250
+episodes later.
+
+Smaller defects found: the wrapper's scripted carry still writes `a[3:6] = 0`
+and pins joint 5 in ~10% of random-spawn carries; the training wrapper and the
+deployed FSM disagree on release radius (0.10 vs 0.18), hold count (5 vs 3) and
+translation scale (0.5 vs 0.65). robosuite's built-in reward has **never** been
+tried on the place stage.
+
 ---
 
 ## 10. Thesis Claim Status
@@ -1343,5 +1392,7 @@ either way), not evidence that a trained cereal policy would lose. Bears on §10
 | Reward shaping can direct fine-grained grasp geometry | **Falsified** | Four interventions failed; the critic never represents the axis (corr −0.004 across six critics) (§9.8) |
 | Perception can run far below control rate | **Demonstrated in simulation** | `recompute` flat to a 20× update period at 10 mm noise → 5% duty cycle (§9.14) |
 | AprilTag closed-loop perception on hardware | **Open** | §9.15 |
+| Grasp-stage hyperparameter levers transfer to the place stage | **Falsified** | Critic resets +20..+30 grasp, −30 transport (§9.6); batch 1024 + critic 512/256 −28.44 on place, collapsing variance onto a worse mean (§9.18) |
+| Random spawn itself prevents place-policy training | **Not supported (open)** | All collapsed runs were cereal and/or warm-started; the controlled bread pair from scratch shows no fixed/random gap so far; cereal from-scratch arm running (§9.18) |
 
 ---

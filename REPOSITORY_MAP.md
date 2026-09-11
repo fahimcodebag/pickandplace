@@ -102,6 +102,20 @@ These predate the decomposition; `train_v8.py` is the last monolithic loop
 
 ---
 
+### Place-training diagnostics (§9.18)
+| File | What it does |
+|---|---|
+| `run_curriculum_pair.sh` | Controlled fixed-vs-random place pair, bread, from scratch, snapshots. |
+| `run_cereal_scratch.sh` | Cereal random-spawn place from scratch. |
+| `run_place_big.sh`, `run_place_smallbuf.sh`, `run_place_pairfix.sh` | Recipe and warm-start arms. |
+| `eval_place_snapshots.sh` + `eval_place_snapshot_job.sh` | End-to-end evaluation of every snapshot (resumable). |
+| `analyze_place_snapshots.py` | Training metric vs end-to-end correlation, keyed on `time_step`. |
+| `finish_curriculum_pair.sh` | Unattended: wait for trainers, final eval, write the report. |
+| `stop_runs.sh` | Stop runs by pattern, filtering on `/proc` comm so it cannot kill its caller. |
+| `osc_anchor.py` | `ROT_ANCHOR_EPS`, shared by `fsm_sim.py` and the place wrapper. |
+
+---
+
 ## 2. Directories
 
 | Directory | Contents |
@@ -142,6 +156,8 @@ certification), `gripfix*`, `rv2` (reward v2), `align` (yaw alignment),
 quantization sweeps), `buf200k/500k/1000k` (buffer size), `long60k`,
 `cereal_{base,align}[warm]` (per-object, cereal).
 
+`td3_place*` random-spawn investigation (§9.18): `_cereal_s*` (default recipe), `_cerealbig_s*` / `_cerealsmall_s*` / `_breadbig_s*` (recipe arms), `_pairfix_s*` (critics warm-started), `_curF_s*` / `_curR_s*` (controlled fixed vs random pair, with `snapshots/`), `_cerealscratch_s*` (cereal from scratch).
+
 `td3_place*` variants: `_bi_s*` (paired with the shipped grasp), `_rs_reset_*`
 vs `_rs_control_*` (critic-reset ablation), `*_backup` (manual saves).
 
@@ -161,6 +177,7 @@ vs `_rs_control_*` (critic-reset ablation), `*_backup` (manual saves).
 | `fsm_fp32_validation.txt`, `fsm_rule_layer_sweep.txt` | The FSM replica matches the eval harness; rule-layer tuning. |
 | `transport_stall_diagnosis.txt` | **Central.** Three failure causes; Fix A/C adopted, Fix B/D rejected. Part 3's "blocked class is unfixable from the rule layer" is correct *as scoped*, and carries a forward pointer — superseded in **disposition**, not analysis, by `orientation_anchor.txt`. |
 | `transport_retrain_negative.txt`, `wrist_alignment_negative.txt` | Settled negatives — do not retry. `KEEP_ROTATION=1` (−52 pts) is also settled, but do **not** read it as "rotation: closed" — see `thesis_context.md` §9.13. |
+| `place_random_spawn_investigation.txt` | **Newest** (`thesis_context.md` §9.18, interim). Why random-spawn place training collapses: not buffer, critic warm start, forgetting, freezing, drops or collision; curriculum never advances; collapsed policies sit at the zero-action floor. The controlled pair does not (yet) support "random spawn is the cause". Raw data in `Results/curriculum_pair/`. |
 | `orientation_anchor.txt` | **Newest** (`thesis_context.md` §9.17). `a[3:6]=0` freezes `goal_ori` in robosuite's OSC → joint 5 saturates against its one-sided range. `ROT_ANCHOR_EPS=1e-6` recovers the blocked class: FP32 random 90.67→93.58%, INT8 random 78.33→83.58%, quantization cost 12.33→10.00. Also documents the cereal scoring artifact (physical 99.7% vs scored 89.7%) that confounds bread-vs-cereal comparisons. |
 | `object_generalisation.txt`, `cereal_per_object.txt`, `orientation_ablation.txt`, `yaw_alignment.txt` | Beyond bread; per-object policies; ablations. |
 | `pruning_distillation.txt` | Parameter reduction vs accuracy. |

@@ -1,0 +1,265 @@
+================================================================================
+RANDOM-SPAWN PLACE TRAINING -- what fails, and what does not
+STATUS: INTERIM (2026-09-11).  The controlled curriculum pair and the cereal
+from-scratch arm are still training; the correlation report is produced
+unattended by finish_curriculum_pair.sh.
+================================================================================
+
+QUESTION
+Can a place (transport) policy be trained for random spawn -- per object, or at
+all?  thesis_context 9.13 records random-spawn transport retraining as a
+settled negative (bread, twice, six seeds).  This thread started from a
+per-object cereal place policy and ended somewhere else.
+
+--------------------------------------------------------------------------------
+1. PER-OBJECT CEREAL PLACE POLICY LOSES TO NOT TRAINING ONE
+--------------------------------------------------------------------------------
+Warm-started from the bread place actor, default recipe (buffer 200k / batch
+512 / critic 64x32, LayerNorm), random spawn, 8000 episodes, 5 seeds.  Final
+best/ checkpoints, deterministic through fsm_sim, 12 eval seeds x 50:
+
+    s2 85.33   s3 76.00   s1 71.83   s0 69.17   s4 36.50
+    mean 67.77%   sd 18.52
+    bread policy transferred (control)   73.33%   pooled -5.57, t(59)=-2.31
+    scripted waypoint transport          89.17%
+
+EVALUATION ARTIFACT FOUND ON THE WAY.  A first evaluation read best/ while the
+trainers were still overwriting it and reported s0/s1/s4 as 16.33/3.50/1.17%.
+Re-run after the trainers exited: 69.17/71.83/36.50%.  The two seeds whose
+best/ was already stable came back bit-identical.  Never evaluate checkpoints
+owned by a running trainer.
+
+--------------------------------------------------------------------------------
+2. GRASP-STAGE HYPERPARAMETER LEVERS DO NOT TRANSFER TO PLACE
+--------------------------------------------------------------------------------
+Warm-started from cereal s2 (85.33%), 3 seeds each, 12 x 50:
+
+    arm        buffer  batch  critic    cereal mean   sd
+    default    200k    512    64x32       67.77%     18.52
+    big        2M      1024   512x256     35.22%     29.43
+    smallbuf   200k    1024   512x256     39.33%      2.03
+
+    smallbuf - big   (buffer alone)        +4.11
+    smallbuf - def   (batch + critic)     -28.44
+
+Bread, same big recipe, warm-started CROSS-object from cereal s2: 27.00 / 34.33
+/ 11.83, mean 24.39%, against 92.50% for the untouched fixed-spawn original.
+
+The batch/critic change COLLAPSED seed variance (sd 18.52 -> 2.03) almost
+exactly as it did on grasp (17.18 -> 2.84) -- onto a mean 28 points worse.  The
+mechanism transfers; the benefit inverts.  Together with critic resets (grasp
++20..+30, transport -30; 9.6) this is a second, independent falsified transfer.
+
+BUFFER ARITHMETIC.  The place stage makes ~38-49 transitions per episode
+(391,472 at episode 8000), so a 2M buffer fills only at ~40-52k episodes.  At
+8000 episodes it is 15-20% full and never cycles.  Correct arithmetic, causally
+minor: buffer size alone is worth +4.
+
+--------------------------------------------------------------------------------
+3. WARM ACTOR + COLD CRITIC IS NOT THE CAUSE
+--------------------------------------------------------------------------------
+Actor-only warm starts load no critic and run 10,000 steps of random warmup
+before the actor acts.  --warm-start-critics --skip-warmup removes both
+(banner: [actor, critics, no-random-warmup]).  Result:
+    best/ for s1, s2 byte-identical to the source (never improved on)
+    periodic weights at ~2,500 episodes: 10.67 / 42.33 / 12.00% end-to-end
+The policy still collapses from 85%.  best/ hid it: the best-selector kept the
+initialisation, so earlier "final" figures overstated what training produced.
+
+--------------------------------------------------------------------------------
+4. THE CURRICULUM, AND WHY FIXED SPAWN CLIMBS IT
+--------------------------------------------------------------------------------
+Reverse curriculum (Hurdle 5): a scripted carry hands off at frac x distance;
+frac advances 0.2 -> 1.0 only on >= 75% success over 40 NOISY training
+episodes.  Maximum frac ever reached:
+    cereal/pairfix/cerealsmall/cerealbig/breadbig    0.30-0.40
+    cerealbig over ~26,000 episodes                  0.30
+    9.13 bread attempts                              0.60 / 0.40
+    original fixed-spawn run (thesis_context 3)      0.96 at 88%
+
+ZERO-ACTION SCAFFOLDING FLOOR (policy removed, 40 episodes each):
+    bread   fixed   frac 0.2  100.0% / 100.0%   frac 0.3  95.0% / 82.5%
+    bread   random  frac 0.2   77.5% /  80.0%   frac 0.3  42.5% / 37.5%
+                                (random actions / zero actions)
+    cereal  random  frac 0.2   37.5%   frac 0.5   0.0%   frac 1.0   0.0%
+    source cereal s2 (trained)  87.5%            65.0%              60.0%
+
+At fixed spawn the first rungs are FREE: the curriculum advances before the
+policy learns anything.  Mechanism: frac is RELATIVE to each episode's distance
+but the release radius is ABSOLUTE (0.10 m).  Fixed spawn's distance is a
+constant ~0.37 m, so frac 0.2 = 7.4 cm, always inside the radius.  Random spawn
+reaches 0.65 m, so frac 0.2 is up to 13 cm and a third of handoffs start
+outside it.
+
+--------------------------------------------------------------------------------
+5. SMALLER DEFECTS, REAL BUT NOT THE CAUSE
+--------------------------------------------------------------------------------
+SCRIPTED CARRY PINS JOINT 5.  _scripted_carry_toward_bin builds its action
+with np.zeros, so a[3:6] = 0 freezes goal_ori -- the orientation_anchor defect,
+inside the curriculum carry.  Bread, random spawn, zero actions:
+    eps 0     carry reached stop 36/40, ran out of steps 4, handoff max 0.416 m
+    eps 1e-6  carry reached stop 40/40, ran out 0,      handoff max 0.130 m
+    success   32 -> 33 (frac 0.2)   15 -> 18 (frac 0.3)
+NOT yet fixed in place_env_wrapper.py: the carry and the release routine still
+write a[3:6] = 0.
+
+TRAIN / DEPLOY MISMATCH.
+    constant               training wrapper   deployed FSM
+    release radius              0.10              0.18
+    release hold steps             5                 3
+    translation scale            0.5              0.65
+    RECENTER phase               none            60 steps
+Same weights (cereal s2): 60% at full distance in the wrapper, 85.33% through
+the FSM.  The original fixed-spawn model trained under the same mismatch and
+deploys at 93.58%, so it is survivable -- but it is a defect.
+
+--------------------------------------------------------------------------------
+6. WHAT A COLLAPSED PLACE POLICY ACTUALLY DOES
+--------------------------------------------------------------------------------
+AT THE ZERO-ACTION FLOOR, AT EVERY DISTANCE (cereal, random spawn, pinned frac):
+                     frac 0.2   0.5    1.0
+    zero actions       37.5     0.0    0.0
+    source s2          87.5    65.0   60.0
+    pairfix s0 final   37.5     0.0    0.0     identical to zeros
+    pairfix s1 final   45.0     5.0    2.5
+    pairfix s2 final   57.5    12.5    0.0
+Not curriculum forgetting (that predicts short-hop skill kept); the policy is
+nullified even at the difficulty it trained on.
+
+NOT FREEZING.  On 710 states visited by the working policy:
+                  |a_xy|  saturated  toward bin
+    source s2      0.768     29.9%      97%
+    pairfix s0     1.138     55.3%      31%
+    pairfix s1     0.649     16.9%      73%
+    pairfix s2     1.193     65.7%     100%
+Collapsed actors command harder, not less, in seed-dependent directions.
+
+DROPS DO NOT PRECEDE IT.  dropped + fell_off_table stayed at 0-1 per 50 while
+success fell from ~41 to 11-28 in the first ~400 episodes.
+
+NOT A KINEMATIC BLOCK.  Commanded vs achieved motion, last 30 steps before
+termination, full distance:
+                            track   cos(a, to bin)   obj z   stall distance
+    source s2  success      23.3%       +0.74        1.614       0.131
+    source s2  stall        25.0%       -0.39        1.549       0.223
+    pairfix s2 stall        24.2%       -0.18        1.097       0.489
+    pairfix s0 stall        24.8%       -0.62        1.281       0.749
+Tracking is ~24% for everyone, including successes.  What separates them is
+DIRECTION near termination.  pairfix s2 points toward the bin on 100% of the
+source's states but away on its own terminal states: self-induced distribution
+shift, the classic off-policy actor-critic failure.  Collapsed policies carry
+lower and stall far from the bin.
+
+NO COLLISION.  0.0% agent-environment contact in every outcome class, with a
+validated detector (section 8).
+
+--------------------------------------------------------------------------------
+7. THE CONTROLLED PAIR -- AND WHY "RANDOM SPAWN FAILS" IS NOT ESTABLISHED
+--------------------------------------------------------------------------------
+Every collapsed run above was CEREAL, WARM-STARTED, or both.  The curriculum
+pair removes both: bread, from scratch, default recipe, same grasp policy,
+same seeds, ONLY --random-spawn differs, snapshots every 250 episodes.
+
+LEARNING-GATE TIMING CONFOUND.  td3.py learn() is a no-op until
+mem_cntr >= batch_size * 10 = 5,120; the actor acts only once time_step >=
+10,000.  Fixed-spawn episodes are short (the scaffolding finishes them), so:
+    curF_s0  ep 500  mem_cntr 3,620   actor = seeded init
+    curR_s2  ep 500  time_step 13,112 already acting
+Snapshots at ep 250/500 were byte-identical within a seed and ACROSS arms at
+the same seed -- the initialisation.  Compare arms on time_step, not episode.
+
+INTERIM TRAJECTORY (success per 50, curF ep ~2,100 / curR ep ~1,570):
+  * Every collapse, in BOTH arms, immediately follows a curriculum advance --
+    the Hurdle 5 limit cycle at ~0.40, reproduced.
+      curF_s1  frac 0.40 at ep 1200 -> 8, 0, 0, 4 -> frac REGRESSED -> 32-37
+      curF_s2  50/50 x6 at 0.40 -> 0.45 -> 20,16,20,2,20,5 -> recovering to 23
+      curR_s1  0.30 -> 20 ... 9 -> recovers 43-45 -> advances to 0.35
+  * No between-arm gap: recent fixed seeds 23-50, random seeds 27-46.
+Fixed spawn climbs faster because its early rungs are free, and so reaches the
+hard 0.40-0.45 zone first.  Nothing yet shows random spawn cannot learn
+transport.
+
+CORRELATION (training metric vs end-to-end), interim: fixed pooled n=9
+trained snapshots, place50 Spearman +0.13, frac50 +0.15, metric +0.14 -- too
+few to read.  Final: Results/curriculum_pair/correlation_report.txt.
+
+CEREAL FROM-SCRATCH ARM (td3_place_cerealscratch_s0-2, launched 2026-09-11):
+curR with one change, the object.  Collapses -> the failure is cereal.
+Healthy -> the failure was warm-starting.
+
+--------------------------------------------------------------------------------
+8. CORRECTIONS MADE DURING THIS THREAD
+--------------------------------------------------------------------------------
+* CONTACT DETECTOR.  Filtering geom names on "bin" matches only the visual legs;
+  the colliding walls and floor are unnamed.  A box resting on the bin floor
+  gave 4 contacts and zero hits.  Classifying by parent body fixes it
+  (validated: registers place_bin|object).  Consequence for
+  orientation_anchor.txt: its "contacts NONE" row was unsupported when written;
+  RE-MEASURED at eps 0 it holds -- 2,802 stalled steps, 100% joint-pinned,
+  0.0% contact -- and eps 1e-6 removes stalls entirely (16/40 -> 33/40).
+* OBJECT MISMATCH.  A bread zero-action floor (80%) was compared against cereal
+  runs to claim "learning is worse than doing nothing".  Cereal's floor is
+  37.5%; the claim is withdrawn.
+* ETA.  A place-training ETA extrapolated from early, mostly-failing episodes
+  (4 h) was too short: successes run the full place phase, so rising success
+  lowers episodes per minute.
+
+--------------------------------------------------------------------------------
+9. LEDGER
+--------------------------------------------------------------------------------
+REFUTED            buffer size as the cause; batch/critic transfer (harmful);
+                   warm actor + cold critic / random warmup; curriculum
+                   forgetting; "worse than zero actions" (object mismatch);
+                   policy freezing; drops preceding collapse; kinematic block;
+                   bin collision; scripted-carry pin as the primary cause
+ESTABLISHED        cereal per-object place training loses to transfer;
+                   grasp levers do not transfer to place; curriculum never
+                   advances in the collapsed runs; fixed spawn's early rungs
+                   are free (relative frac vs absolute radius); collapsed
+                   policies sit at the zero-action floor and fail by
+                   self-induced distribution shift; learning-gate timing
+                   confound between spawn conditions
+NOT SUPPORTED YET  "random spawn itself breaks place training" -- the only
+                   controlled comparison shows no gap
+OPEN               cereal vs warm-start (arm running); what drives the
+                   self-induced shift; robosuite built-in reward never tried
+                   on place (see 10); wrapper scripted phases still write
+                   a[3:6] = 0; train/deploy constant mismatch
+
+--------------------------------------------------------------------------------
+10. BUILT-IN REWARD ON THE PLACE STAGE -- NEVER TRIED
+--------------------------------------------------------------------------------
+train_place.py constructs PickPlace with reward_shaping=False and replaces it
+with the custom potential (thesis_context 3, Hurdle 1).  robosuite's
+staged_rewards() was adopted only for GRASP (9.9, 79.2 -> 87.1% certified).
+It is dense and includes an approach term: r_hover rises toward 0.7 as the
+lifted object nears the bin.  Two risks to price before training (9.10):
+  * r_hover is a STATE reward paid every step over the bin -- the Hurdle 1
+    hover exploit that moved this stage to potential shaping.
+  * the grasp version scored "never gripped" second-best until an idle cost
+    was added, because terminating early forfeits remaining per-step income.
+
+--------------------------------------------------------------------------------
+METHOD NOTES
+--------------------------------------------------------------------------------
+* Evaluate checkpoints only after the owning trainer exits, or from write-once
+  snapshots (train_place.py --snapshot-every writes ep_XXXXX.tmp then renames).
+* Key cross-condition comparisons on training progress (time_step), not
+  episode index, whenever episode length depends on the condition.
+* Give every detector a positive control before trusting a zero.
+* When comparing against a floor or baseline, check it is the same object.
+* Background jobs: identify by /proc comm + cmdline, never pgrep -f alone.
+
+ARTIFACTS
+  train_place.py flags   --object-type --seed --batch-size --buffer-size
+                         --critic-fc1/2 --warm-start-critics --skip-warmup
+                         --snapshot-every
+  scripts                run_place_big.sh  run_place_smallbuf.sh
+                         run_place_pairfix.sh  run_curriculum_pair.sh
+                         run_cereal_scratch.sh  eval_place_snapshots.sh
+                         eval_place_snapshot_job.sh  analyze_place_snapshots.py
+                         finish_curriculum_pair.sh  stop_runs.sh
+  checkpoints            td3_place_{cereal,cerealbig,cerealsmall,breadbig,
+                         pairfix}_s*  (finished);  td3_place_cur{F,R}_s*,
+                         td3_place_cerealscratch_s*  (training)
+  results                Results/curriculum_pair/
