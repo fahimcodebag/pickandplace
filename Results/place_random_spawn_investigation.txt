@@ -362,3 +362,47 @@ ANSWER -- late-training instability; not the object, spawn or warm-starting:
 NOT DONE (ask before starting): best_cerealscratch_s2 vs scripted transport,
 paired at 12 x 100 through fsm_sim; robosuite built-in reward on place; wrapper
 scripted phases still write a[3:6] = 0; train/deploy constant mismatch.
+
+--------------------------------------------------------------------------------
+ADDENDUM 2026-09-11 -- CHECKPOINT SELECTION ON END-TO-END SUCCESS, HELD OUT
+--------------------------------------------------------------------------------
+Does choosing the snapshot with the best END-TO-END success, instead of the
+training metric, rescue a usable policy?  run_place_selection.sh: for each run the
+peak snapshot on the selection seeds (7 31 47 89 x 50), best/ and the final weights,
+re-scored on 8 held-out seeds x 100 (101 123 211 307 401 503 555 2024), same grasp
+and protocol as the selection evals (bread with the bi_s0 grasp; --rot-anchor-eps
+1e-6).  Report: Results/place_selection/report.txt.
+
+                        peak ep   peak [selection]   best/    final
+    cerealscratch_s0      1000    40.50 [43.0]       38.88    28.75
+    cerealscratch_s1       500    12.75 [10.0]       18.50     0.00
+    cerealscratch_s2      2250    87.25 [89.0]       89.00    13.38
+    curF_s0               2500    86.12 [85.0]       27.75    26.50
+    curF_s1               4000    32.50 [34.5]       24.12    32.50
+    curF_s2               1000    25.62 [26.5]       25.88     1.12
+    curR_s0               3750    46.88 [44.0]       38.50    38.50
+    curR_s1                750    84.50 [85.5]       52.75     2.50
+    curR_s2               1750    34.38 [34.0]       28.75     4.62
+    mean bread (6)                51.67              32.96    17.62
+    mean cereal (3)               46.83              48.79    14.04
+  references, same held-out seeds: bread td3_place/best 93.25%; cereal, bread
+  actor transferred 73.50%.
+  Determinism: curF_s1 peak == final weights (260/800 both); curR_s0 best/ ==
+  final (308/800 both).
+
+  * THE PEAKS ARE REAL.  Every held-out peak is within 3 points of its selection
+    value, so the max over 16 noisy snapshots was not a winner's-curse artifact.
+    Peak minus final weights: +34 bread, +33 cereal.
+  * best/ IS UNRELIABLE.  It caught the peak on cereal, but missed it by 58 points
+    on curF_s0 and 32 on curR_s1.
+  * SELECTION RESCUES ONE RUN OF NINE.  cerealscratch_s2 peak 87.25% (best/ 89.00%)
+    against 73.50% transfer: +13.75, t(7)=+6.73, 8 up / 0 down.  The best bread
+    peaks stay significantly below the deployed place actor: curF_s0 -7.12
+    (t(7)=-3.60), curR_s1 -8.75 (t(7)=-4.61).
+  * FOUR RUNS NEVER LEARNED.  cerealscratch_s1, curF_s1, curF_s2 and curR_s2 never
+    exceed ~35% at any snapshot, and curR_s0 / cerealscratch_s0 plateau at 41-47%.
+    Selection cannot rescue a run that never learned.
+  So end-to-end selection is necessary -- the final weights are 33-34 points worse
+  -- but not sufficient: training itself must keep its peak and reach it more
+  often.  Not started (ask first): early stopping on periodic end-to-end
+  evaluation, or a lower actor learning rate after the first peak.

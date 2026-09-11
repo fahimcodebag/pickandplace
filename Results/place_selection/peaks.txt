@@ -1,0 +1,9 @@
+cerealscratch_s0 1000
+cerealscratch_s1 500
+cerealscratch_s2 2250
+curF_s0 2500
+curF_s1 4000
+curF_s2 1000
+curR_s0 3750
+curR_s1 750
+curR_s2 1750

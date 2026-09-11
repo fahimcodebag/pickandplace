@@ -1324,7 +1324,8 @@ spawn (§9.17.1): leave it off.
 6. `can` grasp is trained (best 0.995, seeds 0/1 to ~55k); `milk` is untrained.
 7. **Random-spawn place training (§9.18)** — finished and evaluated. The open problem is
    late-training instability: every configuration rises then degrades, and final weights
-   score far below `best/`. Also untested: robosuite built-in reward on the place stage;
+   score 33–34 points below each run's peak on held-out seeds. End-to-end selection rescues
+   1 run of 9 (§9.18). Also untested: robosuite built-in reward on the place stage;
    wrapper scripted phases still write `a[3:6] = 0`; training wrapper vs FSM release
    constants disagree.
 
@@ -1605,8 +1606,25 @@ instability** of the place stage, which the rolling metric and `best/` only part
 Confound: `cereal_s0-4` launched before the wrapper gained `ROT_ANCHOR_EPS` on the policy path
 (`0fc9a20`); `pairfix` and the scratch arm share code.
 
-**Next:** select place checkpoints on end-to-end evaluation of snapshots rather than the training
-metric; held-out test in `Results/place_selection/`; and the open items in §9.16.
+**Checkpoint selection on end-to-end success, tested out of sample** (`Results/place_selection/`).
+Each run's peak snapshot on the 4 selection seeds, its `best/` and its final weights, re-scored on
+8 held-out seeds × 100 with the same grasp and protocol (bread with the `bi_s0` grasp):
+
+| mean over runs | peak | `best/` | final | reference, same seeds |
+|---|---|---|---|---|
+| bread (6 runs) | 51.67% | 32.96% | 17.62% | `td3_place/best` 93.25% |
+| cereal (3 runs) | 46.83% | 48.79% | 14.04% | bread actor transferred 73.50% |
+
+The peaks held out of sample (every held-out peak within 3 points of its selection value), so the
+gap to the final weights is real: +34 points bread, +33 cereal. `best/` caught the peak on cereal
+but missed it by 58 points on `curF_s0` and 32 on `curR_s1`. **Selection rescues a usable policy in
+one run of nine:** `cerealscratch_s2` peak 87.25% (`best/` 89.00%) against 73.50% transfer, +13.75,
+t(7)=+6.73, 8u/0d. The best bread peaks (86.12, 84.50%) stay significantly below the deployed place
+actor (−7.12, −8.75). Four runs never exceed ~35% at any snapshot: selection cannot rescue a run that
+never learned. End-to-end selection is necessary, not sufficient.
+
+**Next (ask first):** training-side changes against the late collapse — early stopping on periodic
+end-to-end evaluation, or a lower actor learning rate after the first peak; and the open items in §9.16.
 
 ---
 

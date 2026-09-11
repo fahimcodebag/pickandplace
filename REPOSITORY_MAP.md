@@ -202,6 +202,7 @@ Section numbers are `thesis_context.md` sections.
 | `orientation_anchor_c2m512.txt`; raw data in `anchor_c2m512/` | §9.17.1. The anchor on the deployed artifact: baseline reproduced to the episode, prediction committed first, −2.75 FP32 / −2.50 INT8 on random spawn; the loss is in steeply tilted grasps. |
 | `place_random_spawn_investigation.txt` | **Newest** (§9.18, final). Place training rises then degrades in every configuration — from scratch and warm-started, bread and cereal, fixed and random spawn — and final weights score far below `best/`. Not random spawn, not the object, not warm-starting: late-training instability is the open problem. Also not buffer, critic warm start, forgetting, freezing, drops or collision. |
 | `curriculum_pair/` | Bread fixed vs random spawn from scratch; every snapshot scored end-to-end; `correlation_report.txt` = training metric vs end-to-end (§9.18). |
+| `place_selection/` | Place-checkpoint selection on end-to-end success, re-scored on 8 held-out seeds × 100: peak vs `best/` vs final weights vs reference (§9.18). |
 | `cereal_scratch/` | Cereal from scratch vs warm-started cereal on transitions: `report.txt`; `eval.tsv` (4×50 per checkpoint), `protocol.tsv` (12×50), `control.tsv` (positive control) (§9.18). |
 | `object_generalisation.txt` | Zero-shot to unseen objects fails, ordered by shape rather than size (§9.15.2). |
 | `orientation_ablation.txt` | World-frame orientation input is nearly free; gripper-frame is essential (§9.15.2). |
