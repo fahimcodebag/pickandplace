@@ -25,10 +25,19 @@ Measured (Results/orientation_anchor.txt, 12 seeds x 100, paired):
 DISTINCT from passing a policy's real rotational outputs through, which costs
 -52 points and remains rejected (thesis_context.md 9.13).
 
-Imported by fsm_sim.py (evaluation) AND
-"Decomposed state training/place_env_wrapper.py" (the training environment).
-Both must use it: a place policy trained with a[3:6]=0.0 learns to cope with a
-pinned wrist, and would then be evaluated in an environment that does not pin
-it.  That mismatch is why this constant lives in one file.
+ON THE DEPLOYED c2m512_s1 IT HURTS (Results/orientation_anchor_c2m512.txt):
+    FP32 random spawn   94.92% -> 92.17%   -2.75  t(11)=-4.29
+    INT8 random spawn   95.33% -> 92.83%   -2.50  t(11)=-3.74
+It rescues the rare joint-5 pin (0.42% of episodes) but lets steep grasps drift.
+
+WHO USES THIS VALUE (since 2026-09-11)
+  * "Decomposed state training/place_env_wrapper.py" -- the TRAINING environment.
+    Unchanged: every place run in Results/place_random_spawn_investigation.txt
+    trained with it.
+  * fsm_sim.py no longer defaults to it: its evaluation default is 0.0 (anchor
+    off), matching the firmware and the deployed artifact.  Evaluating a place
+    policy trained with the anchor needs --rot-anchor-eps 1e-6 passed explicitly,
+    which eval_place_snapshot_job.sh, eval_cereal_scratch_job.sh and
+    run_place_selection.sh do.
 """
 ROT_ANCHOR_EPS = 1e-6

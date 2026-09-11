@@ -100,9 +100,12 @@ CONSEQUENCES
   * The headline stands as recorded: random INT8 95.33 / FP32 94.92, fixed INT8
     99.83 / FP32 100.0 -- measured with the anchor off, which the firmware matches.
   * Do NOT mirror ROT_ANCHOR_EPS into pick_and_place_INT8_FSM.ino for c2m512_s1.
-  * fsm_sim.py defaults to ROT_ANCHOR_EPS = 1e-6 (since 4932118).  Any evaluation
-    of c2m512_s1 must pass --rot-anchor-eps 0, or it reads ~2.5-2.75 pts low on
-    random spawn.  No such evaluation was found in the repo's scripts.
+  * fsm_sim.py's default was 1e-6 from 4932118 until 2026-09-11 and is now 0.0
+    (anchor off).  Verified: a run with no flag reproduces the eps-0 CSV to the
+    episode (c2m512_s1 random FP32 seed 13: 0 mismatches, against 89 with eps
+    1e-6), and check_fsm_sync.py still passes 24/24.  The training wrapper keeps
+    osc_anchor.ROT_ANCHOR_EPS = 1e-6.  No stored c2m512_s1 result used the old
+    default.
   * The bi_s0 result (orientation_anchor.txt) stands for bi_s0.  The anchor's net
     effect depends on how often the grasp drives joint 5 to its stop: 3.17% of
     episodes for bi_s0, 0.42% for c2m512_s1.  "Prevention, not escape" was right

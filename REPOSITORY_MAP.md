@@ -32,7 +32,8 @@ rediscovered from scratch months later. A finding must be reachable from
 
 **Recently revised:** the deployed grasp is **`c2m512_s1`** (`thesis_context.md`
 §9.15.1), replacing `bi_s0`. §9.17's `ROT_ANCHOR_EPS` helped `bi_s0` but **hurts
-`c2m512_s1`** on random spawn (§9.17.1): evaluate it with `--rot-anchor-eps 0`.
+`c2m512_s1`** on random spawn (§9.17.1). `fsm_sim.py` now defaults to 0.0 (anchor off); place policies
+trained with the anchor are evaluated with `--rot-anchor-eps 1e-6`.
 
 **Resume point (2026-09-11, evening):** `thesis_context.md` §9.18 status block. Curriculum pair and cereal from-scratch arm finished and evaluated end-to-end (`Results/curriculum_pair/correlation_report.txt`, `Results/cereal_scratch/report.txt`): place training rises then degrades in every configuration.
 
@@ -116,7 +117,7 @@ These predate the decomposition; `train_v8.py` is the last monolithic loop
 | `eval_cereal_scratch.sh` + `eval_cereal_scratch_job.sh` | Cereal end-to-end evaluation: every `cerealscratch` snapshot plus the final actor of each warm-started cereal run; records robosuite success and physical rest (`--settle-steps 60`). Resumable. |
 | `analyze_cereal_scratch.py` | Cereal from scratch vs warm-started cereal (and bread `curR`), keyed on transitions collected. |
 | `stop_runs.sh` | Stop runs by pattern, filtering on `/proc` comm so it cannot kill its caller. |
-| `osc_anchor.py` | `ROT_ANCHOR_EPS`, shared by `fsm_sim.py` and the place wrapper. |
+| `osc_anchor.py` | `ROT_ANCHOR_EPS = 1e-6`, the TRAINING value (place wrapper). `fsm_sim.py` defaults to 0.0 since 2026-09-11 (§9.17.1). |
 | `run_anchor_c2m512.sh` + `analyze_anchor_c2m512.py` | The anchor on the deployed artifact (§9.17.1): `baseline` (eps 0, reproduces the recorded CSVs), `treatment` (eps 1e-6, refuses to run without `PREDICTION.txt`), `mechanism` (tilt probe). |
 | `anchor_probe.py` | Passive probe around `fsm_sim.main()`: blocked/pinned carries, gripper tilt, release point. Positive control on `bi_s0`. |
 | `run_place_selection.sh` + `analyze_place_selection.py` | Place-checkpoint selection on end-to-end success, re-scored on held-out seeds (§9.18). |
@@ -255,7 +256,7 @@ meant to survive this host, those are the two gaps to close first.
 ### Known stale / open
 * `.tflite` in repo root — stale, matches neither deployed model (§9.4).
 * `PROJECT_CONTEXT.md` — June, monolithic era.
-* `fsm_sim.py` defaults to `ROT_ANCHOR_EPS = 1e-6`, which understates `c2m512_s1` by 2.50–2.75 points on random spawn; pass `--rot-anchor-eps 0` (§9.17.1).
+* Joint-5-gated anchor untested (§9.16).
 * `ROT_ANCHOR_EPS` is deliberately not in the `.ino`: it hurts the deployed `c2m512_s1` (§9.17.1).
 * Place training degrades late in every configuration; select place checkpoints on end-to-end evaluation of snapshots, not the training metric (§9.18).
 * The cereal "learned" baseline in `thesis_context.md` §9.17 / §10 is the bread

@@ -1310,9 +1310,9 @@ spawn (§9.17.1): leave it off.
 
 **Open:**
 
-1. **Decide `fsm_sim.py`'s `ROT_ANCHOR_EPS` default.** It is 1e-6, which understates the deployed
-   `c2m512_s1` by 2.50–2.75 points on random spawn (§9.17.1); the place wrapper shares the constant.
-   Until decided, pass `--rot-anchor-eps 0` for `c2m512_s1`. Untested: re-anchor only near joint 5's stop.
+1. **Joint-5-gated anchor (untested).** Re-anchoring only while joint 5 is near its stop could keep
+   the blocked-class gain without the tilt loss (§9.17.1). `fsm_sim.py`'s default is 0.0 (anchor off)
+   since 2026-09-11; the place-training wrapper keeps 1e-6 from `osc_anchor.py`.
 2. **Do not mirror `ROT_ANCHOR_EPS` to `pick_and_place_INT8_FSM.ino`** for `c2m512_s1` (§9.17.1):
    the firmware's `a[3:6] = 0` is the better configuration for the deployed artifact.
 3. `train_place.py` still uses a 50-episode best-window (§9.7).
@@ -1400,7 +1400,8 @@ reads the stall as convergence.
 **The fix.** `ROT_ANCHOR_EPS = 1e-6` in `fsm_sim.py`, written into `a[3:6]`
 instead of exactly 0.0. It scales to ~5e-7 rad and moves nothing; its only
 effect is to flip the `isclose()` branch so `goal_ori` re-anchors each step.
-`--rot-anchor-eps 0.0` reproduces every number recorded before this was found.
+`--rot-anchor-eps 0.0` reproduces every number recorded before this was found. **`fsm_sim.py`'s default
+became 0.0 on 2026-09-11 (§9.17.1): pass `--rot-anchor-eps 1e-6` to reproduce this section.**
 
 | cell (12 seeds × 100, paired) | before | after | Δ | t(11) | seeds |
 |---|---|---|---|---|---|
@@ -1538,8 +1539,9 @@ the trade that paid for `bi_s0` loses for `c2m512_s1`. (Tilt is read from the gr
 equals the controller's `ee_ori_mat` and reads 9.8° at the initial pose.)
 
 **Consequences.** The headline stands: it is the anchor-off configuration the firmware runs. Do not
-mirror the anchor to the `.ino` for `c2m512_s1`. `fsm_sim.py` defaults to `ROT_ANCHOR_EPS = 1e-6`, so
-pass `--rot-anchor-eps 0` for any `c2m512_s1` evaluation. Untested candidate: re-anchor only while
+mirror the anchor to the `.ino` for `c2m512_s1`. `fsm_sim.py` now defaults to `ROT_ANCHOR_EPS = 0.0`
+(a no-flag run reproduces the eps-0 CSV to the episode); the place-training wrapper keeps 1e-6, so
+place policies trained with the anchor are evaluated with `--rot-anchor-eps 1e-6`. Untested candidate: re-anchor only while
 joint 5 is near its stop, which leaves every carry that never approaches the stop unchanged.
 
 ### 9.18 Random-spawn place training — what fails, and what does not

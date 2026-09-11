@@ -177,7 +177,9 @@ ADOPTED
   ROT_ANCHOR_EPS = 1e-6      fsm_sim.py, all four TRANSPORT sites (both the
                              scripted paths and the place-actor path).
                              --rot-anchor-eps 0.0 reproduces every pre-fix
-                             number.
+                             number.  fsm_sim.py's DEFAULT is 0.0 since
+                             2026-09-11 (caveat 5): pass --rot-anchor-eps 1e-6
+                             to reproduce this file.
   --settle-steps N           dual-criterion scoring.  Reports robosuite's
                              success AND whether the object came to REST in the
                              target compartment, using robosuite's own xy

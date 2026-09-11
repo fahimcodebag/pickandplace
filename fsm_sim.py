@@ -99,13 +99,20 @@ KEEP_ROTATION = 0               # 1 = do not zero a[3:6] during TRANSPORT
 # unfixable from the rule layer -- three escape maneuvers recovered 0/88.  It
 # was never a rule-layer defect; it was the controller interface.
 # Set to 0.0 to reproduce every number recorded before this was found.
+# DEFAULT IS 0.0 (ANCHOR OFF) SINCE 2026-09-11.  On the deployed c2m512_s1 the
+# anchor COSTS random spawn 2.75 FP32 / 2.50 INT8 points: steep grasps drift once
+# goal_ori follows the arm (Results/orientation_anchor_c2m512.txt, thesis_context
+# 9.17.1).  The firmware writes 0 as well.  Pass --rot-anchor-eps 1e-6 to reproduce
+# the bi_s0 anchor numbers above, and whenever evaluating a place policy that was
+# TRAINED with the anchor (eval_place_snapshot_job.sh, eval_cereal_scratch_job.sh
+# and run_place_selection.sh already do).
 # NOTE: distinct from KEEP_ROTATION=1, which passes the place policy's LARGE
 # rotational outputs through and costs -52.33 points.  That stays rejected.
-# Defined in osc_anchor.py so the TRAINING environment
-# ("Decomposed state training/place_env_wrapper.py") uses the same value --
-# a policy trained with a[3:6]=0.0 learns around a pinned wrist and would then
-# be evaluated in an environment that does not pin it.
-from osc_anchor import ROT_ANCHOR_EPS
+# The TRAINING value lives in osc_anchor.py and is still 1e-6: the place wrapper
+# ("Decomposed state training/place_env_wrapper.py") imports it from there, so
+# changing this evaluation default does not change training.
+from osc_anchor import ROT_ANCHOR_EPS as TRAIN_ROT_ANCHOR_EPS  # noqa: F401  (1e-6)
+ROT_ANCHOR_EPS = 0.0
 # Fix D -- pose gate at handoff. Results/handoff_carry: the object's pose in the
 # gripper predicts whether the carry survives (AUC 0.915 FP32, 0.826 INT8), and
 # the INT8 pose shift accounts for 57% of its excess drop rate. A durable grip
@@ -519,8 +526,11 @@ def main():
     p.add_argument("--touch-margin", type=float, default=TOUCH_MARGIN)
     p.add_argument("--rt-steps", type=int, default=RT_STEPS)
     p.add_argument("--rot-anchor-eps", type=float, default=ROT_ANCHOR_EPS,
-                   help="value written to a[3:6] during TRANSPORT. 0.0 freezes "
-                        "goal_ori (pre-fix behaviour); 1e-6 re-anchors it.")
+                   help="value written to a[3:6] during TRANSPORT. Default 0.0 "
+                        "freezes goal_ori: best for the deployed c2m512_s1, and "
+                        "what the firmware does. 1e-6 re-anchors it: reproduces "
+                        "the bi_s0 anchor numbers; use it for place policies "
+                        "trained with the anchor.")
     p.add_argument("--success-criterion", choices=("robosuite", "object-aware"),
                    default="robosuite",
                    help="'robosuite' reproduces every previously recorded "
