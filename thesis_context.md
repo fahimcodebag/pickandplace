@@ -25,8 +25,9 @@
 > (held-out, 12 seeds × 100). **Hardware: 97/100 on the ESP32 under random spawn.**
 > **With AprilTag perception running on the ESP32 itself** (no PSRAM): **89.67%**
 > against a 94% ground-truth ceiling (§9.14.3).
-> These predate §9.17's `ROT_ANCHOR_EPS` fix, which was measured only on the older
-> `bi_s0` (INT8 78.33 → 83.58%, FP32 90.67 → 93.58%); `c2m512_s1` is unmeasured with it.
+> These are anchor-off figures, which is also what the firmware runs. §9.17's `ROT_ANCHOR_EPS`
+> helped the older `bi_s0` (INT8 78.33 → 83.58%, FP32 90.67 → 93.58%) but **costs `c2m512_s1`
+> 2.50–2.75 points on random spawn** (§9.17.1): leave it off for the deployed artifact.
 >
 > Last updated: 2026-09-11
 
@@ -1268,8 +1269,8 @@ Also measured: jerk is not what drops objects; grip *quality* is, and the
 monolithic v7 grip is 11–13 points better than the decomposed INT8 grip
 (`Results/grip_robustness.txt`).
 
-**Caveat:** §9.17's `ROT_ANCHOR_EPS` gains were measured on `bi_s0`. `c2m512_s1`
-has not been re-measured with the anchor.
+**Anchor:** §9.17's `ROT_ANCHOR_EPS` gains were measured on `bi_s0`. On `c2m512_s1` the anchor
+costs 2.75 FP32 / 2.50 INT8 points on random spawn (§9.17.1); the figures above are anchor-off.
 
 ### 9.15.2 Beyond bread — generalisation, orientation, compression, cereal (09-06 → 09-08)
 
@@ -1304,14 +1305,16 @@ place actor (`place_orig_int8`, never retrained) and an FP32 AprilTag corrector
 **95.33%** / FP32 94.92%, fixed spawn INT8 99.83% / FP32 100.0% (§9.15.1). **HIL 97/100**
 under random spawn on the ESP32 (§8.4, §9.15.1). AprilTag perception on the ESP32 itself:
 **89.67%** vs a 94% ceiling (§9.14.1–9.14.3). Rule-layer tuning (§9.15). §9.17's
-`ROT_ANCHOR_EPS` gains belong to the superseded `bi_s0` only.
+`ROT_ANCHOR_EPS` helped the superseded `bi_s0` and **costs `c2m512_s1` 2.50–2.75 points** on random
+spawn (§9.17.1): leave it off.
 
 **Open:**
 
-1. **Measure `c2m512_s1` with `ROT_ANCHOR_EPS`**, random and fixed spawn, 12×100 paired.
-   No anchor number exists for the deployed artifact (§9.15.1, §9.17).
-2. **Mirror `ROT_ANCHOR_EPS` to `pick_and_place_INT8_FSM.ino`** and add it to
-   `check_fsm_sync.py` (§9.17 caveat 4).
+1. **Decide `fsm_sim.py`'s `ROT_ANCHOR_EPS` default.** It is 1e-6, which understates the deployed
+   `c2m512_s1` by 2.50–2.75 points on random spawn (§9.17.1); the place wrapper shares the constant.
+   Until decided, pass `--rot-anchor-eps 0` for `c2m512_s1`. Untested: re-anchor only near joint 5's stop.
+2. **Do not mirror `ROT_ANCHOR_EPS` to `pick_and_place_INT8_FSM.ino`** for `c2m512_s1` (§9.17.1):
+   the firmware's `a[3:6] = 0` is the better configuration for the deployed artifact.
 3. `train_place.py` still uses a 50-episode best-window (§9.7).
 4. The `.tflite` files in the repo root are stale; they match neither deployed model (§9.4).
 5. **Decide how cereal is scored.** The environment's z-window makes physical
@@ -1354,8 +1357,8 @@ under random spawn on the ESP32 (§8.4, §9.15.1). AprilTag perception on the ES
 
 `Results/orientation_anchor.txt`. Supersedes the disposition (not the analysis)
 of `Results/transport_stall_diagnosis.txt` Part 3. **Every main-pipeline cell in this
-section uses the superseded `bi_s0` grasp; the deployed `c2m512_s1` has not been
-measured with the anchor (§9.15.1).**
+section uses the superseded `bi_s0` grasp; on the deployed `c2m512_s1` the anchor
+costs 2.50–2.75 points (§9.17.1).**
 
 **The mechanism.** robosuite's OSC updates the position goal unconditionally but
 the orientation goal only when the rotational delta is nonzero
@@ -1505,6 +1508,36 @@ never retries, bread's `bi_s0` is 87.1% certified and often does.
 place policy had been trained when this was measured (§9.18) — so that row is cost-matched (zero training
 either way), not evidence that a trained cereal policy would lose. Bears on §10.
 
+### 9.17.1 The anchor on the deployed `c2m512_s1` — it hurts
+
+`Results/orientation_anchor_c2m512.txt`. Same protocol as the recorded headline (held-out
+seeds, 12 × 100, paired, through `fsm_sim.py`). The eps-0 baseline reproduced every recorded
+cell with **0 episode mismatches**, and the prediction was committed before the treatment ran.
+
+| cell | eps 0 | eps 1e-6 | Δ | t(11) | seeds |
+|---|---|---|---|---|---|
+| random FP32 | 94.92% | 92.17% | **−2.75** | −4.29 | 1u/10d/1t |
+| random INT8 | 95.33% | 92.83% | **−2.50** | −3.74 | 0u/8d/4t |
+| fixed FP32 / INT8 | 100.0 / 99.83% | 100.0 / 99.92% | 0 / +0.08 | — | ties |
+
+**Prediction falsified.** A passive probe of `fsm_sim.main()` (positive control: `bi_s0` blocked
+3.17% against the recorded 3.08%) sized `c2m512_s1`'s blocked class at 0.42% FP32 / 0.17% INT8, so
+at most +0.4 was predicted. The anchor did recover that class (4 of 5, 1 of 2), but
+released-not-placed failures rose 41 → 73.
+
+**Mechanism.** With `a[3:6] = 0` the OSC keeps restoring the grasp-time attitude; with the anchor
+the goal follows the measured attitude, so attitude error is no longer corrected. Steep grasps drift
+(misses: 6° → 13° over TRANSPORT, 75° → 82° at OPEN) and RECENTER releases them ~0.16 m off target.
+The loss is entirely in grasps handed off at ≥ 60° from vertical (19% of episodes): failures
+44 → 77; below 60°, 17 → 17. `bi_s0` pinned joint 5 in 3.2% of episodes and `c2m512_s1` in 0.4%, so
+the trade that paid for `bi_s0` loses for `c2m512_s1`. (Tilt is read from the grip-site frame, which
+equals the controller's `ee_ori_mat` and reads 9.8° at the initial pose.)
+
+**Consequences.** The headline stands: it is the anchor-off configuration the firmware runs. Do not
+mirror the anchor to the `.ino` for `c2m512_s1`. `fsm_sim.py` defaults to `ROT_ANCHOR_EPS = 1e-6`, so
+pass `--rot-anchor-eps 0` for any `c2m512_s1` evaluation. Untested candidate: re-anchor only while
+joint 5 is near its stop.
+
 ### 9.18 Random-spawn place training — what fails, and what does not
 
 `Results/place_random_spawn_investigation.txt` (final); raw data in
@@ -1573,7 +1606,7 @@ Confound: `cereal_s0-4` launched before the wrapper gained `ROT_ANCHOR_EPS` on t
 (`0fc9a20`); `pairfix` and the scratch arm share code.
 
 **Next:** select place checkpoints on end-to-end evaluation of snapshots rather than the training
-metric; measure `c2m512_s1` with `ROT_ANCHOR_EPS`; and the open items in §9.16.
+metric; held-out test in `Results/place_selection/`; and the open items in §9.16.
 
 ---
 
@@ -1587,7 +1620,7 @@ metric; measure `c2m512_s1` with `ROT_ANCHOR_EPS`; and the open items in §9.16.
 | Quantized deployment preserves task behavior | **Demonstrated** | `c2m512_s1`: INT8 95.33% vs FP32 94.92% random, 99.83% vs 100.0% fixed (held-out); clipping, in-loop QAT and a larger buffer/critic closed a 12-point gap (§9.15.1). HIL 97/100 on the ESP32 |
 | Decomposition confines spawn randomness to the grasp stage | **Demonstrated** | Grasp stage absorbed the randomness (79.2% → 87.1%); the transport policy was **never retrained** and the two attempts to retrain it both lost (§9.9, §9.13) |
 | A learned transport policy is not required for these tasks | **Demonstrated, modestly** | Scripted three-leg transport vs the learned place actor, both through `fsm_sim.py` at 12×100 with the superseded `bi_s0` grasp and `ROT_ANCHOR_EPS`: **bread 95.50% vs 93.58%, +1.92, t(11)=+2.87** (9u/2d/1t) — the fair test, since that actor was trained on bread. On **cereal** the learned arm is the bread policy *transferred* (a cereal place policy trained from scratch has since reached 88.67% at 12×50, §9.18, but is unpaired against scripted), so **89.17% vs 73.17%, +16.00** is a *cost-matched* claim — scripting and transfer both cost zero training — not scripted-vs-trained. The stage is replaceable; the bread margin is small |
-| Failure classes that resist the rule layer are defects one layer down | **Demonstrated** | The 3.08% "blocked at a joint limit" class survived three open-loop escapes at 1200 episodes each (0/88 recovered) and was recovered by a one-constant change to the controller interface (§9.17) |
+| Failure classes that resist the rule layer are defects one layer down | **Demonstrated** | The 3.08% "blocked at a joint limit" class survived three open-loop escapes at 1200 episodes each (0/88 recovered) and was recovered by a one-constant change to the controller interface (§9.17) — on `bi_s0`. On `c2m512_s1`, whose class is 0.42%, the same change costs 2.75 points (§9.17.1) |
 | The stage interface is the dominant design variable | **Demonstrated** | Aligning stage-1 certification with stage-2 handoff: 13% → 82% end-to-end, no architecture change (§9.5) |
 | Plasticity-loss remedies transfer across stages | **Falsified** | Critic resets: +20 to +30 on grasp, −30 on transport (§9.6) |
 | Reward shaping can direct fine-grained grasp geometry | **Falsified** | Four interventions failed; the critic never represents the axis (corr −0.004 across six critics) (§9.8) |

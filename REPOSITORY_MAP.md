@@ -18,7 +18,7 @@ Last surveyed: 2026-09-08 · artifact and results index revised 2026-09-11 · br
 |---|---|---|
 | `REPOSITORY_MAP.md` (this) | **Index.** Where everything is. | "Where is X?" / new to the repo |
 | `thesis_context.md` (~1,600 ln) | **Narrative.** What was tried, what failed, what superseded what. The header carries the current headline; §9.16 is the fresh-session entry point, §9.18 the newest finding; §10 is the claim-status table. | "Why is it like this?" / resuming work |
-| `Results/*.txt` (40 files) | **Evidence.** Measured tables at protocol, with method and caveats. | "What is the number, and how solid?" |
+| `Results/*.txt` (41 files) | **Evidence.** Measured tables at protocol, with method and caveats. | "What is the number, and how solid?" |
 
 `PROJECT_CONTEXT.md` (281 ln, last updated 2026-06-30) is an **older** context
 primer from the monolithic era and is superseded by `thesis_context.md` for
@@ -31,8 +31,8 @@ rediscovered from scratch months later. A finding must be reachable from
 `thesis_context.md` §9.16 or from this file, or it is effectively lost.
 
 **Recently revised:** the deployed grasp is **`c2m512_s1`** (`thesis_context.md`
-§9.15.1), replacing `bi_s0`. §9.17's `ROT_ANCHOR_EPS` gains were measured on
-`bi_s0` only; `c2m512_s1` has not been measured with the anchor.
+§9.15.1), replacing `bi_s0`. §9.17's `ROT_ANCHOR_EPS` helped `bi_s0` but **hurts
+`c2m512_s1`** on random spawn (§9.17.1): evaluate it with `--rot-anchor-eps 0`.
 
 **Resume point (2026-09-11, evening):** `thesis_context.md` §9.18 status block. Curriculum pair and cereal from-scratch arm finished and evaluated end-to-end (`Results/curriculum_pair/correlation_report.txt`, `Results/cereal_scratch/report.txt`): place training rises then degrades in every configuration.
 
@@ -117,6 +117,9 @@ These predate the decomposition; `train_v8.py` is the last monolithic loop
 | `analyze_cereal_scratch.py` | Cereal from scratch vs warm-started cereal (and bread `curR`), keyed on transitions collected. |
 | `stop_runs.sh` | Stop runs by pattern, filtering on `/proc` comm so it cannot kill its caller. |
 | `osc_anchor.py` | `ROT_ANCHOR_EPS`, shared by `fsm_sim.py` and the place wrapper. |
+| `run_anchor_c2m512.sh` + `analyze_anchor_c2m512.py` | The anchor on the deployed artifact (§9.17.1): `baseline` (eps 0, reproduces the recorded CSVs), `treatment` (eps 1e-6, refuses to run without `PREDICTION.txt`), `mechanism` (tilt probe). |
+| `anchor_probe.py` | Passive probe around `fsm_sim.main()`: blocked/pinned carries, gripper tilt, release point. Positive control on `bi_s0`. |
+| `run_place_selection.sh` + `analyze_place_selection.py` | Place-checkpoint selection on end-to-end success, re-scored on held-out seeds (§9.18). |
 
 ---
 
@@ -124,7 +127,7 @@ These predate the decomposition; `train_v8.py` is the last monolithic loop
 
 | Directory | Contents |
 |---|---|
-| `Results/` | 40 `.txt` evidence files, ~85 experiment subdirs of raw CSVs, `figures/`. See §4. `Results/big2m/` holds the `c2m512_s*` INT8 artifacts. |
+| `Results/` | 41 `.txt` evidence files, ~85 experiment subdirs of raw CSVs, `figures/`. See §4. `Results/big2m/` holds the `c2m512_s*` INT8 artifacts. |
 | `checkpoints/` | 161 run directories. Naming convention in §3. Each holds `best/` and periodic saves. |
 | `logs/` | 174 training logs, one per run, named to match its checkpoint family. |
 | `qat_output*/` | Quantization artifacts per campaign: `_bi` (holds the deployed `place_orig_int8`; its `bi_s0` grasp is superseded), `_fix`, `_phaseB`, `_reset`, `_corrector`. Each holds `.tflite`, the `_float32.tflite` reference, and the refined `.pt`. |
@@ -195,7 +198,8 @@ Section numbers are `thesis_context.md` sections.
 | `fsm_fp32_validation.txt`, `fsm_rule_layer_sweep.txt` | The FSM replica matches the eval harness (§9.11); rule-layer tuning (§9.15). |
 | `transport_stall_diagnosis.txt` | **Central.** Three failure causes; Fix A/C adopted, Fix B/D rejected. Part 3's "blocked class is unfixable from the rule layer" is correct *as scoped*, and carries a forward pointer — superseded in **disposition**, not analysis, by `orientation_anchor.txt` (§9.17). |
 | `transport_retrain_negative.txt`, `wrist_alignment_negative.txt` | Settled negatives — do not retry. `KEEP_ROTATION=1` (−52 pts) is also settled, but do **not** read it as "rotation: closed" — see `thesis_context.md` §9.13. |
-| `orientation_anchor.txt` | §9.17, **measured on the superseded `bi_s0`** (`c2m512_s1` is unmeasured with the anchor). `a[3:6]=0` freezes `goal_ori` in robosuite's OSC → joint 5 saturates against its one-sided range; `ROT_ANCHOR_EPS=1e-6` recovers the blocked class. Also documents the cereal scoring artifact (physical vs scored placement) that confounds bread-vs-cereal comparisons. |
+| `orientation_anchor.txt` | §9.17, **measured on the superseded `bi_s0`** (on `c2m512_s1` it hurts — see the next row). `a[3:6]=0` freezes `goal_ori` in robosuite's OSC → joint 5 saturates against its one-sided range; `ROT_ANCHOR_EPS=1e-6` recovers the blocked class. Also documents the cereal scoring artifact (physical vs scored placement) that confounds bread-vs-cereal comparisons. |
+| `orientation_anchor_c2m512.txt`; raw data in `anchor_c2m512/` | §9.17.1. The anchor on the deployed artifact: baseline reproduced to the episode, prediction committed first, −2.75 FP32 / −2.50 INT8 on random spawn; the loss is in steeply tilted grasps. |
 | `place_random_spawn_investigation.txt` | **Newest** (§9.18, final). Place training rises then degrades in every configuration — from scratch and warm-started, bread and cereal, fixed and random spawn — and final weights score far below `best/`. Not random spawn, not the object, not warm-starting: late-training instability is the open problem. Also not buffer, critic warm start, forgetting, freezing, drops or collision. |
 | `curriculum_pair/` | Bread fixed vs random spawn from scratch; every snapshot scored end-to-end; `correlation_report.txt` = training metric vs end-to-end (§9.18). |
 | `cereal_scratch/` | Cereal from scratch vs warm-started cereal on transitions: `report.txt`; `eval.tsv` (4×50 per checkpoint), `protocol.tsv` (12×50), `control.tsv` (positive control) (§9.18). |
@@ -250,8 +254,8 @@ meant to survive this host, those are the two gaps to close first.
 ### Known stale / open
 * `.tflite` in repo root — stale, matches neither deployed model (§9.4).
 * `PROJECT_CONTEXT.md` — June, monolithic era.
-* `c2m512_s1` has not been measured with `ROT_ANCHOR_EPS`; the anchor gains are `bi_s0` only (§9.16).
-* `ROT_ANCHOR_EPS` not mirrored to `.ino`; `check_fsm_sync.py` must gain it when it is.
+* `fsm_sim.py` defaults to `ROT_ANCHOR_EPS = 1e-6`, which understates `c2m512_s1` by 2.50–2.75 points on random spawn; pass `--rot-anchor-eps 0` (§9.17.1).
+* `ROT_ANCHOR_EPS` is deliberately not in the `.ino`: it hurts the deployed `c2m512_s1` (§9.17.1).
 * Place training degrades late in every configuration; select place checkpoints on end-to-end evaluation of snapshots, not the training metric (§9.18).
 * The cereal "learned" baseline in `thesis_context.md` §9.17 / §10 is the bread
   policy transferred. A from-scratch cereal place policy reached 88.67% at 12×50

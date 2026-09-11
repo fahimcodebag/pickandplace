@@ -18,3 +18,11 @@
   rand_int8   -30 episodes = -2.50 pts   t(11)=-3.74   0u/8d/4t   flips: 18 gained (1 were probe-blocked), 48 lost
   fixed_fp32  +0 episodes = +0.00 pts   t(11)=+0.00   0u/0d/12t   flips: 0 gained (0 were probe-blocked), 0 lost
   fixed_int8  +1 episodes = +0.08 pts   t(11)=+1.00   1u/0d/11t   flips: 1 gained (0 were probe-blocked), 0 lost
+
+5. MECHANISM (tilt probe, random FP32)
+  eps 0     scored 1200  fail 61  failed out of {'RETRACT': 41, 'TRANSPORT': 15, 'GRASP': 5}
+      success: tilt drift over TRANSPORT 1.54 deg, tilt at OPEN 47.060, xy error at OPEN 0.010 m, TRANSPORT steps 42.000
+      failure: tilt drift over TRANSPORT 6.03 deg, tilt at OPEN 75.450, xy error at OPEN 0.163 m, TRANSPORT steps 43.000
+  eps 1e-6  scored 1200  fail 94  failed out of {'RETRACT': 73, 'TRANSPORT': 17, 'GRASP': 4}
+      success: tilt drift over TRANSPORT 2.00 deg, tilt at OPEN 46.480, xy error at OPEN 0.004 m, TRANSPORT steps 43.000
+      failure: tilt drift over TRANSPORT 13.21 deg, tilt at OPEN 81.760, xy error at OPEN 0.157 m, TRANSPORT steps 37.000

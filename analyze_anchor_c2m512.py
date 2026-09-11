@@ -101,6 +101,29 @@ print("\n3. CLASS SIZE (anchor_probe.py at eps 0)")
 probe_summary("probe_bi_s0_fp32_eps0", PROT, recorded="1088/1200; blocked class 3.08%")
 blocked = {c: probe_summary(f"probe_{c}_eps0", HELD) for c in ("rand_fp32", "rand_int8")}
 
+def tilt_section():
+    """Mechanism run (run_anchor_c2m512.sh mechanism): tilt probe, random FP32, both eps."""
+    import statistics as st
+    have = {e: [f"{O}/tilt_rand_fp32_eps{e}_e{s}" for s in HELD] for e in ("0", "1e-6")}
+    if not all(os.path.exists(p + ".probe.csv") for v in have.values() for p in v):
+        print("  mechanism run incomplete"); return
+    for e, stems in have.items():
+        pr = [r for p in stems for r in rows(p + ".probe.csv")]
+        ok = [r for r in pr if r["final"] == "DONE_OK"]; bad = [r for r in pr if r["final"] != "DONE_OK"]
+        fr = Counter(r["fail_from"] or r["final"] or "none" for r in bad)
+        def med(v, k):
+            x = [float(r[k]) for r in v if r[k] not in ("", "nan")]
+            return f"{st.median(x):.3f}" if x else "--"
+        def drift(v):
+            x = [abs(float(r["tilt_end"]) - float(r["tilt_start"])) for r in v]
+            return f"{st.median(x):.2f}" if x else "--"
+        print(f"  eps {e:5s} scored {len(pr)}  fail {len(bad)}  failed out of {dict(fr)}")
+        print(f"      success: tilt drift over TRANSPORT {drift(ok)} deg, tilt at OPEN {med(ok,'tilt_open')},"
+              f" xy error at OPEN {med(ok,'d_open')} m, TRANSPORT steps {med(ok,'tr_steps')}")
+        print(f"      failure: tilt drift over TRANSPORT {drift(bad)} deg, tilt at OPEN {med(bad,'tilt_open')},"
+              f" xy error at OPEN {med(bad,'d_open')} m, TRANSPORT steps {med(bad,'tr_steps')}")
+
+
 print("\n4. EFFECT of --rot-anchor-eps 1e-6, paired on seed")
 for cell, (seeds, _) in CELLS.items():
     d = []; up = down = tie = 0; gained = lost = 0; gained_blocked = 0
@@ -122,3 +145,6 @@ for cell, (seeds, _) in CELLS.items():
               f"   flips: {gained} gained ({gained_blocked} were probe-blocked), {lost} lost")
     else:
         print(f"  {cell:11s} treatment incomplete ({len(d)}/{len(seeds)} seeds)")
+
+print("\n5. MECHANISM (tilt probe, random FP32)")
+tilt_section()

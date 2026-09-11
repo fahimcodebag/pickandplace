@@ -229,9 +229,10 @@ CAVEATS -- read before rewriting the headline table
    Panda's joint 5 has the same one-sided range.  check_fsm_sync.py must gain
    ROT_ANCHOR_EPS when that mirror happens.
 5. MEASURED ON bi_s0 ONLY.  Every MAIN-pipeline cell above uses the bi_s0 grasp,
-   since superseded by c2m512_s1 (thesis_context 9.15.1).  c2m512_s1 has not
-   been measured with ROT_ANCHOR_EPS, so none of these gains or the 12.33 ->
-   10.00 quantization cost may be quoted for the deployed artifact.
+   since superseded by c2m512_s1 (thesis_context 9.15.1).  On c2m512_s1 the anchor
+   HURTS random spawn (-2.75 FP32, -2.50 INT8; Results/orientation_anchor_c2m512.txt),
+   so none of these gains or the 12.33 -> 10.00 quantization cost apply to the
+   deployed artifact, and caveat 4's mirror to the .ino should NOT be made for it.
 
 --------------------------------------------------------------------------------
 METHOD NOTE

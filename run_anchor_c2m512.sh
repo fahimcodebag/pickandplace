@@ -26,11 +26,14 @@ HELD="13 59 71 137 199 257 331 419 547 601 733 911"
 PROT="7 31 47 89 101 123 211 307 401 503 555 2024"
 O=Results/anchor_c2m512; mkdir -p $O
 COMMON="--place-ckpt $PL --regrasp --rc-steps 60 --episodes 100"
+#   ./run_anchor_c2m512.sh mechanism [P]   anchor_probe.py (with tilt and release-point
+#        recording) on random FP32 at eps 0 AND 1e-6: what do the extra failures look like?
 case $PHASE in
   baseline)  E=0 ;;
   treatment) E=1e-6
              [ -s $O/PREDICTION.txt ] || { echo "record $O/PREDICTION.txt first"; exit 1; } ;;
-  *) echo "phase must be baseline or treatment"; exit 1 ;;
+  mechanism) E=none ;;
+  *) echo "phase must be baseline, treatment or mechanism"; exit 1 ;;
 esac
 J=$O/jobs_$PHASE.txt; : > $J
 job() {  # stem, then the command
@@ -39,6 +42,14 @@ job() {  # stem, then the command
   echo "$* --out $O/$stem.csv > $O/$stem.log 2>&1" >> $J
 }
 INT8="--int8 --grasp-tflite $GT --place-tflite $PT"
+if [ $PHASE = mechanism ]; then
+  for e in 0 1e-6; do for s in $HELD; do
+    job tilt_rand_fp32_eps${e}_e$s $PY anchor_probe.py --probe-out $O/tilt_rand_fp32_eps${e}_e$s.probe.csv --grasp-ckpt $C $COMMON --rot-anchor-eps $e --seed $s
+  done; done
+  echo "$PHASE: $(wc -l < $J) jobs at -P $P"
+  xargs -a $J -d '\n' -P $P -I{} bash -c '{}'
+  echo "$PHASE: done"; exit 0
+fi
 for s in $HELD; do
   job rand_fp32_eps${E}_e$s  $PY   fsm_sim.py        --grasp-ckpt $C $COMMON --rot-anchor-eps $E --seed $s
   job rand_int8_eps${E}_e$s  $TFPY fsm_sim.py  $INT8 --grasp-ckpt $C $COMMON --rot-anchor-eps $E --seed $s

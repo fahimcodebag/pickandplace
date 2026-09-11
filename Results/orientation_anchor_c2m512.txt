@@ -54,8 +54,43 @@ of run_fixed_c2m.sh.  --rot-anchor-eps 0 vs 1e-6, paired on seed.
   Successes finish at a median of ~100 scored steps, so the added failures end
   where released-not-placed episodes end, not at the TRANSPORT horizon.  The
   anchor trades a rare blocked carry for a common post-trigger miss.
-  MECHANISM: not yet measured.  anchor_probe.py now records gripper tilt through
-  TRANSPORT and the tilt and object-to-bin distance at the first OPEN step.
+
+5. MECHANISM -- steep grasps drift once the attitude goal follows the arm
+  anchor_probe.py with tilt recording, random FP32, both eps (run_anchor_c2m512.sh
+  mechanism; passive: 0 mismatches at either eps).  TILT = angle of the gripper
+  approach axis from vertical, read from the grip-site frame.  CONTROL: that frame
+  equals the controller's own ee_ori_mat, and reads 9.8 deg at the initial pose.
+
+                              eps 0             eps 1e-6
+    failed out of           RETRACT   41      RETRACT   73   (released, not placed)
+                            TRANSPORT 15      TRANSPORT 17
+                            GRASP      5      GRASP      4
+    medians                 success | miss    success | miss
+    tilt at TRANSPORT start    48   |  72        48   |  67   deg
+    tilt drift over TRANSPORT  1.5  |  6.0       2.0  |  13.4 deg
+    tilt at first OPEN         47   |  75        46   |  82   deg
+    xy error at first OPEN   0.010  | 0.163    0.004  | 0.157 m
+    xy error at TRANSPORT exit ~0.15 in every class (the 0.18 m release trigger)
+
+  BY GRASP TILT AT HANDOFF.  The same grasps occur in both arms -- the anchor acts
+  only in TRANSPORT, and the band counts agree to within 4 episodes.
+    tilt at handoff   episodes   failures eps 0   failures eps 1e-6
+      < 40 deg          249         9 ( 3.6%)        3 ( 1.2%)
+      40-50             404         4 ( 1.0%)        6 ( 1.5%)
+      50-60             319         4 ( 1.3%)        8 ( 2.5%)
+      60-70             138        14 (10.1%)       39 (27.7%)
+      >= 70              90        30 (33.3%)       38 (44.2%)
+  Below 60 deg: 17 -> 17 failures.  At or above 60 deg (19% of episodes): 44 -> 77.
+  The whole loss is in steeply tilted grasps.
+
+  READING.  With a[3:6] = 0 the OSC orientation goal stays at the grasp-time
+  attitude and the PD keeps pulling the gripper back to it.  With the anchor the
+  goal is reset to the measured attitude every step, so attitude error is never
+  corrected: a steep grasp drifts further (13 vs 6 deg), and RECENTER, which servos
+  position only, releases the box ~0.16 m off target.  On bi_s0 the same freedom
+  paid because holding the grasp attitude drove joint 5 into its stop in 3.2% of
+  episodes; c2m512_s1 pins in 0.4% but hands off at >= 60 deg in 19%.
+  UNTESTED CANDIDATE: re-anchor only while joint 5 is near its stop.
 
 CONSEQUENCES
   * The headline stands as recorded: random INT8 95.33 / FP32 94.92, fixed INT8
