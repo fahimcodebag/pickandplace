@@ -1,0 +1,22 @@
+Cereal trained vs scripted vs transfer -- generated 2026-09-11 22:55:05
+
+1. CONTROLS against the recorded CLI totals
+  scripted_eps1e-6       1070/1200 = 89.17%   recorded 1070/1200 = 89.17%   REPRODUCED
+  transfer_eps1e-6       878/1200 = 73.17%   recorded 878/1200 = 73.17%   REPRODUCED
+
+2. ARMS (12 seeds x 100)
+  scripted_eps1e-6       scored  89.17%   came to rest in the compartment  99.58%   per-seed [90, 91, 86, 92, 85, 93, 87, 86, 88, 90, 85, 97]
+  transfer_eps1e-6       scored  73.17%   came to rest in the compartment  84.42%   per-seed [77, 75, 70, 68, 77, 70, 72, 76, 74, 71, 76, 72]
+  transfer_eps0          scored  65.42%   came to rest in the compartment  70.33%   per-seed [56, 65, 64, 71, 72, 68, 62, 69, 56, 65, 68, 69]
+  trained_eps1e-6        scored  88.00%   came to rest in the compartment  96.50%   per-seed [81, 87, 86, 90, 90, 88, 86, 86, 91, 90, 88, 93]
+  trained_eps0           scored  65.33%   came to rest in the compartment  70.25%   per-seed [67, 60, 58, 68, 71, 67, 67, 59, 62, 69, 68, 68]
+  trained_r008_eps1e-6   scored  66.25%   came to rest in the compartment  71.67%   per-seed [67, 60, 72, 64, 63, 65, 74, 67, 69, 70, 71, 53]
+
+3. PAIRED on seed (percentage points, scored success; rest in brackets)
+  trained_eps1e-6        - scripted_eps1e-6    -1.17  t(11)= -1.03  3u/6d/3t   [rest  -3.08, t(11)= -4.54]
+  trained_r008_eps1e-6   - scripted_eps1e-6   -22.92  t(11)= -8.98  0u/12d/0t   [rest -27.92, t(11)=-17.85]
+  trained_eps0           - scripted_eps1e-6   -23.83  t(11)=-16.32  0u/12d/0t   [rest -29.33, t(11)=-18.76]
+  trained_eps1e-6        - transfer_eps1e-6   +14.83  t(11)=+10.12  12u/0d/0t   [rest +12.08, t(11)=+15.07]
+  trained_eps1e-6        - trained_eps0       +22.67  t(11)=+17.30  12u/0d/0t   [rest +26.25, t(11)=+16.75]
+  transfer_eps1e-6       - transfer_eps0       +7.75  t(11)= +4.08  11u/1d/0t   [rest +14.08, t(11)= +7.85]
+  trained_r008_eps1e-6   - trained_eps1e-6    -21.75  t(11)= -9.75  0u/12d/0t   [rest -24.83, t(11)=-13.19]

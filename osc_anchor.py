@@ -29,6 +29,9 @@ ON THE DEPLOYED c2m512_s1 IT HURTS (Results/orientation_anchor_c2m512.txt):
     FP32 random spawn   94.92% -> 92.17%   -2.75  t(11)=-4.29
     INT8 random spawn   95.33% -> 92.83%   -2.50  t(11)=-3.74
 It rescues the rare joint-5 pin (0.42% of episodes) but lets steep grasps drift.
+On the cereal alignwarm_s0 pipeline it HELPS the place actor again
+(Results/cereal_pairing.txt): transferred +7.75, trained +22.67.  The sign depends
+on the configuration.
 
 WHO USES THIS VALUE (since 2026-09-11)
   * "Decomposed state training/place_env_wrapper.py" -- the TRAINING environment.

@@ -1312,7 +1312,8 @@ spawn (§9.17.1): leave it off.
 
 1. **Joint-5-gated anchor (untested).** Re-anchoring only while joint 5 is near its stop could keep
    the blocked-class gain without the tilt loss (§9.17.1). `fsm_sim.py`'s default is 0.0 (anchor off)
-   since 2026-09-11; the place-training wrapper keeps 1e-6 from `osc_anchor.py`.
+   since 2026-09-11; the place-training wrapper keeps 1e-6 from `osc_anchor.py`. On the cereal pipeline the
+   anchor helps the place actor (+7.75 transfer, +22.67 trained, §9.18): the effect is configuration-dependent.
 2. **Do not mirror `ROT_ANCHOR_EPS` to `pick_and_place_INT8_FSM.ino`** for `c2m512_s1` (§9.17.1):
    the firmware's `a[3:6] = 0` is the better configuration for the deployed artifact.
 3. `train_place.py` still uses a 50-episode best-window (§9.7).
@@ -1508,7 +1509,8 @@ fire when the grasp fails to hand off — cereal's grasp is 96.5–100% and almo
 never retries, bread's `bi_s0` is 87.1% certified and often does.
 **On cereal the "learned" arm is the bread policy transferred** — no cereal
 place policy had been trained when this was measured (§9.18) — so that row is cost-matched (zero training
-either way), not evidence that a trained cereal policy would lose. Bears on §10.
+either way), not evidence that a trained cereal policy would lose. Bears on §10. Since paired against a trained cereal place
+policy: scripted 89.17% vs trained 88.00%, not significant (§9.18).
 
 ### 9.17.1 The anchor on the deployed `c2m512_s1` — it hurts
 
@@ -1541,7 +1543,9 @@ equals the controller's `ee_ori_mat` and reads 9.8° at the initial pose.)
 **Consequences.** The headline stands: it is the anchor-off configuration the firmware runs. Do not
 mirror the anchor to the `.ino` for `c2m512_s1`. `fsm_sim.py` now defaults to `ROT_ANCHOR_EPS = 0.0`
 (a no-flag run reproduces the eps-0 CSV to the episode); the place-training wrapper keeps 1e-6, so
-place policies trained with the anchor are evaluated with `--rot-anchor-eps 1e-6`. Untested candidate: re-anchor only while
+place policies trained with the anchor are evaluated with `--rot-anchor-eps 1e-6`. The sign depends on the
+configuration: on the cereal pipeline (`alignwarm_s0` grasp) the anchor *helps* the place actor, +7.75
+transferred and +22.67 trained (§9.18), so pass the flag explicitly. Untested candidate: re-anchor only while
 joint 5 is near its stop, which leaves every carry that never approaches the stop unchanged.
 
 ### 9.18 Random-spawn place training — what fails, and what does not
@@ -1628,6 +1632,15 @@ t(7)=+6.73, 8u/0d. The best bread peaks (86.12, 84.50%) stay significantly below
 actor (−7.12, −8.75). Four runs never exceed ~35% at any snapshot: selection cannot rescue a run that
 never learned. End-to-end selection is necessary, not sufficient.
 
+**Trained cereal place policy vs scripted transport, paired** (`Results/cereal_pairing.txt`; 12 protocol
+seeds × 100; the controls reproduce the recorded 1070/1200 scripted and 878/1200 transfer exactly).
+`cerealscratch_s2/best` with the anchor on scores **88.00%** against scripted **89.17%** (−1.17, t(11)=−1.03,
+not significant) and transfer 73.17% (+14.83, t(11)=+10.12, 12u/0d). It comes to rest in the compartment
+96.50% of the time against scripted 99.58% (−3.08, t(11)=−4.54). Scripting matches the best of three
+trained seeds with zero training. On this pipeline the anchor *helps* the place actor (trained +22.67,
+transfer +7.75: the opposite sign from `c2m512_s1`, §9.17.1), and the scripted arm's 0.08 release radius
+costs the trained actor −21.75.
+
 **Next (ask first):** training-side changes against the late collapse — early stopping on periodic
 end-to-end evaluation, or a lower actor learning rate after the first peak; and the open items in §9.16.
 
@@ -1642,7 +1655,7 @@ end-to-end evaluation, or a lower actor learning rate after the first peak; and 
 | Sub-policies fit and run on a commodity MCU in real time | **Demonstrated** | 15.8 KB total (2 × 7.9 KB), 9.49 ms/cycle vs 50 ms budget (§7–8) |
 | Quantized deployment preserves task behavior | **Demonstrated** | `c2m512_s1`: INT8 95.33% vs FP32 94.92% random, 99.83% vs 100.0% fixed (held-out); clipping, in-loop QAT and a larger buffer/critic closed a 12-point gap (§9.15.1). HIL 97/100 on the ESP32 |
 | Decomposition confines spawn randomness to the grasp stage | **Demonstrated** | Grasp stage absorbed the randomness (79.2% → 87.1%); the transport policy was **never retrained** and the two attempts to retrain it both lost (§9.9, §9.13) |
-| A learned transport policy is not required for these tasks | **Demonstrated, modestly** | Scripted three-leg transport vs the learned place actor, both through `fsm_sim.py` at 12×100 with the superseded `bi_s0` grasp and `ROT_ANCHOR_EPS`: **bread 95.50% vs 93.58%, +1.92, t(11)=+2.87** (9u/2d/1t) — the fair test, since that actor was trained on bread. On **cereal** the learned arm is the bread policy *transferred* (a cereal place policy trained from scratch has since reached 88.67% at 12×50, §9.18, but is unpaired against scripted), so **89.17% vs 73.17%, +16.00** is a *cost-matched* claim — scripting and transfer both cost zero training — not scripted-vs-trained. The stage is replaceable; the bread margin is small |
+| A learned transport policy is not required for these tasks | **Demonstrated, modestly** | Scripted three-leg transport vs the learned place actor, both through `fsm_sim.py` at 12×100 with the superseded `bi_s0` grasp and `ROT_ANCHOR_EPS`: **bread 95.50% vs 93.58%, +1.92, t(11)=+2.87** (9u/2d/1t) — the fair test, since that actor was trained on bread. On **cereal**, scripted vs a place policy *trained on cereal from scratch* (`cerealscratch_s2/best`, the best of 3 seeds), paired at 12×100: **89.17% vs 88.00%, +1.17, t(11)=+1.03** scored, and **99.58% vs 96.50%, +3.08, t(11)=+4.54** came to rest in the compartment; the transferred bread actor scores 73.17%. Scripting matches the best trained policy with zero training (§9.18). The stage is replaceable; the margins are small |
 | Failure classes that resist the rule layer are defects one layer down | **Demonstrated** | The 3.08% "blocked at a joint limit" class survived three open-loop escapes at 1200 episodes each (0/88 recovered) and was recovered by a one-constant change to the controller interface (§9.17) — on `bi_s0`. On `c2m512_s1`, whose class is 0.42%, the same change costs 2.75 points (§9.17.1) |
 | The stage interface is the dominant design variable | **Demonstrated** | Aligning stage-1 certification with stage-2 handoff: 13% → 82% end-to-end, no architecture change (§9.5) |
 | Plasticity-loss remedies transfer across stages | **Falsified** | Critic resets: +20 to +30 on grasp, −30 on transport (§9.6) |

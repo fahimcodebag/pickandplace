@@ -1,0 +1,63 @@
+================================================================================
+CEREAL, RANDOM SPAWN: TRAINED PLACE POLICY vs SCRIPTED TRANSPORT vs TRANSFER
+Scripting matches the best trained cereal place policy, with zero training.
+================================================================================
+Date 2026-09-11.  Scripts: run_cereal_pairing.sh, analyze_cereal_pairing.py.
+Raw data and report: Results/cereal_pairing/.
+
+WHY
+thesis_context §10 "a learned transport policy is not required" rested, on cereal,
+on the bread place actor TRANSFERRED (73.17% vs scripted 89.17%): cost-matched,
+not scripted-vs-trained.  td3_place_cerealscratch_s2/best is the first working
+cereal place policy (89.00% on 8 held-out seeds x 100, Results/place_selection).
+Its best/ was chosen by the trainer's metric, never on these seeds.  It is the best
+of three from-scratch seeds (the other two: 39.50%, 17.17% at 12 x 50), which
+favours the trained arm.
+
+PROTOCOL
+Cereal, random spawn, cereal_alignwarm_s0 grasp (the grasp the place runs trained
+against and the recorded CLI cells used), 12 protocol seeds (7 31 47 89 101 123 211
+307 401 503 555 2024) x 100, --regrasp --rc-steps 60, robosuite criterion,
+--settle-steps 60, through fsm_sim.py.
+
+CONTROLS -- the recorded CLI totals (commit 6c4a122) reproduce exactly
+    scripted waypoint, release radius 0.08, anchor on   1070/1200 = 89.17%
+    bread place actor transferred, anchor on             878/1200 = 73.17%
+
+RESULT
+    arm                                       scored   came to rest in compartment
+    scripted waypoint (r 0.08, anchor on)     89.17%       99.58%
+    trained cerealscratch_s2 (anchor on)      88.00%       96.50%
+    trained, anchor off                       65.33%       70.25%
+    trained, release radius 0.08              66.25%       71.67%
+    transfer (anchor on)                      73.17%       84.42%
+    transfer, anchor off                      65.42%       70.33%
+
+PAIRED ON SEED (scored success; physical rest in brackets)
+    trained - scripted            -1.17  t(11)= -1.03   3u/6d/3t   [-3.08, t(11)= -4.54]
+    trained - transfer           +14.83  t(11)=+10.12  12u/0d/0t   [+12.08, t(11)=+15.07]
+    trained: anchor on - off     +22.67  t(11)=+17.30  12u/0d/0t
+    transfer: anchor on - off     +7.75  t(11)= +4.08  11u/1d/0t
+    trained: r 0.08 - r 0.18     -21.75  t(11)= -9.75   0u/12d/0t
+
+FAILURES, split by whether the box came to rest in the compartment
+    scripted   130 failures: 126 rested, 4 not     (almost all the cereal z-window
+                                                    artifact, orientation_anchor.txt)
+    trained    144 failures: 102 rested, 42 not
+    transfer   322 failures: 135 rested, 187 not
+    No arm needed a grasp retry.
+
+READING
+  * Scored, the best trained cereal place policy TIES scripted transport (-1.17,
+    not significant).  Physically, scripted places better (99.58% vs 96.50%,
+    t(11)=-4.54).  Scripting costs zero training; the trained policy took three
+    seeds to produce one that works, and that run's final weights score 13.38%.
+    So on cereal too a learned transport policy is not required -- now against a
+    trained policy, not a transfer.
+  * The anchor HELPS this pipeline's place actor (+22.67 trained, +7.75 transfer):
+    the opposite sign from c2m512_s1 on bread (-2.75 FP32,
+    orientation_anchor_c2m512.txt).  Its effect depends on grasp and object, so
+    fsm_sim.py's default (0.0 since 2026-09-11) is right for the deployed
+    artifact and wrong for these cells: pass --rot-anchor-eps explicitly.
+  * NEAR_TARGET_XY 0.08 is a scripted-path setting.  On the trained place actor it
+    costs -21.75, confirming orientation_anchor.txt caveat 3.

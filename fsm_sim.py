@@ -105,7 +105,9 @@ KEEP_ROTATION = 0               # 1 = do not zero a[3:6] during TRANSPORT
 # 9.17.1).  The firmware writes 0 as well.  Pass --rot-anchor-eps 1e-6 to reproduce
 # the bi_s0 anchor numbers above, and whenever evaluating a place policy that was
 # TRAINED with the anchor (eval_place_snapshot_job.sh, eval_cereal_scratch_job.sh
-# and run_place_selection.sh already do).
+# and run_place_selection.sh already do).  The sign depends on the configuration:
+# on the cereal alignwarm_s0 pipeline the anchor HELPS the place actor (+7.75
+# transferred, +22.67 trained; Results/cereal_pairing.txt).  Pass it explicitly.
 # NOTE: distinct from KEEP_ROTATION=1, which passes the place policy's LARGE
 # rotational outputs through and costs -52.33 points.  That stays rejected.
 # The TRAINING value lives in osc_anchor.py and is still 1e-6: the place wrapper

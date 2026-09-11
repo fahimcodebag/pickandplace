@@ -18,7 +18,7 @@ Last surveyed: 2026-09-08 · artifact and results index revised 2026-09-11 · br
 |---|---|---|
 | `REPOSITORY_MAP.md` (this) | **Index.** Where everything is. | "Where is X?" / new to the repo |
 | `thesis_context.md` (~1,600 ln) | **Narrative.** What was tried, what failed, what superseded what. The header carries the current headline; §9.16 is the fresh-session entry point, §9.18 the newest finding; §10 is the claim-status table. | "Why is it like this?" / resuming work |
-| `Results/*.txt` (41 files) | **Evidence.** Measured tables at protocol, with method and caveats. | "What is the number, and how solid?" |
+| `Results/*.txt` (42 files) | **Evidence.** Measured tables at protocol, with method and caveats. | "What is the number, and how solid?" |
 
 `PROJECT_CONTEXT.md` (281 ln, last updated 2026-06-30) is an **older** context
 primer from the monolithic era and is superseded by `thesis_context.md` for
@@ -120,6 +120,7 @@ These predate the decomposition; `train_v8.py` is the last monolithic loop
 | `osc_anchor.py` | `ROT_ANCHOR_EPS = 1e-6`, the TRAINING value (place wrapper). `fsm_sim.py` defaults to 0.0 since 2026-09-11 (§9.17.1). |
 | `run_anchor_c2m512.sh` + `analyze_anchor_c2m512.py` | The anchor on the deployed artifact (§9.17.1): `baseline` (eps 0, reproduces the recorded CSVs), `treatment` (eps 1e-6, refuses to run without `PREDICTION.txt`), `mechanism` (tilt probe). |
 | `anchor_probe.py` | Passive probe around `fsm_sim.main()`: blocked/pinned carries, gripper tilt, release point. Positive control on `bi_s0`. |
+| `run_cereal_pairing.sh` + `analyze_cereal_pairing.py` | Cereal: trained place policy vs scripted transport vs transfer, paired 12×100, with reproduction controls (§9.18, §10). |
 | `run_place_selection.sh` + `analyze_place_selection.py` | Place-checkpoint selection on end-to-end success, re-scored on held-out seeds (§9.18). |
 
 ---
@@ -128,7 +129,7 @@ These predate the decomposition; `train_v8.py` is the last monolithic loop
 
 | Directory | Contents |
 |---|---|
-| `Results/` | 41 `.txt` evidence files, ~85 experiment subdirs of raw CSVs, `figures/`. See §4. `Results/big2m/` holds the `c2m512_s*` INT8 artifacts. |
+| `Results/` | 42 `.txt` evidence files, ~85 experiment subdirs of raw CSVs, `figures/`. See §4. `Results/big2m/` holds the `c2m512_s*` INT8 artifacts. |
 | `checkpoints/` | 161 run directories. Naming convention in §3. Each holds `best/` and periodic saves. |
 | `logs/` | 174 training logs, one per run, named to match its checkpoint family. |
 | `qat_output*/` | Quantization artifacts per campaign: `_bi` (holds the deployed `place_orig_int8`; its `bi_s0` grasp is superseded), `_fix`, `_phaseB`, `_reset`, `_corrector`. Each holds `.tflite`, the `_float32.tflite` reference, and the refined `.pt`. |
@@ -203,6 +204,7 @@ Section numbers are `thesis_context.md` sections.
 | `orientation_anchor_c2m512.txt`; raw data in `anchor_c2m512/` | §9.17.1. The anchor on the deployed artifact: baseline reproduced to the episode, prediction committed first, −2.75 FP32 / −2.50 INT8 on random spawn; the loss is in steeply tilted grasps. |
 | `place_random_spawn_investigation.txt` | **Newest** (§9.18, final). Place training rises then degrades in every configuration — from scratch and warm-started, bread and cereal, fixed and random spawn — and final weights score far below `best/`. Not random spawn, not the object, not warm-starting: late-training instability is the open problem. Also not buffer, critic warm start, forgetting, freezing, drops or collision. |
 | `curriculum_pair/` | Bread fixed vs random spawn from scratch; every snapshot scored end-to-end; `correlation_report.txt` = training metric vs end-to-end (§9.18). |
+| `cereal_pairing.txt`; raw data in `cereal_pairing/` | Cereal, trained place policy vs scripted transport vs transfer, paired 12×100: scripted 89.17% vs trained 88.00%, not significant; the anchor helps this pipeline (§9.18, §10). |
 | `place_selection/` | Place-checkpoint selection on end-to-end success, re-scored on 8 held-out seeds × 100: peak vs `best/` vs final weights vs reference (§9.18). |
 | `cereal_scratch/` | Cereal from scratch vs warm-started cereal on transitions: `report.txt`; `eval.tsv` (4×50 per checkpoint), `protocol.tsv` (12×50), `control.tsv` (positive control) (§9.18). |
 | `object_generalisation.txt` | Zero-shot to unseen objects fails, ordered by shape rather than size (§9.15.2). |
@@ -259,7 +261,6 @@ meant to survive this host, those are the two gaps to close first.
 * Joint-5-gated anchor untested (§9.16).
 * `ROT_ANCHOR_EPS` is deliberately not in the `.ino`: it hurts the deployed `c2m512_s1` (§9.17.1).
 * Place training degrades late in every configuration; select place checkpoints on end-to-end evaluation of snapshots, not the training metric (§9.18).
-* The cereal "learned" baseline in `thesis_context.md` §9.17 / §10 is the bread
-  policy transferred. A from-scratch cereal place policy reached 88.67% at 12×50
-  (§9.18) but has not been paired against scripted transport.
+* The anchor's effect is configuration-dependent: off for the deployed `c2m512_s1` on bread, on for the
+  cereal place-actor pipeline. Pass `--rot-anchor-eps` explicitly (§9.17.1, §9.18).
 * `train_place.py` 50-episode best-window (§9.7).
