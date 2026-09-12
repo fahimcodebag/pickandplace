@@ -97,7 +97,8 @@ def make_place_env(env_name="PickPlace", seed=None, grasp_chkpt_dir=None,
     # PlaceGymWrapper sits on top: runs grasp policy on reset, place rewards on step
     place_env = PlaceGymWrapper(gym_env, raw_env, grasp_chkpt_dir,
                                 reward_mode=reward_mode, idle_cost=idle_cost,
-                                place_horizon=place_horizon)
+                                place_horizon=place_horizon,
+                                curriculum_frac0=_CURRIC_FRAC0)
     if seed is not None:
         place_env.seed(seed)
     return place_env
@@ -113,6 +114,7 @@ _RANDOM_SPAWN = False
 _REWARD_MODE = "custom"
 _IDLE_COST = 0.0
 _PLACE_HORIZON = None
+_CURRIC_FRAC0 = None      # resume: seed for the wrapper curriculum
 
 
 def _worker(remote, parent_remote, env_name, seed):
@@ -354,7 +356,7 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     then the place policy trains on the lift → transport → place phase.
     """
     global _GRASP_CHKPT_DIR, _RANDOM_SPAWN
-    global _REWARD_MODE, _IDLE_COST, _PLACE_HORIZON
+    global _REWARD_MODE, _IDLE_COST, _PLACE_HORIZON, _CURRIC_FRAC0
     _REWARD_MODE, _IDLE_COST = reward_mode, float(idle_cost)   # read by forked workers
     _PLACE_HORIZON = place_horizon
 
@@ -365,6 +367,35 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
         os.path.dirname(__file__), "..", "checkpoints", "td3_grasp"
     )
     _GRASP_CHKPT_DIR = grasp_chkpt_dir
+    # --- Resume state -------------------------------------------------------
+    # load_models() + replay_buffer.npz restore the NETWORKS only. The episode
+    # counter, the best-policy record and the curriculum level live in this
+    # function and in the env wrappers, so without this a resume would:
+    #   1. restart total_episodes at 0 -- the run does `episodes` MORE, and every
+    #      per-episode schedule (noise anneal, shaping anneal) restarts;
+    #   2. restart best_metric at 0.0 -- the first easy-curriculum episode clears
+    #      the bar and OVERWRITES best/, which is the artifact that gets scored;
+    #   3. restart the curriculum at _CURRIC_START, discarding its progress.
+    # Snapshots record all three; read the newest and carry them forward.
+    _RESUME_EP, _RESUME_BEST = 0, 0.0
+    if warm_start_from is None:
+        import glob as _glob, json as _json
+        _snaps = sorted(_glob.glob(os.path.join(place_chkpt_dir, "snapshots",
+                                                "ep_[0-9]*", "meta.json")))
+        if _snaps:
+            try:
+                with open(_snaps[-1]) as _fh:
+                    _m = _json.load(_fh)
+                _RESUME_EP = int(_m.get("episode", 0))
+                _RESUME_BEST = float(_m.get("best_metric", 0.0))
+                _f0 = _m.get("frac50", None)
+                _CURRIC_FRAC0 = float(_f0) if _f0 is not None else None
+                print(f"Resume state from {os.path.basename(os.path.dirname(_snaps[-1]))}: "
+                      f"episode {_RESUME_EP:,}, best_metric {_RESUME_BEST:.4f}, "
+                      f"curriculum frac {_CURRIC_FRAC0}")
+            except Exception as _e:
+                print(f"WARNING: resume state unreadable ({type(_e).__name__}: {_e}); "
+                      "counters start at zero and best/ is AT RISK.")
     _RANDOM_SPAWN = bool(random_spawn)
     globals()["_OBJECT_TYPE"] = object_type
     # Seed every stochastic source. Without this, concurrent runs differ only
@@ -552,7 +583,7 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     # --- Episode tracking (per-env) ----------------------------------------
     episode_scores = np.zeros(n_envs)
     episode_steps = np.zeros(n_envs, dtype=int)
-    total_episodes = 0
+    total_episodes = _RESUME_EP
     best_score = -np.inf   # display only — NOT the save criterion
     # Best-POLICY criterion: rolling difficulty x success. A single-episode
     # score record is meaningless under the curriculum (a success at frac 0.2
@@ -561,7 +592,7 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     # 1.00, ~ep 4300) went unsaved and was then clobbered by a periodic
     # checkpoint mid-collapse. metric = mean(frac, last 50) * mean(success,
     # last 50): a policy only sets a record by succeeding often AT difficulty.
-    best_metric = 0.0
+    best_metric = _RESUME_BEST
     score_history = []
     place_successes = []
     done_reasons = []

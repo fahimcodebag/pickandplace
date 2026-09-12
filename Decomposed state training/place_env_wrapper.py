@@ -334,7 +334,8 @@ class PlaceGymWrapper:
 
     def __init__(self, gym_env, raw_env, grasp_chkpt_dir,
                  grasp_layer1=64, grasp_layer2=32, curriculum=True,
-                 reward_mode="custom", idle_cost=0.0, place_horizon=None):
+                 reward_mode="custom", idle_cost=0.0, place_horizon=None,
+                 curriculum_frac0=None):
         """
         Args:
             gym_env:          GymWrapper instance (provides flat observations)
@@ -419,6 +420,11 @@ class PlaceGymWrapper:
         from collections import deque
         self._curriculum = curriculum
         self._curriculum_frac = self._CURRIC_START if curriculum else 1.0
+        # RESUME: start the curriculum where the interrupted run left off.
+        # _CURRIC_START stays the regression FLOOR (the decay branch below
+        # clamps to it), so this moves the starting point only.
+        if curriculum and curriculum_frac0 is not None:
+            self._curriculum_frac = float(curriculum_frac0)
         self._curric_history = deque(maxlen=self._CURRIC_WINDOW)
         self._episode_ran = False   # guards curriculum update before ep 1
 
