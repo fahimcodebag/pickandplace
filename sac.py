@@ -30,7 +30,8 @@ class Agent:
                  update_actor_interval=1, warmup=1000, n_actions=2,
                  max_size=1000000, layer1_size=64, layer2_size=32,
                  batch_size=100, noise=0.1, chkpt_dir='./checkpoints/sac',
-                 layer_norm=False, init_alpha=0.2, target_entropy=None):
+                 layer_norm=False, init_alpha=0.2, target_entropy=None,
+                 actor_layer1=None, actor_layer2=None):
         self.gamma = gamma
         self.tau = tau
         self.max_action = env.action_space.high
@@ -48,8 +49,14 @@ class Agent:
 
         os.makedirs(chkpt_dir, exist_ok=True)
 
+        # The ACTOR is the deployed artifact (64x32 INT8 on the ESP32); the
+        # critics are free to be much wider since they never ship. Without
+        # separate dims both would take layer1/layer2_size, so a 512x256
+        # critic would force a 512x256 actor that cannot be deployed.
+        _a1 = actor_layer1 or layer1_size
+        _a2 = actor_layer2 or layer2_size
         self.actor = GaussianActor(
-            input_dims, layer1_size, layer2_size, n_actions, 'actor',
+            input_dims, _a1, _a2, n_actions, 'actor',
             chkpt_dir=chkpt_dir, learning_rate=alpha,
             max_action=float(self.max_action[0]))
         mk = lambda name: CriticNetworkLN(

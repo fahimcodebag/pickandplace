@@ -33,6 +33,7 @@ from td3 import Agent
 # +20 to +30 points on the grasp stage. The actor is untouched (still the
 # deployed 64->32), so nothing about the ESP32 artifact changes.
 from td3_ln import Agent as AgentLN
+from sac import Agent as AgentSAC
 from place_env_wrapper import PlaceGymWrapper
 
 
@@ -342,7 +343,7 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
           object_type="bread", seed=0,
           batch_size_override=None, buffer_size_override=None,
           critic_fc1=None, critic_fc2=None,
-          warm_start_from=None, critic_reset_every=0, layer_norm=False,
+          warm_start_from=None, critic_reset_every=0, layer_norm=False, algo="td3",
           warm_start_critics=False, skip_warmup=False, snapshot_every=0,
           reward_mode="custom", idle_cost=0.0, stop_file=None,
           anneal_shaping=False, anneal_threshold=0.6, anneal_window=200,
@@ -416,7 +417,11 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
           + (f" (idle cost {idle_cost} per step)" if reward_mode == "builtin_idle" else ""))
     if place_horizon:
         print(f"Place horizon:  {place_horizon} steps (default 200)")
-    if noise_final is not None and noise_anneal_episodes:
+    print(f"Algorithm:      {algo.upper()}")
+    if algo == "sac":
+        # Printing a sigma here would be a lie: SAC never reads it.
+        print("Exploration:    learned (entropy-regularised); --noise* ignored")
+    elif noise_final is not None and noise_anneal_episodes:
         print(f"Exploration:    sigma {noise_start} -> {noise_final} over "
               f"{noise_anneal_episodes} episodes")
     else:
@@ -481,8 +486,14 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     noise_scale = np.ones(n_actions, dtype=np.float32)
 
     # --- Agent --------------------------------------------------------------
-    _Agent = AgentLN if (layer_norm or critic_reset_every) else Agent
-    _extra = {"layer_norm": True} if _Agent is AgentLN else {}
+    if algo == "sac":
+        # SAC: entropy-regularised exploration replaces TD3's fixed sigma, so
+        # --noise* is inert here (sac.Agent keeps .noise only for API parity).
+        _Agent = AgentSAC
+        _extra = {"layer_norm": True} if layer_norm else {}
+    else:
+        _Agent = AgentLN if (layer_norm or critic_reset_every) else Agent
+        _extra = {"layer_norm": True} if _Agent is AgentLN else {}
     agent = _Agent(
         alpha=actor_lr,
         beta=critic_lr,
@@ -930,6 +941,9 @@ if __name__ == "__main__":
     _p.add_argument("--critic-fc2", type=int, default=None,
                     help="critic hidden 2 (default 32, as bread).")
     _p.add_argument("--layer-norm", action="store_true")
+    _p.add_argument("--algo", choices=("td3", "sac"), default="td3",
+                    help="td3 (default) or sac. SAC learns its own exploration, "
+                         "so --noise-start/--noise-final do nothing under it.")
     _p.add_argument("--reward-mode", default="custom",
                     choices=("custom", "builtin", "builtin_idle", "builtin_potential"),
                     help="custom = potential-shaped place reward (default). "
@@ -986,6 +1000,7 @@ if __name__ == "__main__":
                   warm_start_from=_a.warm_start_from,
                   critic_reset_every=_a.critic_reset_every,
                   layer_norm=_a.layer_norm,
+                  algo=_a.algo,
                   object_type=_a.object_type,
                   seed=_a.seed,
                   batch_size_override=_a.batch_size,
