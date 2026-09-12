@@ -74,7 +74,7 @@ Reverse curriculum (Hurdle 5): a scripted carry hands off at frac x distance;
 frac advances 0.2 -> 1.0 only on >= 75% success over 40 NOISY training
 episodes.  Maximum frac ever reached:
     cereal/pairfix/cerealsmall/cerealbig/breadbig    0.30-0.40
-    cerealbig over ~26,000 episodes                  0.30
+    cerealbig over ~26,000 episodes                  0.30  <- WRONG, corrected below
     9.13 bread attempts                              0.60 / 0.40
     original fixed-spawn run (thesis_context 3)      0.96 at 88%
 
@@ -84,6 +84,28 @@ ZERO-ACTION SCAFFOLDING FLOOR (policy removed, 40 episodes each):
                                 (random actions / zero actions)
     cereal  random  frac 0.2   37.5%   frac 0.5   0.0%   frac 1.0   0.0%
     source cereal s2 (trained)  87.5%            65.0%              60.0%
+
+CORRECTION 2026-09-12 -- "cerealbig never passed 0.30" IS FALSE.
+The 0.30 above was read while the extension was still early.  Re-read from the
+logs: cerealbig_s2 crossed 0.30 at episode 9,800 of its resumed segment, 0.45 at
+14,300, 0.60 at 15,300 and 0.70 at 15,600, ending at frac 0.74 with 72% training
+success and best_metric 0.623 -- the highest of any place run (cerealscratch_s2:
+0.363).  Its siblings stalled (s0 0.28, s1 0.25), so this is seed variance, not a
+recipe effect.  Scored end-to-end on 8 held-out seeds x 100, cereal, same protocol
+as every other figure here:
+    cerealbig_s2 best/   50.50%
+    cerealbig_s2 FINAL   67.62%   <- the only place run whose final weights beat
+                                     its own best/, and the best final weights of
+                                     any random-spawn place run measured
+For comparison the 18 batch runs (4,000 episodes each) average 7.36% at their final
+weights and 42.53% at their peak.  So the rise-then-degrade pattern is NOT
+universal: this run kept climbing, and it is the one run given ~26,000 episodes
+(8,000 + two resumed segments, inheriting a full 411,848-transition buffer) with
+the 2M-buffer / batch-1024 / critic-512x256 recipe that section 2 measured at
+-28.44 over 8,000 episodes.  That recipe's verdict was budget-limited: judged at
+8,000 episodes it loses, and it was never re-judged at the budget it was designed
+for.  It still did not reach the 89.00% warm-start source or scripted transport
+(89.17%).
 
 At fixed spawn the first rungs are FREE: the curriculum advances before the
 policy learns anything.  Mechanism: frac is RELATIVE to each episode's distance

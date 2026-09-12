@@ -1571,7 +1571,14 @@ warmup still collapsed 85% → 11%), curriculum forgetting, policy freezing, dro
 a kinematic block, or bin collision.
 
 **What was established.** The curriculum never advanced past ~0.40 in any
-collapsed warm-started run, while the original fixed-spawn run reached 0.96. With the policy
+collapsed warm-started run *within its 8,000-episode budget* — but `cerealbig_s2`,
+resumed twice to ~26,000 episodes, later climbed to 0.74 at 72% training success and
+scores **67.62%** end-to-end at its FINAL weights (`best/` 50.50%, 8 held-out seeds ×
+100). It is the only place run whose final weights beat its own selector, against a
+7.36% average for the 18 four-thousand-episode batch runs. Long training is therefore
+the one lever that changed the late-decay pattern, and the 2M-buffer recipe that lost
+by −28.44 at 8,000 episodes was judged at a budget it was not designed for. It still
+did not reach the 89.00% warm start or scripted transport (89.17%). While the original fixed-spawn run reached 0.96. With the policy
 removed, fixed spawn scores **100%** at frac 0.2 and random spawn ~80% (bread),
 37.5% (cereal): fixed spawn's first rungs are free, because `frac` is relative to
 each episode's distance while the release radius is absolute. Collapsed policies
