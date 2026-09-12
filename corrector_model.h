@@ -1,12 +1,33 @@
-// Auto-generated FP32 AprilTag residual corrector -- do not edit.
+// FP32 AprilTag residual corrector. Hand-maintained: nothing generates this
+// file. convert_corrector.py and convert_corrector_int8.py both read the OTHER
+// (h64) model, assets/tag_residual_small.json, and neither writes here -- so
+// edit this header directly, and keep it in step with the .json named below.
 // Source: assets/tag_residual_wrist32.json  (1,571 params, 6.1 KB)
 //
-// Setup: robot0_eye_in_hand, 320x240, TAG16H5, ROI 222x193 at (98,0),
+// FIT setup: robot0_eye_in_hand, 320x240, TAG16H5, ROI 222x193 at (98,0),
 // quad_decimate 2, detected by the ESP32 C port (esp32_apriltag/) -- NOT by
 // OpenCV. That distinction matters: the corrector is a per-setup calibration
 // and the DETECTOR is part of the setup. Corners from the two differ by ~1 px,
 // which moves the pose. A corrector fitted on OpenCV corners is not valid here
 // and vice versa.
+//
+// DEPLOYMENT RUNS A DIFFERENT CROP, AND THAT IS OK (measured 2026-09-12).
+// The fit ROI above is history, not a deployment setting: at32.py read
+// (98,0,222,193) when this model and Results/wrist32_ds were produced
+// (commit 970034b), and the crop was tightened to 180x160 at (140,0) later the
+// same day to fit the MALLOC_CAP_8BIT pool -- 222x193 in fact PANICS on the
+// board. The corrector was never refitted, so the question is whether its 12
+// features move with the crop. They do not: corners come back in FULL-frame
+// pixels (d->p + AT_ROI_X0/Y0) and the principal point is shifted by
+// AT_CX - AT_ROI_X0, so cx/cy/area are crop-independent by construction.
+// Measured over 32 paired detections, same frames through both ROIs via
+// libat32.so: cx agrees bit-exactly on 15/32 and differs by >0.001 px on 2/32
+// (signed mean -0.00009 px, i.e. no bias); detected position agrees to a
+// median 0.000016 mm, p99 0.245, worst 0.319 -- inside this model's own
+// held-out p99 of 0.36 mm, against the ~20.5 mm residual it corrects. The
+// residue is sub-pixel quad refinement at a moved crop boundary, not ROI
+// dependence. A positive control that stripped the offset shifted cx by
+// exactly 140.000 px, so the comparison can see a real difference.
 //
 // Held out on an unseen seed (n=567): 20.48 -> 0.06 mm, p99 0.36, max 3.28.
 // The C detector's raw error is nearly a CONSTANT 20.5 mm (p90 20.80) where
