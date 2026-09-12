@@ -1,0 +1,27 @@
+2026-09-12 01:00:03 queue start: at most 6 live runs, at least 20 GB available per launch
+2026-09-12 01:00:03 scoring-only watchers started for B' and C'
+2026-09-12 01:42:11 launch B scr_s10 (live runs 4, available 64 GB)
+launched batch B: checkpoints/td3_place_cerBP_scr_s10
+2026-09-12 01:46:16 launch B scr_s11 (live runs 5, available 57 GB)
+launched batch B: checkpoints/td3_place_cerBP_scr_s11
+2026-09-12 01:50:20 launch B scr_s12 (live runs 5, available 58 GB)
+launched batch B: checkpoints/td3_place_cerBP_scr_s12
+2026-09-12 01:58:26 launch B warm_s10 (live runs 5, available 55 GB)
+launched batch B: checkpoints/td3_place_cerBP_warm_s10
+2026-09-12 02:10:32 launch B warm_s11 (live runs 5, available 56 GB)
+launched batch B: checkpoints/td3_place_cerBP_warm_s11
+2026-09-12 02:30:39 launch B warm_s12 (live runs 5, available 57 GB)
+launched batch B: checkpoints/td3_place_cerBP_warm_s12
+2026-09-12 04:04:59 launch C scr_s10 (live runs 5, available 56 GB)
+launched batch C: checkpoints/td3_place_cerBPann_scr_s10
+2026-09-12 04:09:04 launch C scr_s11 (live runs 5, available 57 GB)
+launched batch C: checkpoints/td3_place_cerBPann_scr_s11
+2026-09-12 04:15:09 launch C scr_s12 (live runs 5, available 55 GB)
+launched batch C: checkpoints/td3_place_cerBPann_scr_s12
+2026-09-12 04:19:13 launch C warm_s10 (live runs 5, available 55 GB)
+launched batch C: checkpoints/td3_place_cerBPann_warm_s10
+2026-09-12 04:31:19 launch C warm_s11 (live runs 5, available 57 GB)
+launched batch C: checkpoints/td3_place_cerBPann_warm_s11
+2026-09-12 04:51:27 launch C warm_s12 (live runs 5, available 53 GB)
+launched batch C: checkpoints/td3_place_cerBPann_warm_s12
+2026-09-12 04:55:32 queue empty

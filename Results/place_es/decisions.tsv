@@ -1,0 +1,12 @@
+checkpoints/td3_place_cerES_warm_s10	STOP	250	85.0	1250	2026-09-12 01:41:04
+checkpoints/td3_place_cerES_warm_s12	STOP	250	34.0	1250	2026-09-12 01:41:04
+checkpoints/td3_place_cerES_warm_s10	FINAL	250	85.0	1250	2026-09-12 01:41:34
+checkpoints/td3_place_cerES_warm_s12	FINAL	250	34.0	1250	2026-09-12 01:41:34
+checkpoints/td3_place_cerES_warm_s11	STOP	500	58.0	1500	2026-09-12 01:49:04
+checkpoints/td3_place_cerES_warm_s11	FINAL	500	58.0	1500	2026-09-12 01:49:34
+checkpoints/td3_place_cerES_scr_s11	STOP	750	4.0	1750	2026-09-12 01:56:34
+checkpoints/td3_place_cerES_scr_s11	FINAL	750	4.0	1750	2026-09-12 01:57:04
+checkpoints/td3_place_cerES_scr_s12	STOP	1000	29.0	2000	2026-09-12 02:10:04
+checkpoints/td3_place_cerES_scr_s12	FINAL	1000	29.0	2000	2026-09-12 02:10:35
+checkpoints/td3_place_cerES_scr_s10	STOP	1500	73.0	2500	2026-09-12 02:29:35
+checkpoints/td3_place_cerES_scr_s10	FINAL	1500	73.0	2500	2026-09-12 02:30:05
