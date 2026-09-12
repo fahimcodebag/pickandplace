@@ -28,12 +28,40 @@
 #
 # Warm-started from td3_place_cerealscratch_s2/best (89.00% on 8 held-out seeds x 100),
 # matching the condition cerealbig_s2 ran under and the warm arms of the three batches.
-# Memory: ~8.8 GB per run (2M buffer), so 6 runs ~53 GB of 98 GB -- see
-# run_place_queue.sh and the OOM incident before launching anything alongside these.
+#
+# RESUME vs WARM-START.  Re-running this script after a crash or power cut RESUMES any run
+# that already has weights on disk: it drops --warm-start-from so train_place.py falls
+# through to agent.load_models() + replay_buffer.npz ("Resumed network weights from saved
+# checkpoint").  Passing --warm-start-from to an existing run takes priority over that
+# resume path and would silently reload the cerealscratch_s2 actor, discarding every
+# trained episode while STILL loading the replay buffer -- a loss that is easy to miss in
+# the log.  Weights and buffer are checkpointed every 500 episodes, so a crash costs at
+# most ~500 episodes.  Runs still alive are skipped, so re-running is safe at any time.
+#
+# Memory (measured with Pss; summing VmRSS double-counts the 8 forked env workers and
+# overstates this by ~50%): ~6.6 GB per run, plus ~1.5 GB as each 2M float64 buffer fills,
+# so 6 runs peak near ~49 GB of 98 GB -- see run_place_queue.sh and the OOM incident
+# before launching anything alongside these.
 set -u
 cd "$(dirname "$0")"
 WHICH=${1:-both}
 PY=/home/fahim/Thesis_fahim/venv/bin/python
+
+# Is a trainer for run $1 already alive?  Compares each /proc/PID/cmdline ARGUMENT exactly.
+# Never substring-match the whole command line: that also matches this script, any editor
+# or grep holding the name, and "..._s2" would match "..._s20".
+_running() {
+  local p pid arg
+  for p in /proc/[0-9]*; do
+    pid=${p#/proc/}
+    [ "$pid" = "$$" ] && continue
+    case "$(cat "$p/comm" 2>/dev/null)" in python*) ;; *) continue ;; esac
+    while IFS= read -r -d '' arg; do
+      [ "$arg" = "../checkpoints/$1" ] && return 0
+    done < "$p/cmdline" 2>/dev/null
+  done
+  return 1
+}
 BIG="--random-spawn --layer-norm --n-envs 8 --batch-size 1024 --buffer-size 2000000 \
 --critic-fc1 512 --critic-fc2 256 --episodes 55000 --place-horizon 150 \
 --snapshot-every 1000 --object-type cereal \
@@ -49,9 +77,23 @@ for arm in plain noise; do
   esac
   for SD in 20 21 22; do
     NAME=td3_place_${TAG}_s$SD
-    [ -e ../checkpoints/$NAME ] && { echo "exists, not relaunching: $NAME"; continue; }
-    nohup $PY -u train_place.py $BIG $WARM $EXTRA --seed $SD \
-      --place-chkpt-dir ../checkpoints/$NAME > ../logs/train_place_${TAG}_s$SD.log 2>&1 &
+    LOG=../logs/train_place_${TAG}_s$SD.log
+    if _running "$NAME"; then
+      echo "already running, left alone: $NAME"
+      continue
+    fi
+    if [ -e ../checkpoints/$NAME/actor_td3 ]; then
+      # RESUME: drop --warm-start-from so train_place.py reaches agent.load_models() and
+      # loads replay_buffer.npz.  Appending keeps the pre-crash training history.
+      START=""
+      echo "resuming: $NAME"
+    else
+      START="$WARM"
+      : > "$LOG"          # truncate only for a genuinely new run
+      echo "starting: $NAME"
+    fi
+    nohup $PY -u train_place.py $BIG $START $EXTRA --seed $SD \
+      --place-chkpt-dir ../checkpoints/$NAME >> "$LOG" 2>&1 &
     RUNS="$RUNS checkpoints/$NAME"
     sleep 4
   done
