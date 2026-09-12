@@ -54,6 +54,13 @@ DESIGN (run_place_es_batch.sh)
                 learns from a mix of reward functions.  Control: at w = 1 the
                 re-scored reward must equal the stored one (checked on 50 batches).
                 The trigger is training success, which the curriculum also moves.
+                CONTROL COVERAGE: the w = 1 re-scoring control printed in all three
+                C' SCRATCH runs (max |stored - re-scored| = 0.00e+00).  The three warm
+                runs annealed at episode 200, before 50 sampling batches had
+                accumulated, so the control never printed there -- same code path,
+                verified on the scratch runs, but not independently checked in the
+                warm ones.  Determinism check: the two C' runs whose anneal never
+                triggered (scr_s10, scr_s11) are bit-identical to their B' twins.
   reward modes  place_env_wrapper.py reward_mode: custom (default, unchanged) |
                 builtin (robosuite PickPlace.reward() with shaping, at each
                 transition's end state) | builtin_idle (builtin minus idle_cost per
