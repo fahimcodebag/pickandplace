@@ -1668,6 +1668,16 @@ trained seeds with zero training. On this pipeline the anchor *helps* the place 
 transfer +7.75: the opposite sign from `c2m512_s1`, §9.17.1), and the scripted arm's 0.08 release radius
 costs the trained actor −21.75.
 
+**Bread transport retraining, re-measured** (§9.13's second attempt, `td3_place_bi_s0-2`;
+warm-started from the deployed place actor, 8,000 episodes, no LayerNorm). Scored through
+`fsm_sim.py` with the anchor on, 8 held-out seeds × 100, against that actor's 93.25% on the
+same seeds: `best/` **92.00 / 90.50 / 68.25%** (−1.25, t(7)=−1.36; −2.75, t(7)=−1.91;
+−25.00, t(7)=−19.09) and final weights 74.62 / 63.25 / 2.50%. All six checkpoints are
+genuinely trained (md5-checked against the warm-start source). Two of three seeds land
+within noise of the deployed actor but none beats it, the three-seed mean is 10 points
+short, and the final weights show the same late decay as everything else. The rise from
+the August figures (83.5 / 79.5 / 52.0) is the harness and the anchor, not new learning.
+
 **Three training batches against the late collapse — none fixed it** (cereal, random
 spawn, 6 runs each: 3 from scratch, 3 warm-started from the 89.00% policy;
 `Results/place_training_batches.txt`). A = custom reward + early stopping on periodic
