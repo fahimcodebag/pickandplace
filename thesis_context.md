@@ -1025,6 +1025,23 @@ by instrumenting `fsm_sim.py`. `Results/int8_deployment.txt`.
   (best retrained 75% vs 82%; and 83.5 / 79.5 / 52.0 vs 86.0). The second
   attempt made `transport_stall` — the failure it targeted — **worse**
   (144 / 57 / 44 per 400 vs 30). Treat as a property of this pipeline.
+  **Re-measured 2026-09-12 (verdict stands, margin much narrower).** The second
+  attempt is `td3_place_bi_s0-2`; its August figures came from `test_place.py`
+  (release trigger 0.14/3 steps, horizon 300) before `ROT_ANCHOR_EPS` existed.
+  Re-scored through `fsm_sim.py` with the anchor on, 8 held-out seeds × 100,
+  against the deployed place actor on the same seeds (93.25%):
+
+  | run | `best/` | vs deployed | final weights |
+  |---|---|---|---|
+  | `place_bi_s2` | 92.00% | −1.25, t(7)=−1.36 | 74.62% |
+  | `place_bi_s1` | 90.50% | −2.75, t(7)=−1.91 | 63.25% |
+  | `place_bi_s0` | 68.25% | −25.00, t(7)=−19.09 | 2.50% |
+
+  All six checkpoints are genuinely trained (md5-checked against the warm-start
+  source; none is the initialisation passed through). The rise from ~80% to ~91%
+  is the harness and the anchor, not new learning. Two of three seeds are now
+  within noise of the deployed actor, but none beats it and seed variance is
+  still 24 points, so "do not retry" holds on the mean (83.58% vs 93.25%).
 * **Critic resets on the place stage** (§9.6).
 
 **A trap in the second of these — read before concluding "rotation: settled".**
