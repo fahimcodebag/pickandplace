@@ -1228,7 +1228,7 @@ upstream AprilTag never checks a malloc — and a host stack measurement had
 overstated the need. A silent fallback to the PC's ground-truth pose once scored
 19/20 with zero detections; the HIL harness now reports perception outcomes.
 
-**On hardware:** peak heap 176.9 KB of 213.7 KB, detection 192–576 ms, 0 crashes,
+**On hardware:** peak heap 172.7 KB of 213.7 KB, detection 192–576 ms, 0 crashes,
 no heap drift; HIL 18/20 episodes on the board's own pose. Higher resolution does
 not help (640×480 does not fit and detects no better); 160×120 cannot buy back
 error correction. **Deployed corrector:** FP32, 1,571 parameters

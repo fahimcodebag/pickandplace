@@ -544,11 +544,14 @@ void runModel(tflite::MicroInterpreter* it, TfLiteTensor* in, TfLiteTensor* out,
 }
 
 // ── AprilTag residual corrector (FP32, hand-rolled) ────────────────────────
-// 12 -> 64 -> 64 -> 3, ReLU, linear output in METRES. Deliberately not INT8:
-// per-tensor quantisation was measured at 6.4-13.2 mm of error against the
-// 11.6 mm residual it corrects, because the 12 features span a 2198x range of
-// scales (Results/corrector_on_device.txt). No TFLite interpreter and no third
-// arena -- 5,187 floats and a few thousand MACs on a core already 99.5% idle.
+// 12 -> 32 -> 32 -> 3 (CORR_H1/CORR_H2), ReLU, linear output in METRES.
+// Deliberately not INT8: per-tensor quantisation was measured at 6.4-13.2 mm of
+// error against the 11.6 mm residual it corrects, because the 12 features span a
+// 2198x range of scales (Results/corrector_on_device.txt). No TFLite interpreter
+// and no third arena -- 1,571 floats and ~1.5k MACs on a core already 99.5% idle.
+// (This said 64/64 and 5,187 floats until 2026-09-12: that was the earlier h64
+// fit from tag_residual_small.json. The deployed header is tag_residual_wrist32,
+// and the code has always taken its widths from CORR_H1/CORR_H2.)
 static void correctorForward(const float* feat, float* out3){
   float h1[CORR_H1], h2[CORR_H2];
   for(int j=0;j<CORR_H1;j++){

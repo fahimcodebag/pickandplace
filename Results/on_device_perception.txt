@@ -336,7 +336,7 @@ After fixing the PC-side poll that was discarding the board's det= line:
 The peak is worth noting: 187.3 KB, against the ~187 KB worst case this
 configuration was sized to. The 1.06x scaling applied to the 360-frame
 maximum landed on the real hardware number almost exactly, and the 21.4 KB
-that remains is the margin that budget bought. The earlier 176.9 KB figure
+that remains is the margin that budget bought. The earlier 172.7 KB figure
 came from frames at the home pose only; retries from displaced poses
 produce more clusters and cost more.
 

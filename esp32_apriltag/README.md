@@ -47,9 +47,11 @@ compile-time knobs** (`AT_CLUSTERMAP_FRAC`, default 0.2; `AT_MEM_CHUNK`,
 default 2048). The deployment build uses 0.1 / 1024. Beyond that the curve is
 flat — the remainder is cluster point storage, which is inherent.
 
-**3. Host-build guards only.** `random()`/`srandom()` are wrapped in
-`#ifndef HOST_BUILD` because the fork defines them unconditionally (newlib
-lacks them, glibc has them). No effect on the ESP32 build.
+**3. Windows-only shims.** The fork defined `random()`/`srandom()`
+unconditionally, which collides with newlib and glibc — both already declare
+them. They are now wrapped in `#ifdef _WIN32` (`apriltag.c`,
+`apriltag_quad_thresh.c`, `common/g2d.c`, `common/zmaxheap.c`), where they
+delegate to `rand()`/`srand()`. No effect on the ESP32 build.
 
 ## The ROI crop
 
