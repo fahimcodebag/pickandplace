@@ -1324,8 +1324,9 @@ spawn (§9.17.1): leave it off.
    no-retry cereal cells of §9.17 caveat 1 still need CLI re-runs before quoting.
 6. `can` grasp is trained (best 0.995, seeds 0/1 to ~55k); `milk` is untrained.
 7. **Random-spawn place training (§9.18)** — finished and evaluated. The open problem is
-   late-training instability: every configuration rises then degrades, and final weights
-   score 33–34 points below each run's peak on held-out seeds. End-to-end selection rescues
+   late-training instability: at a 4,000–8,000 episode budget every configuration rises
+   then degrades, and final weights score 33–34 points below each run's peak on held-out
+   seeds (the ~26,000-episode `cerealbig_s2` is the one measured exception, §9.18). End-to-end selection rescues
    1 run of 9 (§9.18). Three further batches — early stopping, a potential-based built-in
    reward, and annealing it toward sparse — did not fix the decay either (§9.18). Also untested: robosuite built-in reward on the place stage;
    wrapper scripted phases still write `a[3:6] = 0`; training wrapper vs FSM release
@@ -1614,7 +1615,8 @@ best warm cereal policy +3.33, t(11)=+1.64), 39.50% (s0) and 17.17% (s1); latest
 27.5 / 0.0 / 20.5%. Warm-started final weights: default recipe **39.9%**
 (70.0 / 73.5 / 15.5 / 2.5 / 38.0) against its 67.77% `best/`, and code-matched `pairfix` 3.0%.
 
-**Every configuration rises then degrades.** `cerealscratch_s2` 88.0% at episode 2,250 (12×50) →
+**Every configuration at this budget rises then degrades** (the ~26,000-episode
+`cerealbig_s2` is the exception, above). `cerealscratch_s2` 88.0% at episode 2,250 (12×50) →
 20.5% final; bread `curF_s0` 85.0% at 2,500–2,750 → 24.5%; warm starts decay from their
 initialisation (`pairfix` 85.33% → 3.0%). From-scratch drops coincide with a curriculum advance to
 ~0.41; `pairfix` s1/s2 decayed with frac held at 0.20. A cereal policy trains from scratch to

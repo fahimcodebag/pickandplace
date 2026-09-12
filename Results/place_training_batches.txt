@@ -4,7 +4,9 @@ STATUS: COMPLETE (2026-09-12).  All 18 runs finished and scored on held-out seed
 ================================================================================
 
 QUESTION
-Place training rises then degrades in every configuration (thesis_context 9.18).
+Place training rises then degrades in every configuration trained to 4,000-8,000
+episodes (thesis_context 9.18; the one ~26,000-episode run is the exception -- see
+the correction in place_random_spawn_investigation.txt section 4).
 Three batches test three responses:
   A   custom reward + EARLY STOPPING on periodic end-to-end evaluation
   B'  robosuite's built-in staged reward used as a POTENTIAL, plus success
@@ -177,7 +179,9 @@ actor transferred 73.50%.
   over all 18 runs         42.53%   36.23% (n=13) 7.36%
 
   * THE DECAY IS NOT FIXED BY ANY OF THE THREE.  Final weights average 7.36%
-    against a 42.53% peak: every configuration still ends far below its own best.
+    against a 42.53% peak: every configuration at this budget ends far below its own
+    best.  The exception is outside these batches: cerealbig_s2, resumed to ~26,000
+    episodes, ends at 67.62% -- above its own best/ (50.50%).
     Early stopping does not prevent the decay, it only keeps the best snapshot --
     which is worth +39 points over the final weights in batch A (44.33 vs 5.00).
   * NO BATCH PRESERVED THE WARM START.  Every warm run's peak is its EARLIEST

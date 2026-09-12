@@ -249,7 +249,8 @@ NOT SUPPORTED      "random spawn itself breaks place training" (no gap in
                    the controlled pair); "the failure is cereal" (cereal from
                    scratch reached 88.67%); "the failure is warm-starting"
                    (from-scratch runs degrade too)
-FINAL FINDING      place training rises then degrades in every configuration;
+FINAL FINDING      at a 4,000-8,000 episode budget, place training rises then
+                   degrades in every configuration;
                    final weights score far below best/
 OPEN               late-training instability (what drives the self-induced
                    shift); robosuite built-in reward never tried on place

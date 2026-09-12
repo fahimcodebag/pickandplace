@@ -205,7 +205,7 @@ Section numbers are `thesis_context.md` sections.
 | `transport_retrain_negative.txt`, `wrist_alignment_negative.txt` | Settled negatives — do not retry. `KEEP_ROTATION=1` (−52 pts) is also settled, but do **not** read it as "rotation: closed" — see `thesis_context.md` §9.13. |
 | `orientation_anchor.txt` | §9.17, **measured on the superseded `bi_s0`** (on `c2m512_s1` it hurts — see the next row). `a[3:6]=0` freezes `goal_ori` in robosuite's OSC → joint 5 saturates against its one-sided range; `ROT_ANCHOR_EPS=1e-6` recovers the blocked class. Also documents the cereal scoring artifact (physical vs scored placement) that confounds bread-vs-cereal comparisons. |
 | `orientation_anchor_c2m512.txt`; raw data in `anchor_c2m512/` | §9.17.1. The anchor on the deployed artifact: baseline reproduced to the episode, prediction committed first, −2.75 FP32 / −2.50 INT8 on random spawn; the loss is in steeply tilted grasps. |
-| `place_random_spawn_investigation.txt` | **Newest** (§9.18, final). Place training rises then degrades in every configuration — from scratch and warm-started, bread and cereal, fixed and random spawn — and final weights score far below `best/`. Not random spawn, not the object, not warm-starting: late-training instability is the open problem. Also not buffer, critic warm start, forgetting, freezing, drops or collision. |
+| `place_random_spawn_investigation.txt` | **Newest** (§9.18, final). At a 4,000–8,000 episode budget, place training rises then degrades in every configuration (one ~26,000-episode run is the measured exception) — from scratch and warm-started, bread and cereal, fixed and random spawn — and final weights score far below `best/`. Not random spawn, not the object, not warm-starting: late-training instability is the open problem. Also not buffer, critic warm start, forgetting, freezing, drops or collision. |
 | `curriculum_pair/` | Bread fixed vs random spawn from scratch; every snapshot scored end-to-end; `correlation_report.txt` = training metric vs end-to-end (§9.18). |
 | `cereal_pairing.txt`; raw data in `cereal_pairing/` | Cereal, trained place policy vs scripted transport vs transfer, paired 12×100: scripted 89.17% vs trained 88.00%, not significant; the anchor helps this pipeline (§9.18, §10). |
 | `place_training_batches.txt`; raw data in `place_reward_audit/`, `place_reward_audit2/`, `place_es/`, `place_es_B/`, `place_es_C/`, `place_batch_holdout/` | The three cereal place-training batches (early stopping; potential-based built-in reward; annealed toward sparse): design, the pricing gates, and the held-out result — none fixes the late decay. |
@@ -265,7 +265,7 @@ meant to survive this host, those are the two gaps to close first.
 * `PROJECT_CONTEXT.md` — June, monolithic era.
 * Joint-5-gated anchor untested (§9.16).
 * `ROT_ANCHOR_EPS` is deliberately not in the `.ino`: it hurts the deployed `c2m512_s1` (§9.17.1).
-* Place training degrades late in every configuration; select place checkpoints on end-to-end evaluation of snapshots, not the training metric (§9.18).
+* Place training degrades late at a 4,000–8,000 episode budget; select place checkpoints on end-to-end evaluation of snapshots, not the training metric. The one ~26,000-episode run instead kept improving (§9.18).
 * The anchor's effect is configuration-dependent: off for the deployed `c2m512_s1` on bread, on for the
   cereal place-actor pipeline. Pass `--rot-anchor-eps` explicitly (§9.17.1, §9.18).
 * `train_place.py` 50-episode best-window (§9.7).
