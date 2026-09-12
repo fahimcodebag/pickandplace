@@ -1,0 +1,19 @@
+{
+ "episode": 250,
+ "frac50": 0.19999999999999996,
+ "place50": 0.88,
+ "metric": 0.17599999999999996,
+ "best_metric": 0.19999999999999996,
+ "avg_score100": 132.81253529094155,
+ "reasons50": {
+  "success": 44,
+  "transport_stall": 5,
+  "fell_off_table": 1
+ },
+ "time_step": 16312,
+ "mem_cntr": 6312,
+ "reward_mode": "custom",
+ "idle_cost": 0.0,
+ "shaping_weight": 1.0,
+ "anneal_start": null
+}
