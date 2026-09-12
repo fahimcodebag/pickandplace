@@ -622,6 +622,48 @@ RAM), a larger Windows page file (8–16 GB), capping WSL via `.wslconfig`
 because it consumed real project time and is a predictable hazard when
 cross-compiling TFLite-Micro on a memory-constrained laptop.
 
+### 8.6 On-device perception: what changed in the firmware
+
+§8.1–8.5 predate this work. Here is the **how**; §9.14.3 is what it scored
+(89.67% in simulation, 18/20 HIL episodes on the board's own pose).
+
+**The split.** The ESP32 runs tag detection, both poses of the planar
+ambiguity, upright disambiguation, extrinsic calibration, the FP32 residual
+corrector, the object-pose block of the 46-D observation, both policies and
+the FSM. The PC sends only the ROI pixels and the camera-to-world transform —
+and that transform is *forward kinematics, not perception*: a real arm's
+controller already knows where its wrist camera is.
+
+| Component | What was added or changed |
+|---|---|
+| `esp32_apriltag/` | Vendored from stnk20/apriltag (`esp-idf` branch, BSD-2), restructured as an Arduino library so the IDE compiles it. Union-find 8 → 4 B/px (paired `uint16` arrays, 32-bit fallback above 65534); zarray growth 2× → 1.25×; two inherited leaks fixed (`matd_svd_tall`, ~800 B per detection; an early return in `quad_segment_maxima`). `AT_MIN_REGION` / `AT_CLUSTERMAP_FRAC` / `AT_MEM_CHUNK` are compiled in as **defaults**, not optional `-D` flags, because the Arduino IDE cannot pass flags to a library — otherwise the device silently builds upstream values while the desktop measures something else. `random()`/`srandom()` are guarded on `_WIN32`. |
+| `at32_perception.h` | A line-by-line mirror of the Python `TagDetector`: ROI 180×160 at (140,0), intrinsics, tag size, calibration offsets, the upright prior and `at_fix_frame`. It *wraps* the received frame instead of copying it, and refuses to start below `AT_MIN_FREE` (190 KB), printing `[perc] SKIP` — which the FSM treats as an ordinary no-detection — instead of panicking. |
+| `pick_and_place_INT8_FSM.ino` | `SET_LOOP_TASK_STACK_SIZE(16 KB)`; `Serial.setRxBufferSize(8192)` *before* `begin()`, or the FIFO overflows mid-frame; an `IMG_MSG` handler using bulk `readBytes` with an ROI-size mismatch guard; the perception latch (`applyLatch`, and `latchFreezeAtDrop` so a dropped object stops riding the empty hand); and `correctorForward`. `applyCorrection` re-derives `obj_to_eef_pos` from the corrected pose. Tensor arenas cut 40 KB → 4 KB against 888 B measured, freeing ~72 KB for the detector. |
+| Protocol | `IMG_MSG` (0x05) and `CORR_MSG` (0x04) added alongside an **unchanged** `STATE_MSG` (0x01), so the existing HIL path kept working throughout. |
+| PC side | `hil_main.py --on-device-perception`, tag injection with a marker-size assert, retry until the first detection, and `esp32_bridge.send_image()` reporting per-episode perception outcomes. |
+
+**No third interpreter.** `correctorForward` is a hand-rolled 12→32→32→3 FP32
+ReLU MLP (1,571 parameters, 6.1 KB, `assets/tag_residual_wrist32.json`): at
+~1.5k MACs an interpreter plus its arena would cost more than the model. INT8
+is not an option here (§9.14.2).
+
+**Three lessons that cost the most time.**
+- The binding budget is the `MALLOC_CAP_8BIT` pool (~211 KB), **not**
+  `ESP.getFreeHeap()` (281 KB, which includes 32-bit-only IRAM that cannot
+  back a `uint8` image); two predicted fits against `getFreeHeap` were wrong.
+- Both panic signatures (`0x1c` LoadProhibited, `0x1d` StoreProhibited) were
+  out-of-memory, because upstream AprilTag never checks a malloc; a host stack
+  measurement overstated the need and sent the diagnosis down the wrong path.
+- Perception that fails silently still scores well, because the harness falls
+  back to the PC's ground-truth pose — which is why `send_image()` waits for a
+  *decisive* line (`det=` / `SKIP` / `CRC` / `Guru`) rather than the
+  `[perc] start:` banner printed before detection, and why HIL now reports how
+  many episodes ran on the board's own pose.
+
+**Sync state.** `check_fsm_sync.py` reports 24/24 constants in agreement.
+`ROT_ANCHOR_EPS` is deliberately host-only until it is mirrored into the
+sketch (§9.17).
+
 ---
 
 ## 9. Generalization to Randomized Object Spawns (current work)
@@ -1163,6 +1205,7 @@ against real ground truth before it means anything on hardware.
 
 `Results/wrist_camera_route.txt`, `Results/tag16h5_deployment.txt`,
 `Results/tag16h5_deployment_path.txt`, `Results/on_device_perception.txt`.
+**How it reached the board — the firmware side — is §8.6.**
 
 **Tag pixels, not resolution, are binding.** Agentview needs 1280×960 (1,200 KB
 frame); the wrist camera sits ~10× closer and resolves a ~20 px tag at 320×240

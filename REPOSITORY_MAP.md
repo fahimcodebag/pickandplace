@@ -76,15 +76,15 @@ and it is worth ~2 points.
 | `tflite_to_header.py` | `.tflite` → C header byte array. |
 | `analyze_qat.py`, `analyze_wclip.py`, `analyze_widen.py` | QAT / weight-clipping / width sweeps. |
 | `prune_actor.py`, `distill_actor.py` | Pruning and distillation of FP32 actors. |
-| `pick_and_place_INT8_FSM.ino` | **The deployed firmware.** FSM + both INT8 actors + on-device AprilTag + FP32 corrector. |
+| `pick_and_place_INT8_FSM.ino` | **The deployed firmware.** FSM + both INT8 actors + on-device AprilTag + FP32 corrector. Firmware side of perception: §8.6. |
 | `pick_and_place_FP32.ino` | FP32 reference firmware. |
 | `grasp_model.h`, `place_model.h`, `actor_model_float32.h`, `corrector_model.h` | Generated model headers. Each names its source file in its first lines. |
 
 ### Perception (AprilTag)
 | File | What it does |
 |---|---|
-| `esp32_apriltag/` | Vendored AprilTag (BSD-2), Arduino-library layout, memory-reduced for ESP32. `src/`, `common/`, `host/` shim, `libat32.so`. |
-| `at32_perception.h` | On-device detection + pose, mirrors `TagDetector.detect()` line for line. ROI, intrinsics, calibration constants live here. |
+| `esp32_apriltag/` | Vendored AprilTag (BSD-2), Arduino-library layout, memory-reduced for ESP32. `src/`, `common/`, `host/` shim, `libat32.so`. What was changed and why: §8.6. |
+| `at32_perception.h` | On-device detection + pose, mirrors `TagDetector.detect()` line for line. ROI, intrinsics, calibration constants live here. §8.6. |
 | `at32.py` | ctypes bridge to `libat32.so` for host-side parity testing. |
 | `apriltag_sim.py`, `perception_wrapper.py`, `validate_tag_perception.py` | Simulated tag perception and validation. |
 | `fit_wrist_corrector.py`, `fit_wrist16_corrector.py`, `fit_wrist32_corrector.py`, `convert_corrector*.py`, `tune_residual.py`, `wrist_dataset.py` | Wrist-camera pose corrector: fit, quantize, tune. |
@@ -92,8 +92,8 @@ and it is worth ~2 points.
 ### Hardware-in-the-loop
 | File | What it does |
 |---|---|
-| `hil_main.py` | HIL driver. Sim on host, policy on ESP32 over serial. `--random-spawn`; `--on-device-perception` sends image ROIs. |
-| `esp32_bridge.py` | Serial transport, framing, debug-line capture, per-episode perception summary. |
+| `hil_main.py` | HIL driver. Sim on host, policy on ESP32 over serial. `--random-spawn`; `--on-device-perception` sends image ROIs (§8.6). |
+| `esp32_bridge.py` | Serial transport, framing, debug-line capture, per-episode perception summary (§8.6). |
 |  `protocol_float32.py` | Wire format incl. `IMG_MSG`, ROI crop, 15-float pose payload. |
 | `diag_esp32_actions.py` | Action-level host/device diff. |
 
