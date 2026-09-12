@@ -42,7 +42,8 @@ from place_env_wrapper import PlaceGymWrapper
 
 def make_place_env(env_name="PickPlace", seed=None, grasp_chkpt_dir=None,
                    random_spawn=False, object_type="bread",
-                   reward_mode="custom", idle_cost=0.0, reward_shaping=False):
+                   reward_mode="custom", idle_cost=0.0, reward_shaping=False,
+                   place_horizon=None):
     """Create a single robosuite environment with place-only reward."""
     if grasp_chkpt_dir is None:
         grasp_chkpt_dir = os.path.join(
@@ -95,7 +96,8 @@ def make_place_env(env_name="PickPlace", seed=None, grasp_chkpt_dir=None,
     gym_env = GymWrapper(raw_env)
     # PlaceGymWrapper sits on top: runs grasp policy on reset, place rewards on step
     place_env = PlaceGymWrapper(gym_env, raw_env, grasp_chkpt_dir,
-                                reward_mode=reward_mode, idle_cost=idle_cost)
+                                reward_mode=reward_mode, idle_cost=idle_cost,
+                                place_horizon=place_horizon)
     if seed is not None:
         place_env.seed(seed)
     return place_env
@@ -110,6 +112,7 @@ _GRASP_CHKPT_DIR = None
 _RANDOM_SPAWN = False
 _REWARD_MODE = "custom"
 _IDLE_COST = 0.0
+_PLACE_HORIZON = None
 
 
 def _worker(remote, parent_remote, env_name, seed):
@@ -118,7 +121,8 @@ def _worker(remote, parent_remote, env_name, seed):
     env = make_place_env(env_name, seed=seed, grasp_chkpt_dir=_GRASP_CHKPT_DIR,
                          random_spawn=_RANDOM_SPAWN,
                          object_type=_OBJECT_TYPE,
-                         reward_mode=_REWARD_MODE, idle_cost=_IDLE_COST)
+                         reward_mode=_REWARD_MODE, idle_cost=_IDLE_COST,
+                         place_horizon=_PLACE_HORIZON)
     while True:
         try:
             cmd, data = remote.recv()
@@ -340,7 +344,9 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
           warm_start_critics=False, skip_warmup=False, snapshot_every=0,
           reward_mode="custom", idle_cost=0.0, stop_file=None,
           anneal_shaping=False, anneal_threshold=0.6, anneal_window=200,
-          anneal_episodes=1000, anneal_min_weight=0.1):
+          anneal_episodes=1000, anneal_min_weight=0.1,
+          place_horizon=None, noise_start=0.1, noise_final=None,
+          noise_anneal_episodes=0):
     """
     Train the Place sub-policy using TD3 with subprocess-parallel envs.
 
@@ -348,8 +354,9 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     then the place policy trains on the lift → transport → place phase.
     """
     global _GRASP_CHKPT_DIR, _RANDOM_SPAWN
-    global _REWARD_MODE, _IDLE_COST
+    global _REWARD_MODE, _IDLE_COST, _PLACE_HORIZON
     _REWARD_MODE, _IDLE_COST = reward_mode, float(idle_cost)   # read by forked workers
+    _PLACE_HORIZON = place_horizon
 
     place_chkpt_dir = place_chkpt_dir or os.path.join(
         os.path.dirname(__file__), "..", "checkpoints", "td3_place"
@@ -376,6 +383,13 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     print(f"Seed:           {seed}")
     print(f"Reward:         {reward_mode}"
           + (f" (idle cost {idle_cost} per step)" if reward_mode == "builtin_idle" else ""))
+    if place_horizon:
+        print(f"Place horizon:  {place_horizon} steps (default 200)")
+    if noise_final is not None and noise_anneal_episodes:
+        print(f"Exploration:    sigma {noise_start} -> {noise_final} over "
+              f"{noise_anneal_episodes} episodes")
+    else:
+        print(f"Exploration:    sigma {noise_start}, constant")
     if stop_file:
         print(f"Stop file:      {stop_file}")
     print(f"Checkpoints:    {place_chkpt_dir}")
@@ -417,7 +431,10 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     max_buffer_size = buffer_size_override if buffer_size_override else 200000
     print(f"Batch/buffer:   {batch_size} / {max_buffer_size:,}")
     print(f"Actor/critic:   {actor1_size}x{actor2_size} / {layer1_size}x{layer2_size}")
-    noise = 0.1
+    # Exploration noise.  This value IS passed to the agent below -- before
+    # 2026-09-12 it was assigned here and never used, so the agent silently ran
+    # td3.Agent's default (also 0.1) and editing this line changed nothing.
+    noise = noise_start
 
     input_dims = vec_env.observation_space.shape
     n_actions = vec_env.action_space.shape[0]
@@ -449,6 +466,7 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
         batch_size=batch_size,
         max_size=max_buffer_size,
         warmup=warmup,
+        noise=noise,
         chkpt_dir=place_chkpt_dir,
         **_extra,
     )
@@ -659,6 +677,14 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
                         shaping_w = max(anneal_min_weight, 1.0 - (1.0 - anneal_min_weight)
                                         * (total_episodes - anneal_start) / max(1, anneal_episodes))
 
+                # Exploration-noise anneal: sigma falls linearly to noise_final
+                # over noise_anneal_episodes, then holds.  Constant sigma leaves
+                # ~20% of the scaled command as noise at every step, including
+                # near the release radius where precision decides the outcome.
+                if noise_final is not None and noise_anneal_episodes:
+                    _f = min(1.0, total_episodes / float(noise_anneal_episodes))
+                    agent.noise = noise_start + (noise_final - noise_start) * _f
+
                 # TensorBoard
                 writer.add_scalar("Place/Score_Episode", score, total_episodes)
                 writer.add_scalar("Place/Score_Avg100", avg_score, total_episodes)
@@ -731,6 +757,8 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
                             mem_cntr=int(agent.memory.mem_cntr),
                             reward_mode=_REWARD_MODE,
                             idle_cost=_IDLE_COST,
+                            noise=float(agent.noise),
+                            place_horizon=_PLACE_HORIZON,
                             shaping_weight=float(shaping_w),
                             anneal_start=anneal_start), _fh, indent=1)
                     if os.path.isdir(_dst):
@@ -891,6 +919,17 @@ if __name__ == "__main__":
     _p.add_argument("--anneal-window", type=int, default=200)
     _p.add_argument("--anneal-episodes", type=int, default=1000)
     _p.add_argument("--anneal-min-weight", type=float, default=0.1)
+    _p.add_argument("--place-horizon", type=int, default=None,
+                    help="max place-phase steps per episode (default 200). Counts "
+                         "only steps after handoff; the grasp rollout, test-lift and "
+                         "scripted carry run inside reset() and are not counted.")
+    _p.add_argument("--noise-start", type=float, default=0.1,
+                    help="exploration sigma at episode 0 (the agent default is 0.1).")
+    _p.add_argument("--noise-final", type=float, default=None,
+                    help="anneal sigma to this value; omit for constant noise.")
+    _p.add_argument("--noise-anneal-episodes", type=int, default=0,
+                    help="episodes over which sigma falls from --noise-start to "
+                         "--noise-final, then holds.")
     _p.add_argument("--warm-start-from", default=None,
                     help="Place checkpoint dir to seed the actor from.")
     _a = _p.parse_args()
@@ -928,4 +967,7 @@ if __name__ == "__main__":
                   stop_file=_a.stop_file,
                   anneal_shaping=_a.anneal_shaping, anneal_threshold=_a.anneal_threshold,
                   anneal_window=_a.anneal_window, anneal_episodes=_a.anneal_episodes,
-                  anneal_min_weight=_a.anneal_min_weight)
+                  anneal_min_weight=_a.anneal_min_weight,
+                  place_horizon=_a.place_horizon, noise_start=_a.noise_start,
+                  noise_final=_a.noise_final,
+                  noise_anneal_episodes=_a.noise_anneal_episodes)

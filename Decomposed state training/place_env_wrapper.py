@@ -334,7 +334,7 @@ class PlaceGymWrapper:
 
     def __init__(self, gym_env, raw_env, grasp_chkpt_dir,
                  grasp_layer1=64, grasp_layer2=32, curriculum=True,
-                 reward_mode="custom", idle_cost=0.0):
+                 reward_mode="custom", idle_cost=0.0, place_horizon=None):
         """
         Args:
             gym_env:          GymWrapper instance (provides flat observations)
@@ -365,6 +365,13 @@ class PlaceGymWrapper:
             raise ValueError(f"unknown reward_mode {reward_mode!r}")
         self._reward_mode = reward_mode
         self._idle_cost = float(idle_cost)
+        # Per-instance override of the class default (200).  _check_done tests
+        # self.PLACE_HORIZON, so an instance attribute shadows it.  Measured:
+        # successful place episodes run to a median 16 steps at curriculum 0.3 and
+        # 104 at full distance, longest 145, so 150 trims the tail without cutting
+        # successes while 50 would cut ~97% of full-distance ones.
+        if place_horizon:
+            self.PLACE_HORIZON = int(place_horizon)
         # "builtin_potential" (B'): robosuite's staged reward used as a POTENTIAL,
         # r = GAMMA*Phi(s') - Phi(s) + 1.0 once on success, Phi = largest staged
         # term.  Holding still earns -(1-GAMMA)*Phi <= 0, so the stall trap of the
