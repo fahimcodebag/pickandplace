@@ -1,0 +1,50 @@
+Held-out comparison of the three cereal place batches -- generated 2026-09-12 12:51:46
+
+HELD-OUT end-to-end success, 8 seeds x 100 (cereal, random spawn)
+  reference warm_source      89.00%
+  reference bread_transfer   73.50%
+
+  run                                  peak          best/    final
+  cerBP_scr_s10              4.12% (ep2000)          4.62%    2.38%
+  cerBP_scr_s11              2.88% (ep2500)          0.12%    2.00%
+  cerBP_scr_s12             40.38% (ep1250)         42.38%    7.38%
+  cerBP_warm_s10             70.38% (ep250)         71.62%    5.50%
+  cerBP_warm_s11             57.50% (ep250)   89.00%=start    0.50%
+  cerBP_warm_s12             67.50% (ep250)   89.00%=start    0.50%
+  cerBPann_scr_s10           4.12% (ep2000)          4.62%    2.38%
+  cerBPann_scr_s11           2.88% (ep2500)          0.12%    2.00%
+  cerBPann_scr_s12          60.50% (ep4000)         51.00%   60.50%
+  cerBPann_warm_s10          71.75% (ep250)   89.00%=start    4.00%
+  cerBPann_warm_s11          58.12% (ep250)   89.00%=start   10.75%
+  cerBPann_warm_s12          59.50% (ep250)   89.00%=start    4.62%
+  cerES_scr_s10             69.25% (ep1500)         49.50%   19.12%
+  cerES_scr_s11               0.75% (ep750)         22.62%    2.62%
+  cerES_scr_s12             29.00% (ep1000)         26.50%    7.88%
+  cerES_warm_s10             81.75% (ep250)         85.88%    0.00%
+  cerES_warm_s11             55.75% (ep500)         65.75%    0.00%
+  cerES_warm_s12             29.50% (ep250)         46.25%    0.38%
+  =start: identical to the warm-start actor, excluded from the means below -- cerBP_warm_s11 best, cerBP_warm_s12 best, cerBPann_warm_s10 best, cerBPann_warm_s11 best, cerBPann_warm_s12 best
+
+  batch                      peak    best/    final   (best/ over trained checkpoints only)
+  A custom+ES              44.33%   49.42%    5.00%
+     scratch               33.00%   32.88%    9.88%
+     warm                  55.67%   65.96%    0.12%
+  B' potential             40.46%   29.69%(n=4)    3.04%
+     scratch               15.79%   15.71%    3.92%
+     warm                  65.12%   71.62%(n=1)    2.17%
+  C' annealed              42.81%   18.58%(n=3)   14.04%
+     scratch               22.50%   18.58%   21.62%
+     warm                  63.12%      --     6.46%
+
+PAIRED on seed, peak snapshots (same seeds, same protocol)
+  cerBP      - cerES      scr    -17.21  t(23)= -2.40  14u/9d  (3 runs x 8 seeds)
+  cerBP      - cerES      warm    +9.46  t(23)= +2.08  12u/11d  (3 runs x 8 seeds)
+  cerBPann   - cerES      scr    -10.50  t(23)= -1.24  14u/9d  (3 runs x 8 seeds)
+  cerBPann   - cerES      warm    +7.46  t(23)= +2.02  13u/11d  (3 runs x 8 seeds)
+  cerBPann   - cerBP      scr     +6.71  t(23)= +3.19  8u/0d  (3 runs x 8 seeds)
+  cerBPann   - cerBP      warm    -2.00  t(23)= -1.70  9u/14d  (3 runs x 8 seeds)
+
+SELECTION vs TRAINING METRIC vs LAST WEIGHTS, mean over the 18 batch runs
+  peak    42.53%  (n=18 runs)
+  best    36.23%  (n=13 runs)
+  final    7.36%  (n=18 runs)

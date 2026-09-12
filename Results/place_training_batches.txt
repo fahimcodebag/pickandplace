@@ -1,6 +1,6 @@
 ================================================================================
 PLACE TRAINING BATCHES -- early stopping, bare built-in reward, built-in + idle cost
-STATUS: IN PROGRESS (2026-09-11).  Design fixed; gates and runs below.
+STATUS: COMPLETE (2026-09-12).  All 18 runs finished and scored on held-out seeds.
 ================================================================================
 
 QUESTION
@@ -157,7 +157,58 @@ INCIDENT 2026-09-12 00:23 -- OUT OF MEMORY, ALL RUNS LOST, RESTARTED
   available before each launch: B' then C' start as batch A's runs finish, with their
   scoring-only watchers already waiting.
 
-RESULTS
+RESULTS -- HELD OUT, 8 unused seeds x 100 (Results/place_batch_holdout/report.txt)
+All 18 runs finished.  Batch A's early stopping fired on all six runs (episodes
+1250-2500); B' and C' ran the full 4000.  Each run contributes three checkpoints:
+PEAK (best on the selection seeds 7/31 x 50), best/ (the trainer's own metric) and
+the FINAL weights.  References on the same seeds: warm-start source 89.00%, bread
+actor transferred 73.50%.
+
+  batch                     peak     best/     final
+  A  custom + ES           44.33%   49.42%     5.00%
+       from scratch        33.00%   32.88%     9.88%
+       warm-started        55.67%   65.96%     0.12%
+  B' potential-based       40.46%   29.69% (n=4)  3.04%
+       from scratch        15.79%   15.71%     3.92%
+       warm-started        65.12%   71.62% (n=1)  2.17%
+  C' annealed to sparse    42.81%   18.58% (n=3) 14.04%
+       from scratch        22.50%   18.58%    21.62%
+       warm-started        63.12%      --       6.46%
+  over all 18 runs         42.53%   36.23% (n=13) 7.36%
+
+  * THE DECAY IS NOT FIXED BY ANY OF THE THREE.  Final weights average 7.36%
+    against a 42.53% peak: every configuration still ends far below its own best.
+    Early stopping does not prevent the decay, it only keeps the best snapshot --
+    which is worth +39 points over the final weights in batch A (44.33 vs 5.00).
+  * NO BATCH PRESERVED THE WARM START.  Every warm run's peak is its EARLIEST
+    snapshot (episode 250, occasionally 500), i.e. training never improved on the
+    89.00% it started from and began losing it immediately.  Best trained warm
+    checkpoint: cerES_warm_s10 best/ 85.88%.
+  * best/ IS OFTEN THE UNTOUCHED INITIALISATION.  5 of 9 warm best/ checkpoints are
+    byte-identical to the warm-start actor (md5 2edc903940): cerBP_warm_s11/s12 and
+    all three cerBPann warm runs.  Their "89.00%" is the starting policy, not a
+    training result; they are excluded from the best/ means above (hence n=4, n=1,
+    n=3).  Same trap as section 3.
+  * FROM SCRATCH THE CUSTOM REWARD IS STILL BEST: peak 33.00% (A) vs 15.79% (B') and
+    22.50% (C').  The best single from-scratch result is cerES_scr_s10, 69.25%.
+  * NOTHING BEAT THE REFERENCES.  Only two checkpoints in 18 runs beat the
+    transferred bread actor (73.50%): cerES_warm_s10 peak 81.75% and its best/
+    85.88%.  None reached the 89.00% warm-start source or scripted transport
+    (89.17%, Results/cereal_pairing.txt).
+
+  PAIRED, peak snapshots (descriptive only -- see the caveat below)
+    B'  - A   scratch  -17.21   warm  +9.46
+    C'  - A   scratch  -10.50   warm  +7.46
+    C'  - B'  scratch   +6.71   warm  -2.00
+  CAVEATS ON THESE COMPARISONS
+    - The t-values the analyzer prints pool 3 runs x 8 seeds as 24 samples.  Seeds
+      are paired but runs are not independent replicates: the honest unit is 3 runs
+      per cell, so treat these as descriptive, not significance tests.
+    - C' vs B' from scratch rests on ONE run: C' scr_s10 and scr_s11 never triggered
+      the anneal and are bit-identical to their B' twins, so only s12 differs.
+    - Warm "peaks" are earliest snapshots of a decaying run, so a higher warm peak
+      means the run decayed more slowly in its first 250 episodes, not that it learned.
+
   Batch A launched 2026-09-12 (td3_place_cerES_{scr,warm}_s{10,11,12}, es_watch.py
   -> Results/place_es).
   (first launch lost to the OOM incident above; batch A relaunched 2026-09-12 ~00:55)

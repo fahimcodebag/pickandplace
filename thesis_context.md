@@ -1326,7 +1326,8 @@ spawn (§9.17.1): leave it off.
 7. **Random-spawn place training (§9.18)** — finished and evaluated. The open problem is
    late-training instability: every configuration rises then degrades, and final weights
    score 33–34 points below each run's peak on held-out seeds. End-to-end selection rescues
-   1 run of 9 (§9.18). Also untested: robosuite built-in reward on the place stage;
+   1 run of 9 (§9.18). Three further batches — early stopping, a potential-based built-in
+   reward, and annealing it toward sparse — did not fix the decay either (§9.18). Also untested: robosuite built-in reward on the place stage;
    wrapper scripted phases still write `a[3:6] = 0`; training wrapper vs FSM release
    constants disagree.
 
@@ -1640,6 +1641,30 @@ not significant) and transfer 73.17% (+14.83, t(11)=+10.12, 12u/0d). It comes to
 trained seeds with zero training. On this pipeline the anchor *helps* the place actor (trained +22.67,
 transfer +7.75: the opposite sign from `c2m512_s1`, §9.17.1), and the scripted arm's 0.08 release radius
 costs the trained actor −21.75.
+
+**Three training batches against the late collapse — none fixed it** (cereal, random
+spawn, 6 runs each: 3 from scratch, 3 warm-started from the 89.00% policy;
+`Results/place_training_batches.txt`). A = custom reward + early stopping on periodic
+end-to-end evaluation; B′ = robosuite's staged reward used as a potential plus success;
+C′ = B′ annealed toward sparse once training success reaches 60%. Held out on 8 unused
+seeds × 100, each run scored at its peak snapshot, its `best/` and its final weights:
+
+| batch | peak | `best/` | final |
+|---|---|---|---|
+| A custom + ES | 44.33% | 49.42% | 5.00% |
+| B′ potential | 40.46% | 29.69% | 3.04% |
+| C′ annealed | 42.81% | 18.58% | 14.04% |
+
+Final weights average **7.36%** against a **42.53%** peak across all 18 runs. Early
+stopping does not prevent the decay; it keeps the best snapshot, worth +39 points over
+the final weights in batch A. Every warm run's peak is its *earliest* snapshot, so none
+improved on the 89.00% it started from. From scratch the custom reward remains best
+(33.00% vs 15.79% and 22.50%). Nothing beat the transferred bread actor (73.50%) except
+`cerES_warm_s10` (peak 81.75%, `best/` 85.88%), and nothing reached scripted transport.
+**Also recorded:** 5 of 9 warm `best/` checkpoints are byte-identical to the warm-start
+actor — the selector kept the initialisation — and robosuite's bare staged reward was
+dropped before training because pricing showed it pays stalling more than placing
+(§9.10 method, `Results/place_reward_audit/`).
 
 **Next (ask first):** training-side changes against the late collapse — early stopping on periodic
 end-to-end evaluation, or a lower actor learning rate after the first peak; and the open items in §9.16.
