@@ -217,3 +217,64 @@ actor transferred 73.50%.
   -> Results/place_es).
   (first launch lost to the OOM incident above; batch A relaunched 2026-09-12 ~00:55)
   (pending)
+
+================================================================================
+6. THE 2M RECIPE AT FULL BUDGET, AND SAC -- IN PROGRESS (2026-09-13)
+================================================================================
+Six TD3 runs at the recipe the 2M buffer was designed for (buffer 2,000,000,
+batch 1024, critic 512x256, actor 64x32, place horizon 150, cereal, random
+spawn, 55,000 episodes, warm-started from td3_place_cerealscratch_s2/best):
+  cer2Mplain_s20/21/22  sigma 0.1 constant
+  cer2Mnoise_s20/21/22  sigma 0.1 -> 0.02 over the first 20,000 episodes
+Three SAC runs added 2026-09-13 at the same recipe, FROM SCRATCH (a TD3 actor
+has no log_std head to donate): sac_place_cer2M_s30/31/32.
+
+STATUS at TD3 ~40k / SAC ~22k episodes, scored end-to-end on held-out seeds
+(es_watch.py -> Results/place_long2m, 2 seeds x 50 episodes per snapshot):
+
+  run          peak        latest scored        curriculum frac
+  SAC-s30      82% @15k    78% @21k             0.88
+  SAC-s32      72% @10k    47% @21k             0.68
+  SAC-s31       5% @19k     2% @21k             0.27
+  noise_s20    90% @26k    75% @39k             0.69
+  noise_s21    77% @38k    43% @39k             0.50
+  noise_s22    93% @4k     35% @39k             0.44
+  plain_s20    81% @18k    19% @39k             0.50
+  plain_s21    20% @1k      0% @39k   TERMINATED
+  plain_s22    67% @2k      0% @40k   TERMINATED
+
+THE RUNS OSCILLATE; THEY DO NOT COLLAPSE.  This supersedes the reading recorded
+earlier in this file and in 9.18 that the recipe "decays and stays down".  Every
+surviving seed cycles on a ~4-8k episode period: noise_s21 scored 0% at ep 29k
+and 77% at ep 38k; noise_s22 went 8% (28k) -> 73% (36k); noise_s20 swings
+84 -> 33 -> 59 -> 75%.  A single late snapshot is therefore NOT a verdict on a
+run, and "final weights" comparisons at one episode are close to meaningless
+here.  Peak-vs-peak and the fraction of seeds alive are the usable summaries.
+
+TWO RUNS TERMINATED EARLY -- SCORED AS CENSORED, NOT AS FINISHED
+  cer2Mplain_s21 killed at episode 39,850 (last scored snapshot ep 39,000, 0%)
+  cer2Mplain_s22 killed at episode 40,250 (last scored snapshot ep 40,000, 0%)
+  Reason: memory, not merit.  Nine concurrent runs reached 81 GB of 98 GB with
+  16 GB available, above the ~70 GB band adopted after the OOM incident (section
+  above).  Killing these two returned the machine to 64 GB used / 33 GB free.
+  Both runs' best/ and all snapshots (39 and 40 of them) survive on disk, so
+  their PEAKS -- 20% and 67% -- are measured data and peak-based comparisons
+  remain a full 3 v 3 between the arms.
+  For any END-OF-TRAINING comparison they must be entered as CENSORED AT ~40k,
+  imputed 0%, never as "finished at 0%".  The imputation is a LOWER BOUND, and
+  this batch's own data says so: noise_s21 sat at <=5% for nine consecutive
+  snapshots (29k-37k) and then scored 77%.  A seed at 0% here has demonstrably
+  recovered before, so 0%-at-55k is an assumption.  It biases the plain arm
+  downward, i.e. AGAINST the arm the noise-vs-plain comparison would favour, so
+  a "noise >= plain" claim survives the bias; a "plain = 0%" claim does not.
+
+  CORRECTION to the justification given when they were killed: they were called
+  "flat at 0% for 20k+ episodes".  They were not.  plain_s21 last exceeded 5% at
+  ep 28,000 (11 snapshots below since) and plain_s22 at ep 33,000 (7 below).
+  Both were oscillating like the others, at lower amplitude, and only went flat
+  over the final 6-11k episodes.  The decision to kill them was still correct on
+  memory grounds; the stated reason overstated how dead they were.
+
+ARM COUNTS NOW: noise 3/3 running, plain 1/3 running (s20), SAC 3/3 running.
+The plain arm's late-training behaviour now rests on s20 alone.
+
