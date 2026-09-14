@@ -1791,6 +1791,38 @@ snapshots to 77%. Three SAC runs at the same recipe (`--algo sac`, from scratch,
 since a TD3 actor has no `log_std` head to donate) were still training when this was
 written and are not scored here.
 
+**Sweep: how often is `best/` wrong?** (`Results/place_training_batches.txt` §6c).
+26 runs have now been scored peak-vs-`best/` head to head at the same protocol
+across three studies. `best/` is **high-variance, not uniformly biased**: worse by
+≥30 points in 3 runs (`cer2Mplain_s20` +83.8, `curF_s0` +58.4, `curR_s1` +31.8),
+worse by 10–30 in 2, within ±10 in 18, and *better* by ≥10 in 3
+(`cerES_scr_s11` −21.9, `cerES_warm_s12` −16.8, `cerES_warm_s11` −10.0); mean
++7.19. So "always take the peak" is wrong too — either selector is a single
+checkpoint picked on 100–200 episodes and needs out-of-sample re-scoring before it
+is quoted. **No headline conclusion changes**: `cerealscratch_s2`, the best cereal
+policy and the warm-start source for everything since, has `best/` 89.00% against
+peak 87.25%, so the artifact the project relies on is the better pick; no peak
+anywhere exceeds 88.67%; and "nothing beat 89.00%" holds under either selector.
+What changes is per-run quality — `cer2Mplain_s20` is an 85.25% run, not a 1.42%
+one.
+
+**What cannot be audited.** Snapshotting was added late, so `td3_place` (the
+**deployed** place actor, 93.25%), `td3_place_bi_s0-2`, `td3_place_cereal_s0-4`
+(the 67.77% mean above), `cerealbig_s2` and `pairfix_s0-2` have no snapshots and
+their `best/` figures cannot be re-checked. The gap is not benign in general: among
+the 20 runs whose peak episode is known the peak is at episode ≤2,500 in **13**,
+and every warm run in the three batches peaked at its *earliest* snapshot (ep 250)
+— early is where the good checkpoints are. The mechanism is the selector itself:
+`frac50 × place50` rises as the curriculum advances, so a later policy at higher
+`frac` outranks an earlier better one, and `best/` drifts away from early peaks by
+construction (the pre-snapshot logs show it: `cereal_s0`'s last `best/` save is ep
+7,997 of 8,000, `cerealbig_s2`'s ep 17,585 of 18,450). **The deployed actor is the
+exception and is safe**: its curriculum reached 0.96, so its `best/` was selected at
+near-full difficulty where the metric's curriculum weighting is nearly inert — the
+failure mode requires selection at low `frac` (`cer2Mplain_s20` never passed ~0.55)
+— and 93.25% remains the highest figure any place checkpoint has scored. The
+residual risk is bounded but untestable without retraining with snapshots on.
+
 **Next (ask first):** training-side changes against the late collapse — early stopping on periodic
 end-to-end evaluation, or a lower actor learning rate after the first peak; and the open items in §9.16.
 

@@ -344,3 +344,63 @@ quoted, but they did NOT collapse out of sample -- unlike best/.
 STILL OPEN: the three SAC runs (sac_place_cer2M_s30/31/32) were at ~48k/55k
 episodes when this was written and are NOT scored here. Their best/ is rewritten
 in place by a live trainer; only their write-once snapshots are safe to read.
+--------------------------------------------------------------------------------
+6c. SWEEP OF EVERY best/ FIGURE AGAINST ITS PEAK SNAPSHOT (2026-09-14)
+--------------------------------------------------------------------------------
+Prompted by cer2Mplain_s20's 84-point selection gap: how often is best/ wrong, and
+does any recorded conclusion rest on it?  26 runs have been scored peak-vs-best/
+head to head at the same protocol, across three studies (Results/place_selection,
+Results/place_batch_holdout, Results/place_2m_best).
+
+  gap (peak - best/)                 n   runs
+  CATASTROPHIC, >= +30 pts           3   cer2Mplain_s20 +83.8, curF_s0 +58.4,
+                                         curR_s1 +31.8
+  material, +10..+30                 2   cerES_scr_s10 +19.8, cer2Mnoise_s22 +15.7
+  within +-10                       18
+  best/ materially BETTER, <= -10    3   cerES_scr_s11 -21.9, cerES_warm_s12 -16.8,
+                                         cerES_warm_s11 -10.0
+  mean peak - best/                      +7.19 pts
+
+best/ IS HIGH-VARIANCE, NOT UNIFORMLY BIASED.  It beats the peak snapshot in 3 of
+26 runs, so "always take the peak" is also wrong.  Both are single checkpoints
+picked on 100-200 episodes; the transferable rule is that EITHER selector needs
+out-of-sample re-scoring before its number is quoted, which is what
+Results/place_selection established (+34/+33 pts) and this extends.
+
+NO HEADLINE CONCLUSION CHANGES.
+  * cerealscratch_s2, the best cereal policy and the warm-start source for
+    everything since, is UNAFFECTED: best/ 89.00% vs peak 87.25%, i.e. best/ is
+    the better pick.  The artifact the project relies on stands.
+  * No peak anywhere exceeds 88.67%, so the ranking of best-known cereal policy is
+    unchanged.
+  * "Nothing beat 89.00%" in the three batches holds under either selector (best
+    peak 81.75%, best trained best/ 85.88%).
+What changes is per-run quality: a "1.42% run" (cer2Mplain_s20) is really an 85.25%
+run, and curF_s0 is 86.12% not 27.75%.
+
+WHAT CANNOT BE AUDITED AT ALL.  Snapshotting was added late, so these runs have
+snapshots=0 and their best/ figures cannot be re-checked by any selector:
+    td3_place            THE DEPLOYED PLACE ACTOR (93.25%)
+    td3_place_bi_s0-2    bread transport retraining (92.00 / 90.50 / 68.25%)
+    td3_place_cereal_s0-4  the 67.77% mean behind "warm-started cereal loses"
+    td3_place_cerealbig_s2, td3_place_pairfix_s0-2
+
+IS THAT GAP BENIGN?  The argument offered was that early-episode success was low
+anyway, so missing early checkpoints costs nothing.  The data does not support the
+premise: among the 20 runs whose peak episode is known, the peak is at episode
+<= 2,500 in 13 of them, and every warm run in the three batches peaked at its
+EARLIEST snapshot (ep 250).  Early is exactly where the good checkpoints are.
+The mechanism is the selector itself: metric = frac50 x place50 rises as the
+curriculum advances, so a later policy at higher frac outranks an earlier one at
+lower frac even when the earlier one is better end-to-end.  best/ therefore drifts
+away from early peaks by construction -- which is what the logs of the
+pre-snapshot runs show (cereal_s0's last best/ save is ep 7,997 of 8,000;
+cerealbig_s2's is ep 17,585 of 18,450, both at the run's maximum training Place%).
+
+  THE DEPLOYED ACTOR IS THE EXCEPTION, AND IT IS SAFE.  Its curriculum reached
+  0.96, so its best/ was selected at NEAR-FULL difficulty, where frac50 is ~1 and
+  the metric's curriculum weighting is nearly inert -- the failure mode needs a
+  policy selected at low frac (cer2Mplain_s20 never passed ~0.55).  Its 93.25%
+  also remains the highest figure any place checkpoint has scored, under either
+  selector.  The residual risk is real but bounded, and untestable without
+  retraining with snapshots on.

@@ -125,6 +125,9 @@ These predate the decomposition; `train_v8.py` is the last monolithic loop
 | `es_watch.py` | Early stopping on periodic end-to-end evaluation: scores each snapshot through `fsm_sim.py`, writes `<run>/STOP` after 4 unbeaten snapshots; `--no-stop` scores only. |
 | `Decomposed state training/place_reward_audit.py` + `run_place_reward_audit.sh` + `analyze_place_reward_audit.py` | Prices every place reward mode on the same recorded episodes before training (§9.10 method), with exact accounting controls. |
 | `run_place_selection.sh` + `analyze_place_selection.py` | Place-checkpoint selection on end-to-end success, re-scored on held-out seeds (§9.18). |
+| `run_place_long2m.sh` | The 2M recipe at its full budget (55,000 episodes, cereal, random spawn): σ-constant vs σ-annealed arms. Resumes any run that already has weights rather than warm-starting over them — see its header. `Results/place_long2m/`, §9.18. |
+| `run_place_sac.sh` | Same recipe with `--algo sac`, from scratch (a TD3 actor has no `log_std` head to donate). Launch in waves and measure: nine concurrent runs reach ~80 GB. |
+| `eval_2m_best.sh`, `eval_2m_peaks.sh`, `eval_2m_best_job.sh` | Headline scoring of the 2M batch: 12 seeds × 100 paired, end-to-end through `fsm_sim.py`, `best/` and peak snapshots, with the warm-start source scored in the same sweep. Resumable. `Results/place_2m_best/`. |
 
 ---
 
@@ -172,7 +175,7 @@ certification), `gripfix*`, `rv2` (reward v2), `align` (yaw alignment),
 quantization sweeps; **`c2m512_s1` is the deployed grasp**), `buf200k/500k/1000k` (buffer size), `long60k`,
 `cereal_{base,align}[warm]` (per-object, cereal), `can_warm` (per-object, can).
 
-`td3_place*` random-spawn investigation (§9.18): `_cereal_s*` (default recipe), `_cerealbig_s*` / `_cerealsmall_s*` / `_breadbig_s*` (recipe arms), `_pairfix_s*` (critics warm-started), `_curF_s*` / `_curR_s*` (controlled fixed vs random pair, with `snapshots/`), `_cerealscratch_s*` (cereal from scratch, with `snapshots/`), `_cerES_*` / `_cerBP_*` / `_cerBPann_*` (`scr`/`warm`, seeds 10–12: early stopping, potential-based built-in reward, annealed toward sparse; `Results/place_training_batches.txt`).
+`td3_place*` random-spawn investigation (§9.18): `_cereal_s*` (default recipe), `_cerealbig_s*` / `_cerealsmall_s*` / `_breadbig_s*` (recipe arms), `_pairfix_s*` (critics warm-started), `_curF_s*` / `_curR_s*` (controlled fixed vs random pair, with `snapshots/`), `_cerealscratch_s*` (cereal from scratch, with `snapshots/`), `_cerES_*` / `_cerBP_*` / `_cerBPann_*` (`scr`/`warm`, seeds 10–12: early stopping, potential-based built-in reward, annealed toward sparse; `Results/place_training_batches.txt`), `_cer2Mplain_s2*` / `_cer2Mnoise_s2*` (the 2M recipe at 55,000 episodes, σ constant vs annealed) and `sac_place_cer2M_s3*` (SAC, from scratch), all with `snapshots/`.
 
 `td3_place*` variants: `_bi_s*` (paired with the superseded `bi_s0` grasp), `_rs_reset_*`
 vs `_rs_control_*` (critic-reset ablation), `*_backup` (manual saves).
@@ -211,6 +214,8 @@ Section numbers are `thesis_context.md` sections.
 | `place_training_batches.txt`; raw data in `place_reward_audit/`, `place_reward_audit2/`, `place_es/`, `place_es_B/`, `place_es_C/`, `place_batch_holdout/` | The three cereal place-training batches (early stopping; potential-based built-in reward; annealed toward sparse): design, the pricing gates, and the held-out result — none fixes the late decay. |
 | `place_batch_holdout/` | Held-out scoring of all 18 batch runs at peak snapshot / `best/` / final weights, 8 unused seeds × 100, deduplicated by actor md5 (§9.18). |
 | `place_selection/` | Place-checkpoint selection on end-to-end success, re-scored on 8 held-out seeds × 100: peak vs `best/` vs final weights vs reference (§9.18). |
+| `place_long2m/` | Rolling 2-seed × 50 screen of every snapshot of the 2M TD3 and SAC runs (`es_watch.py --no-stop`). The screen that locates peaks; not a headline protocol. |
+| `place_2m_best/` | Headline scoring of the finished 2M batch, 12 seeds × 100 paired: `best/` and peak snapshots against the warm-start source. Shows `best/` can be catastrophically wrong (§9.18, `place_training_batches.txt` §6b/§6c). |
 | `cereal_scratch/` | Cereal from scratch vs warm-started cereal on transitions: `report.txt`; `eval.tsv` (4×50 per checkpoint), `protocol.tsv` (12×50), `control.tsv` (positive control) (§9.18). |
 | `object_generalisation.txt` | Zero-shot to unseen objects fails, ordered by shape rather than size (§9.15.2). |
 | `orientation_ablation.txt` | World-frame orientation input is nearly free; gripper-frame is essential (§9.15.2). |
