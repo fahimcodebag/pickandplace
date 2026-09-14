@@ -34,6 +34,7 @@ from td3 import Agent
 # deployed 64->32), so nothing about the ESP32 artifact changes.
 from td3_ln import Agent as AgentLN
 from sac import Agent as AgentSAC
+from ppo import Agent as AgentPPO
 from place_env_wrapper import PlaceGymWrapper
 
 
@@ -344,6 +345,7 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
           batch_size_override=None, buffer_size_override=None,
           critic_fc1=None, critic_fc2=None,
           warm_start_from=None, critic_reset_every=0, layer_norm=False, algo="td3",
+          target_entropy=None,
           warm_start_critics=False, skip_warmup=False, snapshot_every=0,
           reward_mode="custom", idle_cost=0.0, stop_file=None,
           anneal_shaping=False, anneal_threshold=0.6, anneal_window=200,
@@ -418,9 +420,14 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     if place_horizon:
         print(f"Place horizon:  {place_horizon} steps (default 200)")
     print(f"Algorithm:      {algo.upper()}")
-    if algo == "sac":
+    if algo == "ppo":
+        print("Exploration:    on-policy Gaussian; no replay buffer, --buffer-size ignored")
+    elif algo == "sac":
         # Printing a sigma here would be a lie: SAC never reads it.
-        print("Exploration:    learned (entropy-regularised); --noise* ignored")
+        print("Exploration:    learned (entropy-regularised)"
+              + (f"; target_entropy {target_entropy}" if target_entropy is not None
+                 else " (target_entropy default -n_actions)")
+              + "; --noise* ignored")
     elif noise_final is not None and noise_anneal_episodes:
         print(f"Exploration:    sigma {noise_start} -> {noise_final} over "
               f"{noise_anneal_episodes} episodes")
@@ -486,11 +493,19 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
     noise_scale = np.ones(n_actions, dtype=np.float32)
 
     # --- Agent --------------------------------------------------------------
-    if algo == "sac":
+    if algo == "ppo":
+        # On-policy: no replay buffer at all, so it cannot suffer the stale-replay
+        # decay every TD3/SAC run here shows. rollout_steps x n_envs transitions
+        # are collected, then a multi-epoch clipped update.
+        _Agent = AgentPPO
+        _extra = {"n_envs": n_envs, "layer_norm": layer_norm}
+    elif algo == "sac":
         # SAC: entropy-regularised exploration replaces TD3's fixed sigma, so
         # --noise* is inert here (sac.Agent keeps .noise only for API parity).
         _Agent = AgentSAC
         _extra = {"layer_norm": True} if layer_norm else {}
+        if target_entropy is not None:
+            _extra["target_entropy"] = target_entropy
     else:
         _Agent = AgentLN if (layer_norm or critic_reset_every) else Agent
         _extra = {"layer_norm": True} if _Agent is AgentLN else {}
@@ -676,12 +691,16 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
                 _k = agent.memory.mem_cntr % _msz
                 _shape_mem[_k] = infos[i].get("r_bpot_shape", 0.0)
                 _sparse_mem[_k] = infos[i].get("r_bpot_sparse", 0.0)
+            # PPO stores per-env (its rollout is parallel); TD3/SAC do not
+            # accept env_idx at all, so pass it only where it exists.
+            _rk = {"env_idx": i} if algo == "ppo" else {}
             agent.remember(
                 observations[i],
                 applied_action,
                 rewards[i],
                 next_observations[i],
                 dones[i],
+                **_rk,
             )
 
             # — Handle completed episodes ------------------------------------
@@ -941,9 +960,14 @@ if __name__ == "__main__":
     _p.add_argument("--critic-fc2", type=int, default=None,
                     help="critic hidden 2 (default 32, as bread).")
     _p.add_argument("--layer-norm", action="store_true")
-    _p.add_argument("--algo", choices=("td3", "sac"), default="td3",
+    _p.add_argument("--algo", choices=("td3", "sac", "ppo"), default="td3",
                     help="td3 (default) or sac. SAC learns its own exploration, "
-                         "so --noise-start/--noise-final do nothing under it.")
+                         "so --noise-start/--noise-final do nothing under it. "
+                         "ppo is on-policy: no replay buffer, --buffer-size ignored.")
+    _p.add_argument("--target-entropy", type=float, default=None,
+                    help="SAC only. Default -n_actions (-7). LESS negative (e.g. -3.5) "
+                         "holds less entropy, i.e. a less stochastic policy late in "
+                         "training -- the SAC analogue of annealing TD3's sigma.")
     _p.add_argument("--reward-mode", default="custom",
                     choices=("custom", "builtin", "builtin_idle", "builtin_potential"),
                     help="custom = potential-shaped place reward (default). "
@@ -1001,6 +1025,7 @@ if __name__ == "__main__":
                   critic_reset_every=_a.critic_reset_every,
                   layer_norm=_a.layer_norm,
                   algo=_a.algo,
+                  target_entropy=_a.target_entropy,
                   object_type=_a.object_type,
                   seed=_a.seed,
                   batch_size_override=_a.batch_size,

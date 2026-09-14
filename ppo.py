@@ -125,7 +125,8 @@ class Agent:
                  update_actor_interval=None, layer_norm=False,
                  rollout_steps=512, n_epochs=10, clip_eps=0.2,
                  gae_lambda=0.95, entropy_coef=0.003, vf_coef=0.5,
-                 max_grad_norm=0.5, n_envs=1):
+                 max_grad_norm=0.5, n_envs=1,
+                 actor_layer1=None, actor_layer2=None):
         self.gamma, self.gae_lambda = gamma, gae_lambda
         self.clip_eps, self.n_epochs = clip_eps, n_epochs
         self.entropy_coef, self.vf_coef = entropy_coef, vf_coef
@@ -142,7 +143,13 @@ class Agent:
         self.device = T.device('cuda' if T.cuda.is_available() else 'cpu')
         os.makedirs(chkpt_dir, exist_ok=True)
 
-        self.actor = PPOActor(input_dims, layer1_size, layer2_size, n_actions,
+        # The ACTOR is the deployed artifact (64x32 INT8 on the ESP32); the
+        # value net never ships, so it may be wide. Without separate dims both
+        # take layer1/layer2_size and a 512x256 critic forces an undeployable
+        # 512x256 actor -- the same trap sac.Agent had.
+        _a1 = actor_layer1 or layer1_size
+        _a2 = actor_layer2 or layer2_size
+        self.actor = PPOActor(input_dims, _a1, _a2, n_actions,
                               chkpt_dir, alpha, float(self.max_action[0]))
         self.critic = ValueNetwork(input_dims, layer1_size, layer2_size,
                                    chkpt_dir, beta, layer_norm)
