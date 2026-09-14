@@ -278,3 +278,69 @@ TWO RUNS TERMINATED EARLY -- SCORED AS CENSORED, NOT AS FINISHED
 ARM COUNTS NOW: noise 3/3 running, plain 1/3 running (s20), SAC 3/3 running.
 The plain arm's late-training behaviour now rests on s20 alone.
 
+--------------------------------------------------------------------------------
+6b. THE 2M BATCH FINISHED -- HEADLINE SCORING (2026-09-14)
+--------------------------------------------------------------------------------
+All four surviving TD3 runs reached 55,000 episodes and exited. Scored at the
+headline protocol: 12 seeds x 100 episodes, paired on seed, END-TO-END through
+fsm_sim.py (eval_2m_best.sh / eval_2m_peaks.sh -> Results/place_2m_best/), anchor
+--rot-anchor-eps 1e-6 and --settle-steps 60, matching every recorded cereal figure.
+The reference is the policy all four were WARM-STARTED FROM, scored on the same
+seeds in the same sweep: td3_place_cerealscratch_s2/best, 88.00% (rested 96.50%).
+
+  best/ checkpoints                success  rested   vs source (paired, n=12)
+    cer2Mnoise_s21                  85.58%  97.33%    -2.42  t= -2.31   2u/7d
+    cer2Mnoise_s20                  76.83%  87.83%   -11.17  t= -7.84   0u/12d
+    cer2Mnoise_s22                  73.00%  82.58%   -15.00  t=-10.61   0u/12d
+    cer2Mplain_s20                   1.42%   1.50%   -86.58  t=-83.21   0u/12d
+
+  PEAK SNAPSHOTS (chosen on the 2x50 screen in Results/place_long2m/eval.tsv)
+    cer2Mnoise_s22  ep_04000        88.67%  97.33%    +0.67  t= +0.40   5u/6d
+    cer2Mnoise_s20  ep_26000        86.17%  96.42%    -1.83  t= -1.31   2u/7d
+    cer2Mplain_s20  ep_54000        85.25%  94.83%    -2.75  t= -1.97   3u/9d
+    cer2Mnoise_s21  ep_38000        77.08%  87.75%   -10.92  t= -9.43   0u/12d
+
+NOTHING BEAT THE POLICY IT STARTED FROM.  The best result in the batch is
+cer2Mnoise_s22's ep_04000 snapshot at 88.67% against the source's 88.00%: +0.67
+points, t=+0.40, 5 seeds up and 6 down. That is a TIE, not an improvement, and it
+must not be quoted as one. Every other checkpoint is below the source, three of
+them significantly. 55,000 episodes x 4 runs produced no policy better than the
+~2,000-episode from-scratch run they were all initialised from.
+
+best/ IS THE WRONG ARTIFACT, AND THIS BATCH MEASURES HOW WRONG.  best/ matches NO
+snapshot in any of the four runs: it is written whenever metric = frac50 x place50
+improves, at arbitrary episodes, and that metric is computed UNDER THE CURRICULUM.
+A policy can score well at handoff fraction 0.5 and fail at the true full-distance
+spawn fsm_sim evaluates. cer2Mplain_s20 is the clean demonstration -- same run,
+same training, two selection rules:
+    best/                 1.42%
+    ep_54000 snapshot    85.25%
+an 84-point selection gap. Its curriculum never passed ~0.55, so its best/ had
+essentially never seen the real task. Peak-snapshot selection beat best/ in all
+four runs. This extends the +34/+33 point selection gaps recorded in section 5
+(9.18, Results/place_selection) to a case where best/ is not merely late but
+catastrophic.
+
+THE BUFFER HYPOTHESIS IS REFUTED.  This batch existed because the 2M recipe had
+only ever been judged at 8,000 episodes, where the buffer is 15-20% full and never
+cycles. Measured fill points, from the trainers' own checkpoint lines:
+    noise_s20  2,000,000 at ~ep 30,000   -> 25,000 episodes on a full buffer
+    noise_s21  2,000,000 at ~ep 33,500   -> 21,500
+    noise_s22  2,000,000 at ~ep 35,000   -> 20,000
+    plain_s20  2,000,000 at ~ep 36,000   -> 19,000
+So each run trained 19,000-25,000 episodes (~40% of its life) on a full, cycling
+buffer, and none of them improved on its initialisation. The best checkpoint in
+the batch is at episode 4,000, LONG BEFORE fill. Caveat on the mechanism: at ~53
+transitions per episode a full 2M buffer holds ~38,000 episodes of history, so
+"full" also means the earliest easy-curriculum experience is being evicted FIFO --
+capacity and recency change together, so this refutes the budget argument without
+isolating which of the two mattered.
+
+THE SCREEN IS OPTIMISTIC, AS EXPECTED AT n=100.  2x50 screen -> 12x100 headline:
+93% -> 88.67, 90% -> 86.17, 77% -> 77.08, and 82% -> 85.25 (this one rose). Peak
+snapshots chosen on a 100-episode screen therefore need re-scoring before they are
+quoted, but they did NOT collapse out of sample -- unlike best/.
+
+STILL OPEN: the three SAC runs (sac_place_cer2M_s30/31/32) were at ~48k/55k
+episodes when this was written and are NOT scored here. Their best/ is rewritten
+in place by a live trainer; only their write-once snapshots are safe to read.

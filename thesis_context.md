@@ -1745,6 +1745,52 @@ actor — the selector kept the initialisation — and robosuite's bare staged r
 dropped before training because pricing showed it pays stalling more than placing
 (§9.10 method, `Results/place_reward_audit/`).
 
+**The 2M recipe at its full budget — the buffer hypothesis, refuted**
+(`Results/place_training_batches.txt` §6/§6b, raw data `Results/place_2m_best/`,
+screen `Results/place_long2m/`). Six runs at the recipe the 2M buffer was designed
+for (buffer 2,000,000, batch 1024, critic 512×256, actor 64×32, place horizon 150,
+cereal, random spawn, 55,000 episodes), warm-started from `cerealscratch_s2/best`;
+three at σ 0.1 constant, three annealed σ 0.1 → 0.02 over 20,000 episodes. Scored
+12 seeds × 100, paired, end-to-end, against that same warm-start source on the same
+seeds (**88.00%**, rested 96.50%):
+
+| checkpoint | success | vs source | t | u/d |
+|---|---|---|---|---|
+| `noise_s22` ep_04000 | **88.67%** | +0.67 | +0.40 | 5u/6d |
+| `noise_s20` ep_26000 | 86.17% | −1.83 | −1.31 | 2u/7d |
+| `plain_s20` ep_54000 | 85.25% | −2.75 | −1.97 | 3u/9d |
+| `noise_s21` ep_38000 | 77.08% | −10.92 | −9.43 | 0u/12d |
+
+**Nothing beat the policy it started from.** The batch's best checkpoint ties the
+source (+0.67, 5 up 6 down) and comes from **episode 4,000**; the `best/` selectors
+score 85.58 / 76.83 / 73.00 / 1.42%. The buffers reached 2,000,000 at episodes
+**30,000–36,000**, so each run trained 19,000–25,000 episodes — ~40% of its life —
+on a full, cycling buffer and still ended below its initialisation. This closes the
+caveat recorded above that the −28.44 verdict judged the recipe "at a budget it was
+not designed for": given that budget, it loses anyway. It also tempers the
+`cerealbig_s2` reading that long training is the lever that changes the late-decay
+pattern — at 55,000 episodes the runs oscillate on a ~4,000–8,000-episode period
+(`noise_s21` scored 0% at ep 29k and 77% at ep 38k on the 2×50 screen) rather than
+converging, so a single late snapshot is not a verdict on a run. Mechanism caveat:
+at ~53 transitions/episode a full buffer holds ~38,000 episodes, so capacity and
+FIFO eviction of the early easy-curriculum data change together.
+
+**`best/` can be catastrophically wrong, not merely late.** `best/` matches *no*
+snapshot in any of the four runs — it is written at arbitrary episodes whenever
+`frac50 × place50` improves, and that metric is measured *under the curriculum*, so
+it can reward a policy that has never seen the full-distance spawn `fsm_sim` scores.
+`cer2Mplain_s20` is the clean case: `best/` **1.42%** against its own ep_54000
+snapshot **85.25%** — an 84-point selection gap in one run, its curriculum having
+never passed ~0.55. Peak-snapshot selection beat `best/` in all four runs, extending
+the +34/+33-point gaps in the selection study above. The 2×50 screen was mildly
+optimistic (93 → 88.67, 90 → 86.17) but did not collapse out of sample; one peak rose
+(82 → 85.25). Two `plain` seeds were terminated at ~40,000 episodes for memory, not
+merit, and must be entered in any end-of-training comparison as **censored, imputed
+0%** — a lower bound, since `noise_s21` recovered from nine consecutive sub-5%
+snapshots to 77%. Three SAC runs at the same recipe (`--algo sac`, from scratch,
+since a TD3 actor has no `log_std` head to donate) were still training when this was
+written and are not scored here.
+
 **Next (ask first):** training-side changes against the late collapse — early stopping on periodic
 end-to-end evaluation, or a lower actor learning rate after the first peak; and the open items in §9.16.
 
