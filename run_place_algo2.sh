@@ -33,7 +33,8 @@ _running() {  # per-ARG match; never pkill -f
   return 1
 }
 
-BASE="--random-spawn --layer-norm --n-envs 8 --batch-size 1024 \
+NENVS_ppo=24; NENVS_sacE=8
+BASE="--random-spawn --layer-norm --batch-size 1024 \
 --critic-fc1 512 --critic-fc2 256 --episodes 55000 --place-horizon 150 \
 --snapshot-every 1000 --object-type cereal \
 --grasp-chkpt-dir ../checkpoints/td3_grasp_rand_td3_ln_cereal_alignwarm_s0/best"
@@ -43,7 +44,10 @@ cd "Decomposed state training"
 for arm in ppo sacE; do
   [ "$WHICH" != both ] && [ "$WHICH" != "$arm" ] && continue
   case $arm in
-    ppo)  TAG=ppo_place_cer;  SEEDS="40 41 42"; EXTRA="--algo ppo" ;;
+    # n_envs 24 with rollout_steps 170 keeps the update batch at 170x24=4,080,
+    # within 0.4% of the original 512x8=4,096 -- 3x the throughput, SAME algorithm.
+    # Raising n_envs alone would have tripled the batch and cut the update count.
+    ppo)  TAG=ppo_place_cer;  SEEDS="40 41 42"; EXTRA="--algo ppo --rollout-steps 170" ;;
     sacE) TAG=sacE_place_cer; SEEDS="50 51 52"; EXTRA="--algo sac --target-entropy -3.5 --buffer-size 2000000" ;;
   esac
   for SD in $SEEDS; do
@@ -51,7 +55,8 @@ for arm in ppo sacE; do
     LOG=../logs/train_place_${TAG}_s$SD.log
     if _running "$NAME"; then echo "already running: $NAME"; continue; fi
     if [ -e ../checkpoints/$NAME/actor_td3 ]; then echo "resuming: $NAME"; else : > "$LOG"; echo "starting: $NAME"; fi
-    nohup $PY -u train_place.py $BASE $EXTRA --seed $SD \
+    eval NE=\$NENVS_$arm
+    nohup $PY -u train_place.py $BASE --n-envs $NE $EXTRA --seed $SD \
       --place-chkpt-dir ../checkpoints/$NAME >> "$LOG" 2>&1 &
     RUNS="$RUNS checkpoints/$NAME"
     sleep 4

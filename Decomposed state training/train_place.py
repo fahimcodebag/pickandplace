@@ -121,6 +121,13 @@ _CURRIC_FRAC0 = None      # resume: seed for the wrapper curriculum
 
 def _worker(remote, parent_remote, env_name, seed):
     """Worker loop that runs in a child process."""
+    # Hide the GPU from env workers. They only step physics and run the grasp
+    # actor on CPU, but networks.ActorNetwork initialises CUDA on construction,
+    # so every forked worker otherwise opened its own CUDA context: 102 contexts
+    # filled the 3090 (23.7 of 24.6 GB) and inflated host RAM ~3x at 24 envs.
+    # Safe because the parent initialises CUDA only AFTER forking (agent is
+    # built after SubprocVecEnv), and torch reads this variable lazily.
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
     parent_remote.close()
     env = make_place_env(env_name, seed=seed, grasp_chkpt_dir=_GRASP_CHKPT_DIR,
                          random_spawn=_RANDOM_SPAWN,
@@ -345,7 +352,7 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
           batch_size_override=None, buffer_size_override=None,
           critic_fc1=None, critic_fc2=None,
           warm_start_from=None, critic_reset_every=0, layer_norm=False, algo="td3",
-          target_entropy=None,
+          target_entropy=None, rollout_steps=None,
           warm_start_critics=False, skip_warmup=False, snapshot_every=0,
           reward_mode="custom", idle_cost=0.0, stop_file=None,
           anneal_shaping=False, anneal_threshold=0.6, anneal_window=200,
@@ -421,7 +428,9 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
         print(f"Place horizon:  {place_horizon} steps (default 200)")
     print(f"Algorithm:      {algo.upper()}")
     if algo == "ppo":
-        print("Exploration:    on-policy Gaussian; no replay buffer, --buffer-size ignored")
+        _rs = rollout_steps or 512
+        print(f"Exploration:    on-policy Gaussian; no replay buffer")
+        print(f"Rollout:        {_rs} x {n_envs} envs = {_rs * n_envs:,} transitions/update")
     elif algo == "sac":
         # Printing a sigma here would be a lie: SAC never reads it.
         print("Exploration:    learned (entropy-regularised)"
@@ -499,6 +508,11 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
         # are collected, then a multi-epoch clipped update.
         _Agent = AgentPPO
         _extra = {"n_envs": n_envs, "layer_norm": layer_norm}
+        if rollout_steps:
+            # rollout = rollout_steps x n_envs. Scale this DOWN when raising
+            # --n-envs to keep the update batch (and so the algorithm) fixed;
+            # otherwise more envs silently means bigger batches, fewer updates.
+            _extra["rollout_steps"] = rollout_steps
     elif algo == "sac":
         # SAC: entropy-regularised exploration replaces TD3's fixed sigma, so
         # --noise* is inert here (sac.Agent keeps .noise only for API parity).
@@ -818,7 +832,9 @@ def train(env_name="PickPlace", n_envs=8, n_episodes=10000,
                             mem_cntr=int(agent.memory.mem_cntr),
                             reward_mode=_REWARD_MODE,
                             idle_cost=_IDLE_COST,
-                            noise=float(agent.noise),
+                            # ppo.Agent has no .noise (it never had a sigma to
+                            # record); sac.Agent keeps one only for parity.
+                            noise=float(getattr(agent, 'noise', 0.0) or 0.0),
                             place_horizon=_PLACE_HORIZON,
                             shaping_weight=float(shaping_w),
                             anneal_start=anneal_start), _fh, indent=1)
@@ -964,6 +980,10 @@ if __name__ == "__main__":
                     help="td3 (default) or sac. SAC learns its own exploration, "
                          "so --noise-start/--noise-final do nothing under it. "
                          "ppo is on-policy: no replay buffer, --buffer-size ignored.")
+    _p.add_argument("--rollout-steps", type=int, default=None,
+                    help="PPO only. Transitions per env per update (default 512); the "
+                         "update batch is rollout_steps x n_envs. Lower it when raising "
+                         "--n-envs to hold the batch constant.")
     _p.add_argument("--target-entropy", type=float, default=None,
                     help="SAC only. Default -n_actions (-7). LESS negative (e.g. -3.5) "
                          "holds less entropy, i.e. a less stochastic policy late in "
@@ -1026,6 +1046,7 @@ if __name__ == "__main__":
                   layer_norm=_a.layer_norm,
                   algo=_a.algo,
                   target_entropy=_a.target_entropy,
+                  rollout_steps=_a.rollout_steps,
                   object_type=_a.object_type,
                   seed=_a.seed,
                   batch_size_override=_a.batch_size,
