@@ -58,7 +58,7 @@ and it is worth ~2 points.
 | File | What it does |
 |---|---|
 | `Decomposed state training/train_grasp.py` | Stage-1 grasp actor, fixed spawn. |
-| `Decomposed state training/train_place.py` | Stage-2 place/transport actor. |
+| `Decomposed state training/train_place.py` | Stage-2 place/transport actor. `--algo td3\|sac\|ppo`, `--target-entropy`, `--rollout-steps`, `--place-horizon`, noise annealing. Resumes episode count, `best_metric` and curriculum from the newest snapshot, so a power cut costs ≤500 episodes rather than clobbering `best/`. Env workers run with the GPU hidden (§9.18). |
 | `Decomposed state training/Random spawn model/train_rand.py` | Random-spawn grasp training. `--object-type`, `--cold-start`, `--grasp-horizon`, warm-start, QAT-in-loop, critic resets. |
 | `Decomposed state training/grasp_env_wrapper.py` | Grasp reward/termination, object-aware grip gate, `truncated` flag. |
 | `Decomposed state training/place_env_wrapper.py` | Place-stage wrapper. |
@@ -127,6 +127,7 @@ These predate the decomposition; `train_v8.py` is the last monolithic loop
 | `run_place_selection.sh` + `analyze_place_selection.py` | Place-checkpoint selection on end-to-end success, re-scored on held-out seeds (§9.18). |
 | `run_place_long2m.sh` | The 2M recipe at its full budget (55,000 episodes, cereal, random spawn): σ-constant vs σ-annealed arms. Resumes any run that already has weights rather than warm-starting over them — see its header. `Results/place_long2m/`, §9.18. |
 | `run_place_sac.sh` | Same recipe with `--algo sac`, from scratch (a TD3 actor has no `log_std` head to donate). Launch in waves and measure: nine concurrent runs reach ~80 GB. |
+| `run_place_algo2.sh` | PPO (`--algo ppo`, no replay buffer) and entropy-tuned SAC (`--target-entropy -3.5`) on the place stage, from scratch. Resumes anything with weights on disk. `Results/place_algo2/`, §9.18. |
 | `eval_2m_best.sh`, `eval_2m_peaks.sh`, `eval_2m_best_job.sh` | Headline scoring of the 2M batch: 12 seeds × 100 paired, end-to-end through `fsm_sim.py`, `best/` and peak snapshots, with the warm-start source scored in the same sweep. Resumable. `Results/place_2m_best/`. |
 
 ---
@@ -175,7 +176,7 @@ certification), `gripfix*`, `rv2` (reward v2), `align` (yaw alignment),
 quantization sweeps; **`c2m512_s1` is the deployed grasp**), `buf200k/500k/1000k` (buffer size), `long60k`,
 `cereal_{base,align}[warm]` (per-object, cereal), `can_warm` (per-object, can).
 
-`td3_place*` random-spawn investigation (§9.18): `_cereal_s*` (default recipe), `_cerealbig_s*` / `_cerealsmall_s*` / `_breadbig_s*` (recipe arms), `_pairfix_s*` (critics warm-started), `_curF_s*` / `_curR_s*` (controlled fixed vs random pair, with `snapshots/`), `_cerealscratch_s*` (cereal from scratch, with `snapshots/`), `_cerES_*` / `_cerBP_*` / `_cerBPann_*` (`scr`/`warm`, seeds 10–12: early stopping, potential-based built-in reward, annealed toward sparse; `Results/place_training_batches.txt`), `_cer2Mplain_s2*` / `_cer2Mnoise_s2*` (the 2M recipe at 55,000 episodes, σ constant vs annealed) and `sac_place_cer2M_s3*` (SAC, from scratch), all with `snapshots/`.
+`td3_place*` random-spawn investigation (§9.18): `_cereal_s*` (default recipe), `_cerealbig_s*` / `_cerealsmall_s*` / `_breadbig_s*` (recipe arms), `_pairfix_s*` (critics warm-started), `_curF_s*` / `_curR_s*` (controlled fixed vs random pair, with `snapshots/`), `_cerealscratch_s*` (cereal from scratch, with `snapshots/`), `_cerES_*` / `_cerBP_*` / `_cerBPann_*` (`scr`/`warm`, seeds 10–12: early stopping, potential-based built-in reward, annealed toward sparse; `Results/place_training_batches.txt`), `_cer2Mplain_s2*` / `_cer2Mnoise_s2*` (the 2M recipe at 55,000 episodes, σ constant vs annealed) and `sac_place_cer2M_s3*` (SAC, from scratch), `ppo_place_cer_s4*` (PPO, on-policy) and `sacE_place_cer_s5*` (SAC, `target_entropy -3.5`), all with `snapshots/`. `_ppo_8env_superseded/` holds the first PPO attempt, which crashed at ep 1,000 on a missing `agent.noise`.
 
 `td3_place*` variants: `_bi_s*` (paired with the superseded `bi_s0` grasp), `_rs_reset_*`
 vs `_rs_control_*` (critic-reset ablation), `*_backup` (manual saves).
@@ -215,6 +216,7 @@ Section numbers are `thesis_context.md` sections.
 | `place_batch_holdout/` | Held-out scoring of all 18 batch runs at peak snapshot / `best/` / final weights, 8 unused seeds × 100, deduplicated by actor md5 (§9.18). |
 | `place_selection/` | Place-checkpoint selection on end-to-end success, re-scored on 8 held-out seeds × 100: peak vs `best/` vs final weights vs reference (§9.18). |
 | `place_long2m/` | Rolling 2-seed × 50 screen of every snapshot of the 2M TD3 and SAC runs (`es_watch.py --no-stop`). The screen that locates peaks; not a headline protocol. |
+| `place_algo2/` | Rolling 2-seed × 50 screen of the PPO and entropy-tuned-SAC arms. PPO fails 3/3 (peak 1-6%); `sacE_s52` reached 80%. Both arms censored by a power loss (§9.18, `place_training_batches.txt` §7). |
 | `place_2m_best/` | Headline scoring of the finished 2M batch, 12 seeds × 100 paired: `best/` and peak snapshots against the warm-start source. Shows `best/` can be catastrophically wrong (§9.18, `place_training_batches.txt` §6b/§6c). |
 | `cereal_scratch/` | Cereal from scratch vs warm-started cereal on transitions: `report.txt`; `eval.tsv` (4×50 per checkpoint), `protocol.tsv` (12×50), `control.tsv` (positive control) (§9.18). |
 | `object_generalisation.txt` | Zero-shot to unseen objects fails, ordered by shape rather than size (§9.15.2). |

@@ -1823,6 +1823,45 @@ failure mode requires selection at low `frac` (`cer2Mplain_s20` never passed ~0.
 — and 93.25% remains the highest figure any place checkpoint has scored. The
 residual risk is bounded but untestable without retraining with snapshots on.
 
+**Removing the replay buffer does not remove the decay — PPO fails outright**
+(`Results/place_training_batches.txt` §7, raw data `Results/place_algo2/`). `ppo.py`
+earned its slot on an explicit hypothesis: being on-policy it is *structurally
+immune* to the replay pathologies that dominated this project, so if the late decay
+were a stale-replay effect PPO should not show it. Three seeds at the 2M recipe
+(rollout held at 170 × 24 envs = 4,080, within 0.4% of 512 × 8, so the extra envs
+bought throughput and not a bigger batch) reached **1 / 6 / 1 %** peak end-to-end
+over 53,000–55,000 episodes and finished at 0–1%. It does not decay; it never
+learns — the reverse curriculum never leaves its 0.20 floor on two of three seeds,
+so the policy never cleared the advance gate even at the easiest handoff. **The
+decay is therefore not explained by replay staleness**: the off-policy runs at
+least reach 85–93% before degrading, while the bufferless one cannot get off the
+floor. This is PPO at defaults and sample efficiency is its known weakness, so
+"PPO cannot do this task" is *not* established — only that the buffer is not the
+cause.
+
+**Entropy-tuned SAC: one seed in three, so not attributable.** `--target-entropy
+-3.5` (default `-n_actions` = −7) gave `sacE_s52` **80% at ep 20,000** — the best
+from-scratch cereal place result recorded — still 43–54% at 29,000, and the only
+curriculum in the arm that moved (0.30). But `s50`/`s51` peaked at 20–22% inside
+their first 2,000 episodes and sat at 0–8% after, indistinguishable from
+default-entropy SAC. The arm's variance is as wide as every other place arm's.
+Both arms are **censored, not final**: sacE stopped at 39,000 / 31,500 / 29,350 of
+55,000 (power loss, machine off), `s52` mid-climb. **And the training metric lies
+when the curriculum is stuck**: `sacE_s50` logs 47–57% training Place% at ep 30,500
+while scoring **0%** end-to-end at `frac` 0.22 — it succeeds only when the scripted
+carry sets the object down almost over the bin. Pair every training-log figure with
+its `frac50`, the same trap as the `best/` finding above.
+
+**Infrastructure, applies to every future run.** Each forked env worker opened its
+own CUDA context — `networks.ActorNetwork` calls `T.cuda.is_available()` on
+construction even though the wrapper then places the grasp actor on CPU. At ~102
+workers that consumed **23.7 GB of the 3090's 24.6 GB** with the GPU pegged at 100%
+doing nothing useful. `CUDA_VISIBLE_DEVICES=""` in `_worker` fixes it: VRAM fell to
+**2.8 GB**, and an 8-env run now adds 138 MiB instead of ~2 GB. The RAM saving is
+only ~15% (5.86 vs 6.91 GB/run), so the env workers themselves — not CUDA contexts
+— are why PPO at 24 envs costs ~19 GB, and **host RAM stays the binding
+constraint**.
+
 **Next (ask first):** training-side changes against the late collapse — early stopping on periodic
 end-to-end evaluation, or a lower actor learning rate after the first peak; and the open items in §9.16.
 

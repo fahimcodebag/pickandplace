@@ -404,3 +404,69 @@ cerealbig_s2's is ep 17,585 of 18,450, both at the run's maximum training Place%
   also remains the highest figure any place checkpoint has scored, under either
   selector.  The residual risk is real but bounded, and untestable without
   retraining with snapshots on.
+--------------------------------------------------------------------------------
+7. PPO AND ENTROPY-TUNED SAC (2026-09-15 .. 2026-10-05)
+--------------------------------------------------------------------------------
+Two arms at the 2M-batch recipe (critic 512x256, actor 64x32, place horizon 150,
+cereal, random spawn, 55,000 episodes), BOTH FROM SCRATCH.  Screen is
+es_watch.py --no-stop, 2 seeds x 50 per snapshot, Results/place_algo2/.
+
+  ppo_place_cer_s40/41/42   --algo ppo.  On-policy, no replay buffer at all.
+      Rollout held at 170 x 24 envs = 4,080 transitions/update, within 0.4% of
+      the 512 x 8 = 4,096 it started with, so raising n_envs bought throughput
+      WITHOUT changing the update batch.
+  sacE_place_cer_s50/51/52  --algo sac --target-entropy -3.5 (default is
+      -n_actions = -7).  The first SAC batch left every entropy knob at default.
+
+  run        snaps  last ep   peak          final scored   curriculum
+  ppo_s40     54     53,000    1% @35k       0%             0.20 (never left)
+  ppo_s41     55     55,000    6% @12k       1%             0.20 (never left)
+  ppo_s42     55     54,000    1% @25k       0%             0.24
+  sacE_s50    39     39,000   20% @1k        0%             0.22
+  sacE_s51    31     31,000   22% @2k        8%             0.24
+  sacE_s52    29     29,000   80% @20k      54%             0.30
+
+PPO FAILS OUTRIGHT -- 3/3 SEEDS, AND THIS IS A REAL NEGATIVE RESULT.  ppo.py
+earned its slot on an explicit hypothesis (its own docstring): being on-policy it
+is STRUCTURALLY IMMUNE to the replay pathologies that dominated this project, so
+if the late decay were a stale-replay effect, PPO should not show it.  PPO does
+not decay -- it never learns at all.  Peak 1-6% end-to-end over 53,000-55,000
+episodes, and the reverse curriculum never leaves its 0.20 floor on two of three
+seeds, meaning the policy never once cleared the advance gate (75% over 40
+episodes) even at the easiest handoff.  So the decay is NOT explained by replay
+staleness: the off-policy runs at least reach 85-93% before degrading, and the
+algorithm without a buffer cannot get off the floor.  Caveat: this is PPO at
+defaults (clip 0.2, 10 epochs, entropy_coef 0.003, GAE 0.95) and sample
+efficiency is its known weakness, so "PPO cannot do this task" is NOT
+established -- what is established is that removing the replay buffer does not
+remove the problem.
+
+ENTROPY TUNING: 1 OF 3 SEEDS, SO NOT ATTRIBUTABLE.  sacE_s52 reached 80% at
+ep 20,000 -- the best result of any from-scratch place run on cereal -- and was
+still at 43-54% at ep 29,000, with the only curriculum in the arm that moved
+(0.30).  But s50 and s51 peaked at 20-22% in their first 2,000 episodes and sat
+at 0-8% thereafter, which is indistinguishable from the default-entropy SAC
+batch.  target_entropy -3.5 therefore cannot be credited on n=1; the honest
+statement is that the arm's variance is as wide as every other place arm's.
+
+THE TRAINING METRIC LIES WHEN THE CURRICULUM IS STUCK -- AGAIN.  sacE_s50 logs
+47-57% training Place% at ep 30,500 while scoring 0% end-to-end, because its
+curriculum sits at 0.22: it succeeds only when the scripted carry sets the object
+down almost over the bin.  Any claim read off a training log must be paired with
+its frac50 (same trap as 6c's best/ finding).
+
+INCOMPLETE, AND SCORED AS CENSORED.  sacE did not finish: s50/s51/s52 stopped at
+39,000 / 31,500 / 29,350 of 55,000 when the machine lost power and stayed off.
+PPO s40 stopped at 54,100.  Those are CENSORED, not final -- s52 in particular
+was mid-climb.  Resume is one command (run_place_algo2.sh).
+
+INFRASTRUCTURE FINDING (applies to every future run).  Each forked env worker
+opened its OWN CUDA context, because networks.ActorNetwork calls
+T.cuda.is_available() on construction even though the wrapper then puts the grasp
+actor on CPU.  At 24 envs x 3 runs plus 8 x 3 that was ~102 contexts and 23.7 GB
+of the 3090's 24.6 GB, with the GPU pegged at 100% doing nothing useful.
+CUDA_VISIBLE_DEVICES="" in _worker fixes it: an 8-env run now adds 138 MiB of
+VRAM instead of ~2 GB, and total VRAM fell 23.7 -> 2.8 GB.  The RAM saving is
+much smaller than first claimed -- 5.86 vs 6.91 GB per 8-env run, about 15% --
+so the env workers themselves, not CUDA contexts, are what makes PPO at 24 envs
+cost ~19 GB.  Host RAM, not VRAM, remains the binding constraint.
