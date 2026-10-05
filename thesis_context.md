@@ -1862,6 +1862,18 @@ only ~15% (5.86 vs 6.91 GB/run), so the env workers themselves — not CUDA cont
 — are why PPO at 24 envs costs ~19 GB, and **host RAM stays the binding
 constraint**.
 
+**Status 2026-10-05 (end of the training campaign).** Nothing is training. `sacE_s52`
+was resumed from ep 29,000 and stopped by request at **episode 32,000 of 55,000** —
+censored and still mid-climb (54% on the 2×50 screen), ~12 h of compute from its
+budget at the measured 32.8 ep/min. `s50`/`s51` are abandoned at 0–8%, PPO finished
+and failed 3/3. 201 of 202 replay buffers were deleted (73 GB → 3.9 GB), keeping
+only `sacE_s52`'s so it can still resume; buffers were never tracked and
+warm-starting loads weights only, so no reproducibility is lost (`Results/place_training_batches.txt`
+§7). **The deployment claim is complete and independent of all of this** (§8.6,
+§9.14.3): full AprilTag perception, the FP32 corrector, both INT8 policies and the
+FSM run on a plain ESP32 at 89.67% in simulation and 18/20 HIL episodes on the
+board's own pose. What remains open is place-stage *learning* under random spawn.
+
 **Next (ask first):** training-side changes against the late collapse — early stopping on periodic
 end-to-end evaluation, or a lower actor learning rate after the first peak; and the open items in §9.16.
 
