@@ -1,0 +1,45 @@
+SUCCESS vs SPAWN POSE -- THE INT8 ARTIFACT ON THE HEADLINE SEEDS (Fig 8, INT8 panel)
+================================================================================
+The like-for-like companion to Results/spawn_map.txt. Same figure, but on the
+artifact that actually ships and on the seeds the 95.33% headline used, so the two
+numbers are directly comparable.
+
+CONFIGURATION (eval_spawn_map_int8_job.sh is the single source)
+  grasp   Results/big2m/c2m512_s1_int8.tflite     8,088 B   INT8
+  place   qat_output_bi/place_orig_int8.tflite    8,088 B   INT8
+  flags   --int8 --object-type bread --regrasp --rc-steps 60 --rot-anchor-eps 0
+          --success-criterion robosuite, native random spawn
+  seeds   holdout4 (13 59 71 137 199 257 331 419 547 601 733 911), 100 each
+  venv    convert_venv (TensorFlow). The torch venv cannot load a .tflite.
+
+POSITIVE CONTROL -- THE HEADLINE REPRODUCED EXACTLY
+  this run  1144/1200 = 95.33%
+  recorded  1144/1200 = 95.33%   (Results/orientation_anchor_c2m512.txt 1)
+Same total, same artifact, same seeds. This validates the harness AND the
+spawn-pose patch added to fsm_sim.py for these figures: recording spawn_x/y/z/yaw
+per episode did not perturb the rollout.
+
+5x5 GRID -- success % (n). Rows = y bin lower edge, cols = x bin lower edge.
+          x1:-0.015  x2:+0.031  x3:+0.077  x4:+0.123  x5:+0.169
+  y5 -0.151    89.5(38)    96.1(51)    98.0(50)    96.4(56)    95.5(44)
+  y4 -0.217    90.6(53)   100.0(42)    97.9(47)    98.0(51)    89.6(48)
+  y3 -0.283   100.0(52)   100.0(41)    97.9(47)    94.5(55)    88.9(63)
+  y2 -0.349   100.0(46)    98.0(49)    90.9(33)    97.1(34)    90.2(61)
+  y1 -0.415    96.2(52)    98.1(52)    98.0(49)    97.7(43)    86.0(43)
+  all 25 cells populated: min 33, median 49, max 63
+
+THE FAR-x DEFICIT REPLICATES ON INDEPENDENT SEEDS AND IN INT8
+  INT8  x5 233/259 = 90.0%  vs x1-x4 911/941 = 96.8%   -6.9 pts, z = -4.63
+  FP32  x5 216/241 = 89.6%  vs x1-x4 932/959 = 97.2%   -7.6 pts, z = -5.15
+Two disjoint seed sets and two precisions give the same deficit of the same size
+in the same place. This is the strongest form the claim can take from this data:
+it is a property of the policy stack, not of a seed set or of quantisation.
+Column means (INT8): x1 95.4  x2 98.3  x3 96.9  x4 96.7  x5 90.0.
+Single CELLS still hold 33-63 episodes and should be read as indicative; the
+COLUMN contrast is a measured deficit in both panels.
+
+WHICH PANEL TO PUT IN THE PAPER
+  INT8 on holdout4 is the honest headline figure: it is the shipped artifact, on
+  held-out seeds, and it reproduces the recorded 95.33% exactly.
+  FP32 on the protocol seeds (Results/spawn_map.txt, 95.67%) is then a second,
+  independent confirmation rather than the primary claim.
