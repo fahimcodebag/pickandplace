@@ -1228,8 +1228,14 @@ upstream AprilTag never checks a malloc — and a host stack measurement had
 overstated the need. A silent fallback to the PC's ground-truth pose once scored
 19/20 with zero detections; the HIL harness now reports perception outcomes.
 
-**On hardware:** peak heap 172.7 KB of 213.7 KB, detection 192–576 ms, 0 crashes,
-no heap drift; HIL 18/20 episodes on the board's own pose. Higher resolution does
+**On hardware — two separate runs, not one.** The 6-invocation validation run peaked
+at **172.7 KB** of 213.7 KB with detection **192–576 ms** (mean 451); the later
+20-episode HIL run *with perception accounting* peaked at **187.3 KB** with detection
+**337–582 ms** (mean 487) and ran **18/20** episodes on the board's own pose. Both: 0
+crashes, no heap drift. The higher peak is the one to quote beside the 18/20, because
+the first run saw only home-pose frames while retries from displaced poses produce
+more clusters (`Results/on_device_perception.txt`); 187.3 KB against the ~187 KB
+worst case this configuration was sized to is the margin that budget bought. Higher resolution does
 not help (640×480 does not fit and detects no better); 160×120 cannot buy back
 error correction. **Deployed corrector:** FP32, 1,571 parameters
 (`tag_residual_wrist32.json`, 6.1 KB).

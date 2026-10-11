@@ -41,3 +41,29 @@ place actor used the bi_s0 grasp WITH the anchor on; this run uses the deployed
 c2m512_s1 grasp with the anchor off, which is the deployed configuration and is
 why it scores higher (95.67%). Do not present the two as the same
 measurement.
+
+PRECISION, SEEDS, AND WHY 95.67% IS NOT THE 95.33% HEADLINE
+--------------------------------------------------------------------------------
+Asked of this file: which configuration is "dep"?  Fully: eval_spawn_map_job.sh
+(committed bdd5f7a) is the single source -- grasp
+checkpoints/td3_grasp_rand_td3_ln_c2m512_s1/best, place checkpoints/td3_place/best,
+--object-type bread, --regrasp --rc-steps 60 --rot-anchor-eps 0
+--success-criterion robosuite, native random spawn (fsm_sim's default; --fixed-spawn
+opts out), rule layer at fsm_sim.py's module defaults.
+
+PRECISION: FP32.  fsm_sim.py loads the Torch actor_td3 weights, so this figure is
+the FP32 host pipeline.  It is NOT the INT8 TFLite artifact.
+
+SEEDS: the 12 PROTOCOL seeds (7 31 47 89 101 123 211 307 401 503 555 2024), which
+include the 4 that other studies use for selection.  Not a held-out set.
+
+So 95.67% here and the 95.33% in Results/hil_hardware_validation.txt /
+Results/critic_capacity_2m.txt are DIFFERENT MEASUREMENTS and must not be presented
+as the same one or as a replication:
+    95.33%  c2m512_s1 INT8, held out on 12 seeds never used for selection
+    94.92%  the same, FP32
+    95.67%  this run: FP32, anchor OFF, 12 protocol seeds
+They differ in precision, in anchor state, and in seed set.  The agreement to
+within ~0.3-0.8 points is reassuring about the pipeline but is NOT a validation of
+one by the other.  For a like-for-like comparison with 95.33% the run would have to
+be repeated on the INT8 artifact over the same held-out seeds.
