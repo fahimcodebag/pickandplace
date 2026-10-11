@@ -57,13 +57,32 @@ the FP32 host pipeline.  It is NOT the INT8 TFLite artifact.
 SEEDS: the 12 PROTOCOL seeds (7 31 47 89 101 123 211 307 401 503 555 2024), which
 include the 4 that other studies use for selection.  Not a held-out set.
 
-So 95.67% here and the 95.33% in Results/hil_hardware_validation.txt /
-Results/critic_capacity_2m.txt are DIFFERENT MEASUREMENTS and must not be presented
-as the same one or as a replication:
-    95.33%  c2m512_s1 INT8, held out on 12 seeds never used for selection
-    94.92%  the same, FP32
-    95.67%  this run: FP32, anchor OFF, 12 protocol seeds
-They differ in precision, in anchor state, and in seed set.  The agreement to
-within ~0.3-0.8 points is reassuring about the pipeline but is NOT a validation of
-one by the other.  For a like-for-like comparison with 95.33% the run would have to
-be repeated on the INT8 artifact over the same held-out seeds.
+CORRECTION 2026-10-12: an earlier revision of this file said the headline figures
+differ from this run "in anchor state".  THAT WAS WRONG, caught on review.
+Results/orientation_anchor_c2m512.txt 1 records both headlines as measured at
+--rot-anchor-eps 0: "random FP32 1139/1200 = 94.92%, random INT8 1144/1200 =
+95.33% ... The recorded headline is exactly what the harness gives with the anchor
+off -- which is also what the firmware does (the .ino writes 0)."  Same flags, same
+success criterion (robosuite is fsm_sim's default).  The corrected comparison:
+
+    94.92%  FP32 grasp + FP32 place, anchor off, holdout4 seeds
+            (13 59 71 137 199 257 331 419 547 601 733 911), 1,200 episodes
+    95.33%  the same with the INT8 grasp artifact, same seeds
+    95.67%  THIS RUN: same FP32 configuration, anchor off, but the 12 PROTOCOL
+            seeds (7 31 47 89 101 123 211 307 401 503 555 2024), 1,200 episodes
+
+  vs 94.92%: differs ONLY in the seed set -- the two seed sets are disjoint.  So
+  this is a genuine cross-seed reproduction of the FP32 configuration, +0.75
+  points on an independent 1,200 episodes, and may be described as such.
+  vs 95.33%: differs in precision (FP32 here, INT8 there) and in seed set, so it
+  is not comparable without re-running on the INT8 artifact.
+
+PRECISION remains worth stating in the caption: fsm_sim.py loads the Torch
+actor_td3 weights, so Fig 8 is the FP32 host pipeline, not the INT8 artifact that
+ships.
+
+THE FAR-x DEFICIT IS MORE THAN A TREND AT COLUMN LEVEL.  Individual cells hold
+34-63 episodes and should indeed be read cautiously, but the column contrast
+pools them: x5 scores 216/241 = 89.6% against 932/959 = 97.2% for x1-x4, a
+-7.6 point difference, two-proportion z = -5.15, significant at 0.05.  Describe
+single CELLS as indicative and the COLUMN as a measured deficit.
