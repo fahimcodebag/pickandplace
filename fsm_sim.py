@@ -708,6 +708,15 @@ def main():
             frames.append(im[::-1])          # MuJoCo renders bottom-up
         for attempt in range(1, MAX_GRASP_ATTEMPTS + 1):
             obs = env.reset(); fsm = FSM(); attempts = attempt
+            # Spawn pose of THIS attempt. The respawn-and-retry loop below can
+            # reset up to MAX_GRASP_ATTEMPTS times, so only the last reset before
+            # the break is the pose the episode was actually scored on -- which is
+            # why this cannot be recovered after the fact from the seed alone.
+            _sb = raw.obj_body_id[raw.objects[raw.object_id].name]
+            _sp = raw.sim.data.body_xpos[_sb].copy()
+            _sq = raw.sim.data.body_xquat[_sb].copy()          # MuJoCo: w x y z
+            _syaw = float(np.arctan2(2 * (_sq[0] * _sq[3] + _sq[1] * _sq[2]),
+                                     1 - 2 * (_sq[2] ** 2 + _sq[3] ** 2)))
             fsm.regrasp_enabled = a.regrasp
             fsm.unjam_enabled = a.unjam
             fsm.pose_gate_enabled = a.pose_gate
@@ -736,7 +745,12 @@ def main():
                          stage_exit=fsm.stage_exit,
                          stage_x=round(fsm.stage_pos[0], 4),
                          stage_y=round(fsm.stage_pos[1], 4),
-                         stage_z=round(fsm.stage_pos[2], 4)))
+                         stage_z=round(fsm.stage_pos[2], 4),
+                         spawn_x=round(float(_sp[0]), 4),
+                         spawn_y=round(float(_sp[1]), 4),
+                         spawn_z=round(float(_sp[2]), 4),
+                         spawn_yaw=round(_syaw, 4),
+                         ))
             continue
         # --- scored portion
         n = 0
@@ -765,7 +779,12 @@ def main():
                          stage_exit=fsm.stage_exit,
                          stage_x=round(fsm.stage_pos[0], 4),
                          stage_y=round(fsm.stage_pos[1], 4),
-                         stage_z=round(fsm.stage_pos[2], 4)))
+                         stage_z=round(fsm.stage_pos[2], 4),
+                         spawn_x=round(float(_sp[0]), 4),
+                         spawn_y=round(float(_sp[1]), 4),
+                         spawn_z=round(float(_sp[2]), 4),
+                         spawn_yaw=round(_syaw, 4),
+                         ))
         if frames and not (a.video_failures_only and ok):
             import cv2, os as _os
             _os.makedirs(a.video, exist_ok=True)

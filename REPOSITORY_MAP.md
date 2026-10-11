@@ -216,6 +216,7 @@ Section numbers are `thesis_context.md` sections.
 | `place_batch_holdout/` | Held-out scoring of all 18 batch runs at peak snapshot / `best/` / final weights, 8 unused seeds × 100, deduplicated by actor md5 (§9.18). |
 | `place_selection/` | Place-checkpoint selection on end-to-end success, re-scored on 8 held-out seeds × 100: peak vs `best/` vs final weights vs reference (§9.18). |
 | `place_long2m/` | Rolling 2-seed × 50 screen of every snapshot of the 2M TD3 and SAC runs (`es_watch.py --no-stop`). The screen that locates peaks; not a headline protocol. |
+| `spawn_map.txt`, `spawn_map/` | End-to-end success vs SPAWN POSE for the deployed stack (Fig 8), 12 seeds × 100 = 1,200 episodes: 95.67% overall, all 25 cells of the 5×5 grid populated, and the only gradient is in x (far column 89.6% vs 97.2% elsewhere). `spawn_map/grid_5x5.csv` is plot-ready; `fsm_sim.py` now records `spawn_x/y/z/yaw` per episode. |
 | `place_algo2/` | Rolling 2-seed × 50 screen of the PPO and entropy-tuned-SAC arms. PPO fails 3/3 (peak 1-6%); `sacE_s52` reached 80%. Both arms censored by a power loss (§9.18, `place_training_batches.txt` §7). |
 | `place_2m_best/` | Headline scoring of the finished 2M batch, 12 seeds × 100 paired: `best/` and peak snapshots against the warm-start source. Shows `best/` can be catastrophically wrong (§9.18, `place_training_batches.txt` §6b/§6c). |
 | `cereal_scratch/` | Cereal from scratch vs warm-started cereal on transitions: `report.txt`; `eval.tsv` (4×50 per checkpoint), `protocol.tsv` (12×50), `control.tsv` (positive control) (§9.18). |

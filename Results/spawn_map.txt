@@ -1,0 +1,43 @@
+END-TO-END SUCCESS vs SPAWN POSE -- THE DEPLOYED STACK (Fig 8)
+================================================================================
+Grasp checkpoints/td3_grasp_rand_td3_ln_c2m512_s1/best + place
+checkpoints/td3_place/best, bread, NATIVE random spawn (position + rotation),
+--rot-anchor-eps 0 (the anchor costs c2m512_s1 2.75 FP32 / 2.50 INT8 points,
+thesis_context 9.17.1), success = robosuite's criterion.
+Protocol: 12 seeds x 100 = 1,200 episodes, end-to-end through fsm_sim.py
+(eval_spawn_map.sh). Spawn pose is the pose of the SCORED attempt: the
+respawn-and-retry loop resets up to 8 times, so this cannot be recovered from the
+seed after the fact -- fsm_sim.py now records spawn_x/y/z/yaw per episode.
+
+HOST-ONLY, AND WHY THAT IS SOUND. No HIL run is needed: on-device inference
+matches desktop TFLite EXACTLY on all 14 outputs (boot self-test), INT8 scores
+95.33% vs FP32 94.92%, and HIL reached 97/100 under random spawn. The host
+pipeline is therefore representative of the board, and HIL would cap the sample
+at ~20 episodes instead of 1,200. Cite this figure as the deployed POLICY STACK
+in simulation, not as an on-device measurement.
+
+OVERALL 95.67% (1148/1200)
+  spawn x -0.0149 .. +0.2149 (230 mm)
+  spawn y -0.4148 .. -0.0852 (330 mm)
+
+5x5 GRID -- success % (n). Rows = y bin lower edge, cols = x bin lower edge.
+          x1:-0.015  x2:+0.031  x3:+0.077  x4:+0.123  x5:+0.169
+  y5 -0.151    97.8(45)   100.0(40)    95.8(48)    98.4(63)    95.3(43)
+  y4 -0.217    97.8(46)   100.0(40)    97.7(43)   100.0(59)    90.7(54)
+  y3 -0.283    97.8(45)   100.0(52)    95.5(44)   100.0(52)    85.7(56)
+  y2 -0.349    95.9(49)    91.7(48)    98.2(57)    86.8(38)    94.4(54)
+  y1 -0.415    98.1(52)    95.3(43)   100.0(46)    93.9(49)    79.4(34)
+
+  cells 25, all populated: min 34, median 48, max 63
+
+THE ONE REAL GRADIENT: column means by x
+  x1 97.5%  x2 97.3%  x3 97.5%  x4 96.6%  x5 89.6%
+  x5 (the far column, +169..+215 mm) averages 89.6% against
+  97.2% over x1-x4, and its worst cell is 79.4% (n=34).
+  Row means are flat by comparison, so the loss is in x, not in reach distance.
+
+CAVEAT ON COMPARING THIS TO 93.25%. The 93.25% figure recorded elsewhere for this
+place actor used the bi_s0 grasp WITH the anchor on; this run uses the deployed
+c2m512_s1 grasp with the anchor off, which is the deployed configuration and is
+why it scores higher (95.67%). Do not present the two as the same
+measurement.
