@@ -37,11 +37,11 @@ SEEDS="7 31 47 89 101 123 211 307 401 503 555 2024"
 # Perception flags of the FP32 row. Reconstructed -- the original command line
 # was not logged -- which is exactly what the gate in step 2 checks.
 FLAGS="--mode latch --camera robot0_eye_in_hand --width 320 --height 240 \
---backend esp32 --residual-model esp32_apriltag/tag_residual_wrist32.json \
+--backend esp32 --residual-model assets/tag_residual_wrist32.json \
 --detect-until-first --episodes 50"
 
 for f in $G/actor_td3 $P/actor_td3 $GT $PT $REF/final_s7.csv \
-         esp32_apriltag/tag_residual_wrist32.json; do
+         assets/tag_residual_wrist32.json; do
   [ -e "$f" ] || { echo "missing: $f"; exit 1; }
 done
 
