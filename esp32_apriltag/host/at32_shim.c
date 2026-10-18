@@ -11,6 +11,14 @@
 #include "tag16h5.h"
 #include "common/image_u8.h"
 
+/* Decoder error correction. The firmware calls add_family_bits(..., 0)
+ * (at32_perception.h), which drops the persistent quick-decode table; this
+ * port's add_family() defaults to 1. Override with -DAT_BITS_CORRECTED=1 to
+ * reproduce the bits=1 row of Results/on_device_perception.txt. */
+#ifndef AT_BITS_CORRECTED
+#define AT_BITS_CORRECTED 0
+#endif
+
 typedef struct { int id; float p[8]; float cxy[2]; int hamming; float dm; } at32_det_t;
 
 static apriltag_family_t   *g_tf = NULL;
@@ -20,7 +28,7 @@ void at32_init(float decimate, float sigma, int refine_edges){
     if(g_td) return;
     g_tf = tag16h5_create();
     g_td = apriltag_detector_create();
-    apriltag_detector_add_family(g_td, g_tf);
+    apriltag_detector_add_family_bits(g_td, g_tf, AT_BITS_CORRECTED);
     g_td->quad_decimate = decimate;
     g_td->quad_sigma    = sigma;
     g_td->nthreads      = 1;          // the ESP32 build is single threaded
